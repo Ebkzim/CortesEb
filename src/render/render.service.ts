@@ -11,6 +11,7 @@ import { cutsSchema, type Clip } from '../contracts/cuts.js';
 import { captionsSchema, silencesSchema, sourceMetaSchema } from '../contracts/media.js';
 import type { RenderWatermark } from '../contracts/render.js';
 import { MediaTools } from '../media/media-tools.js';
+import { TargetsService } from '../planning/targets.service.js';
 import { SFX_NAMES, SfxLibrary } from '../sfx/sfx-library.js';
 import type { Workspace } from '../workspace/workspace.js';
 import { ClipComposer, type RenderContext } from './clip-composer.js';
@@ -39,6 +40,7 @@ export class RenderService {
   constructor(
     private readonly config: UserConfigStore,
     private readonly accounts: AccountService,
+    private readonly targets: TargetsService,
     private readonly media: MediaTools,
     private readonly sfx: SfxLibrary,
     private readonly composer: ClipComposer,
@@ -54,6 +56,7 @@ export class RenderService {
     const cuts = await readJson(workspace.cuts, cutsSchema);
     const plan = await this.planTargets(cuts.clips, requested, workspace);
     const context = await this.buildContext(workspace);
+    await this.targets.assert(workspace);
     const base = path.resolve(outDir);
     const session = await this.engine.open(workspace.root);
     const results: ClipResult[] = [];

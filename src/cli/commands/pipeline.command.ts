@@ -5,6 +5,7 @@ import { exists } from '../../common/json-file.js';
 import { Output } from '../../common/output.js';
 import { VideoFetcher } from '../../download/video-fetcher.js';
 import { MediaTools } from '../../media/media-tools.js';
+import { TargetsService } from '../../planning/targets.service.js';
 import { RenderService } from '../../render/render.service.js';
 import { SfxGenerator } from '../../sfx/sfx-generator.js';
 import { TranscriptionService } from '../../transcription/transcription.service.js';
@@ -102,6 +103,68 @@ export class TranscriptCommand extends WorkspaceCommand {
     for (const line of await this.transcription.lines(new Workspace(options.work))) {
       this.output.line(line);
     }
+  }
+}
+
+const planOptions = z.object({
+  work: workDir,
+  minSeconds: z.coerce.number().positive().optional(),
+  maxSeconds: z.coerce.number().positive().optional(),
+  count: z.coerce.number().int().positive().optional(),
+});
+
+@Command({
+  name: 'plan',
+  description: 'define quantos cortes e de que duração, a partir do vídeo de origem',
+})
+export class PlanCommand extends WorkspaceCommand {
+  constructor(
+    private readonly targets: TargetsService,
+    private readonly output: Output,
+  ) {
+    super();
+  }
+
+  @Option({ flags: '--min-seconds <n>', description: 'duração mínima de cada corte' })
+  parseMinSeconds(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '--max-seconds <n>', description: 'duração máxima de cada corte' })
+  parseMaxSeconds(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '-c, --count <n>', description: 'quantidade de cortes' })
+  parseCount(value: string): string {
+    return value;
+  }
+
+  protected async execute(_params: string[], raw: RawOptions): Promise<void> {
+    const options = parseOptions(planOptions, raw);
+    const targets = await this.targets.define(new Workspace(options.work), {
+      ...(options.minSeconds === undefined ? {} : { minSeconds: options.minSeconds }),
+      ...(options.maxSeconds === undefined ? {} : { maxSeconds: options.maxSeconds }),
+      ...(options.count === undefined ? {} : { count: options.count }),
+    });
+    this.output.json(targets);
+  }
+}
+
+@Command({ name: 'check', description: 'confere o cuts.json contra o plano, sem renderizar' })
+export class CheckCommand extends WorkspaceCommand {
+  constructor(
+    private readonly targets: TargetsService,
+    private readonly output: Output,
+  ) {
+    super();
+  }
+
+  protected async execute(_params: string[], raw: RawOptions): Promise<void> {
+    const options = parseOptions(z.object({ work: workDir }), raw);
+    const check = await this.targets.check(new Workspace(options.work));
+    this.output.json(check);
+    if (!check.ok) process.exitCode = 1;
   }
 }
 

@@ -7,14 +7,17 @@ import { DownloadModule } from '../download/download.module.js';
 import { ImagesModule } from '../images/images.module.js';
 import { MediaModule } from '../media/media.module.js';
 import { NicheRegistry } from '../niches/niche-registry.js';
+import { PlanningModule } from '../planning/planning.module.js';
 import { RenderModule } from '../render/render.module.js';
 import { SfxModule } from '../sfx/sfx.module.js';
 import { TranscriptionModule } from '../transcription/transcription.module.js';
 import { AccountCommand, ConfigCommand, NichesCommand } from './commands/config.command.js';
 import { DoctorCommand, SetupCommand } from './commands/doctor.command.js';
 import {
+  CheckCommand,
   FetchCommand,
   FrameCommand,
+  PlanCommand,
   RenderCommand,
   SfxCommand,
   TranscribeCommand,
@@ -32,6 +35,7 @@ import {
     ImagesModule,
     SfxModule,
     RenderModule,
+    PlanningModule,
   ],
   providers: [
     DoctorService,
@@ -42,6 +46,8 @@ import {
     ConfigCommand,
     NichesCommand,
     FetchCommand,
+    PlanCommand,
+    CheckCommand,
     TranscribeCommand,
     TranscriptCommand,
     FrameCommand,
