@@ -22,6 +22,7 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/explicit-function-return-type': ['error', { allowExpressions: true }],
       '@typescript-eslint/no-extraneous-class': 'off',
+      '@typescript-eslint/no-unsafe-class-instance-assignment': 'off',
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       'security/detect-object-injection': 'off',
       'security/detect-non-literal-fs-filename': 'off',
