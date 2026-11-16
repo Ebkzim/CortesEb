@@ -10,6 +10,8 @@ import { GuardedCommand, parseOptions, type RawOptions } from '../guarded-comman
 const accountOptions = z.object({
   name: z.string().trim().min(1).max(40).optional(),
   logo: z.string().min(1).max(1024).optional(),
+  clearName: z.boolean().default(false),
+  clearLogo: z.boolean().default(false),
 });
 
 const ACCOUNT_ACTIONS = ['add', 'list', 'remove', 'default'] as const;
@@ -27,14 +29,27 @@ export class AccountCommand extends GuardedCommand {
     super();
   }
 
-  @Option({ flags: '-n, --name <nome>', description: 'nome que aparece na marca d’água' })
+  @Option({ flags: '-n, --name <nome>', description: 'nome da marca d’água (opcional)' })
   parseName(value: string): string {
     return value;
   }
 
-  @Option({ flags: '-l, --logo <arquivo>', description: 'imagem da logo (png, jpg ou webp)' })
+  @Option({
+    flags: '-l, --logo <arquivo>',
+    description: 'logo da marca d’água (opcional; png, jpg ou webp)',
+  })
   parseLogo(value: string): string {
     return value;
+  }
+
+  @Option({ flags: '--clear-name', description: 'remove o nome da marca d’água' })
+  parseClearName(): boolean {
+    return true;
+  }
+
+  @Option({ flags: '--clear-logo', description: 'remove a logo da marca d’água' })
+  parseClearLogo(): boolean {
+    return true;
   }
 
   protected async execute(params: string[], raw: RawOptions): Promise<void> {
@@ -61,6 +76,8 @@ export class AccountCommand extends GuardedCommand {
       await this.accounts.save(id, {
         ...(options.name === undefined ? {} : { name: options.name }),
         ...(options.logo === undefined ? {} : { logo: options.logo }),
+        ...(options.clearName ? { name: null } : {}),
+        ...(options.clearLogo ? { logo: null } : {}),
       }),
     );
   }
