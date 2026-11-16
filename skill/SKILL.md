@@ -80,7 +80,31 @@ cortes-eb fetch "LINK_OU_ARQUIVO" --work cortes/<slug>/work --role bottom
 
 Só links `https` são aceitos. Se o download falhar por limite de requisições, espere e tente de novo. Se o vídeo tiver restrição de idade, peça o arquivo. Nunca use os cookies do navegador do usuário.
 
-## 5. Transcrever
+## 5. Plano: quantidade e duração
+
+O usuário pode definir a duração dos cortes, a quantidade, os dois ou nenhum. Rode `plan` sempre, logo depois de baixar o vídeo de origem:
+
+```bash
+cortes-eb plan --work cortes/<slug>/work --min-seconds 30 --max-seconds 45
+cortes-eb plan --work cortes/<slug>/work --count 8
+cortes-eb plan --work cortes/<slug>/work --count 8 --min-seconds 30 --max-seconds 45
+cortes-eb plan --work cortes/<slug>/work
+```
+
+| O usuário informou | O que o plano calcula                               |
+| ------------------ | --------------------------------------------------- |
+| Faixa de duração   | A quantidade, pelo tamanho do vídeo.                |
+| Quantidade         | A faixa de duração, pelo tamanho do vídeo.          |
+| Os dois            | Nada. Só confere se cabe no vídeo.                  |
+| Nenhum             | 20 a 60 s e de 1 a 5 cortes, pelo tamanho do vídeo. |
+
+Se ele der só o mínimo ou só o máximo, o outro lado da faixa é calculado. A saída traz `count`, `minSeconds` e `maxSeconds`: diga esses três números ao usuário em uma linha antes de seguir. A duração vale para o corte pronto, já sem as pausas. Os limites são 10 a 180 s por corte e até 20 cortes.
+
+Se o pedido não couber no vídeo, o comando explica quantos cortes cabem. Repasse isso ao usuário e peça o ajuste.
+
+Pergunte a duração ou a quantidade junto com o pedido dos vídeos, numa única mensagem, deixando claro que é opcional.
+
+## 6. Transcrever
 
 ```bash
 cortes-eb transcribe --work cortes/<slug>/work --lang pt
@@ -89,16 +113,17 @@ cortes-eb transcript --work cortes/<slug>/work
 
 `--max-seconds N` transcreve só o começo, para testar rápido. `transcript` imprime linhas `[mm:ss] frase`. Leia em blocos.
 
-## 6. Escolher os cortes
+## 7. Escolher os cortes
 
 O usuário não escolhe os trechos. Você decide, seguindo `references/ganchos.md` e o guia do nicho.
 
 1. Mapeie os assuntos do vídeo e anote o minuto de cada bloco.
-2. Escolha de 3 a 5 cortes (2 se o vídeo tiver menos de 5 minutos), de 20 a 60 s, cada um de um assunto diferente e sem sobreposição de tempo.
+2. Escolha exatamente `count` cortes, cada um com duração final entre `minSeconds` e `maxSeconds`, de assuntos diferentes e sem sobreposição de tempo.
 3. Comece cada corte na frase de gancho e termine na frase que entrega a resposta.
-4. Dê nota de 0 a 10 a cada gancho e descarte o que ficar abaixo de 6. Se faltar corte bom, entregue menos e diga por quê.
+4. Dê nota de 0 a 10 a cada gancho. Se não houver `count` ganchos com nota 6 ou mais, diga ao usuário quantos bons existem e pergunte se ele prefere menos cortes ou aceitar os mais fracos. Para reduzir, rode `plan` de novo com `--count`.
 5. Confira o enquadramento com `cortes-eb frame --work cortes/<slug>/work --at 5`, olhe a imagem gerada e ajuste `focus`.
 6. Grave `work/cuts.json`.
+7. Rode `cortes-eb check --work cortes/<slug>/work`. Ele mostra a duração final de cada corte e o que está fora do plano, sem renderizar. Ajuste `start` e `end` até `ok` ser `true`. Como as pausas saem, o corte pronto fica mais curto que `end - start`.
 
 ```json
 {
@@ -151,7 +176,7 @@ cortes-eb sfx
 
 Nunca peça nem escreva uma chave de API no chat.
 
-## 7. Renderizar
+## 8. Renderizar
 
 ```bash
 cortes-eb render --work cortes/<slug>/work --out cortes/<slug> --account gta,filmes
@@ -159,9 +184,9 @@ cortes-eb render --work cortes/<slug>/work --out cortes/<slug> --account gta,fil
 
 `--account` aceita ids separados por vírgula ou `all`. Sem ele, vale a conta padrão. Um corte com `accounts` no `cuts.json` ignora o `--account`. Cada conta recebe os arquivos em `cortes/<slug>/<conta>/`. Sem nenhuma conta cadastrada, os arquivos saem em `cortes/<slug>/`, sem marca d'água. Um corte enviado a duas contas é renderizado duas vezes, uma com cada marca d'água.
 
-A saída lista cada corte por conta com `account`, `ok`, `seconds`, `warnings` e `error`. Se um corte falhar, mostre o erro e entregue os outros.
+O render recusa um `cuts.json` fora do plano. A saída lista cada corte por conta com `account`, `ok`, `seconds`, `warnings` e `error`. Se um corte falhar, mostre o erro e entregue os outros.
 
-## 8. Entregar
+## 9. Entregar
 
 Responda curto: os arquivos gerados por conta e uma tabela com assunto, gancho, duração, nota e título sugerido de cada corte.
 

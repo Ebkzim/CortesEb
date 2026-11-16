@@ -31,7 +31,7 @@ Tire pontos de promessa que o corte não cumpre, de trecho que depende do que ve
 
 - Início: no começo da frase de gancho, recuando cerca de 0,2 s do tempo da primeira palavra.
 - Fim: até 0,3 s depois da última palavra da frase que fecha o raciocínio.
-- Duração: 20 a 60 s. Menos de 20 s raramente tem resposta. Mais de 60 s perde ritmo. Um assunto excelente pode ir a 75 s.
+- Duração: a faixa do plano (`cortes-eb plan`). Sem pedido do usuário, 20 a 60 s. Corte curto demais raramente tem resposta, e longo demais perde ritmo.
 - Nunca corte no meio de uma palavra. Use os tempos da transcrição.
 
 ## Formatos que costumam funcionar
