@@ -11,8 +11,11 @@ export const MAX_ACCOUNTS = 20;
 const accountId = z.string().regex(ACCOUNT_ID_PATTERN);
 
 export const accountSchema = z.strictObject({
-  name: z.string().trim().min(1).max(40),
-  logo: z.string().regex(/^logo-[a-z0-9-]{1,32}\.(png|jpg|webp)$/),
+  name: z.string().trim().min(1).max(40).optional(),
+  logo: z
+    .string()
+    .regex(/^logo-[a-z0-9-]{1,32}\.(png|jpg|webp)$/)
+    .optional(),
 });
 
 export const userConfigSchema = z.strictObject({

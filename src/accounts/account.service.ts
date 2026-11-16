@@ -14,14 +14,14 @@ import { ImageFetcher } from '../images/image-fetcher.js';
 
 export interface AccountView {
   id: string;
-  name: string;
-  logo: string;
+  name: string | null;
+  logo: string | null;
   isDefault: boolean;
 }
 
 export interface AccountInput {
-  name?: string;
-  logo?: string;
+  name?: string | null;
+  logo?: string | null;
 }
 
 export const ALL_ACCOUNTS = 'all';
@@ -45,20 +45,25 @@ export class AccountService {
     if (current === undefined && Object.keys(config.accounts).length >= MAX_ACCOUNTS) {
       throw new AppError('INVALID_INPUT', `limite de ${MAX_ACCOUNTS} contas atingido`);
     }
-    const name = input.name ?? current?.name;
-    if (name === undefined) throw new AppError('INVALID_INPUT', 'informe --name para a conta nova');
+    const name = input.name === undefined ? current?.name : (input.name ?? undefined);
     let logo = current?.logo;
     if (input.logo !== undefined) {
-      const stored = await this.images.importFile(input.logo, this.paths.home, `logo-${id}`);
-      const fresh = path.basename(stored);
-      if (logo !== undefined && logo !== fresh)
+      const fresh =
+        input.logo === null
+          ? undefined
+          : path.basename(await this.images.importFile(input.logo, this.paths.home, `logo-${id}`));
+      if (logo !== undefined && logo !== fresh) {
         await fs.rm(this.paths.inHome(logo), { force: true });
+      }
       logo = fresh;
     }
-    if (logo === undefined) throw new AppError('INVALID_INPUT', 'informe --logo para a conta nova');
+    const account = {
+      ...(name === undefined ? {} : { name }),
+      ...(logo === undefined ? {} : { logo }),
+    };
     const next = await this.config.replace({
       ...config,
-      accounts: { ...config.accounts, [id]: { name, logo } },
+      accounts: { ...config.accounts, [id]: account },
       defaultAccount: config.defaultAccount ?? id,
     });
     return this.pick(next, id);
@@ -78,7 +83,7 @@ export class AccountService {
       accounts,
       ...(fallback === undefined ? {} : { defaultAccount: fallback }),
     });
-    await fs.rm(this.paths.inHome(target.logo), { force: true });
+    if (target.logo !== undefined) await fs.rm(this.paths.inHome(target.logo), { force: true });
     return this.views(next);
   }
 
@@ -91,9 +96,6 @@ export class AccountService {
   async resolve(ids: readonly string[] | undefined): Promise<AccountView[]> {
     const config = await this.config.load();
     const all = this.views(config);
-    if (all.length === 0) {
-      throw new AppError('NOT_CONFIGURED', 'nenhuma conta cadastrada: rode cortes-eb account add');
-    }
     if (ids === undefined) {
       const fallback = all.find((account) => account.isDefault) ?? all[0];
       return fallback === undefined ? [] : [fallback];
@@ -106,7 +108,8 @@ export class AccountService {
     });
   }
 
-  async logoFile(account: AccountView): Promise<string> {
+  async logoFile(account: AccountView): Promise<string | null> {
+    if (account.logo === null) return null;
     const file = this.paths.inHome(account.logo);
     if (!(await exists(file))) {
       throw new AppError('MISSING_FILE', `a logo da conta ${account.id} sumiu: cadastre de novo`);
@@ -117,8 +120,8 @@ export class AccountService {
   private views(config: UserConfig): AccountView[] {
     return Object.entries(config.accounts).map(([id, account]) => ({
       id,
-      name: account.name,
-      logo: account.logo,
+      name: account.name ?? null,
+      logo: account.logo ?? null,
       isDefault: config.defaultAccount === id,
     }));
   }

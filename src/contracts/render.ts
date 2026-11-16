@@ -31,8 +31,8 @@ export type RenderImage = {
 };
 
 export type RenderWatermark = {
-  logo: string;
-  name: string;
+  logo: string | null;
+  name: string | null;
 };
 
 export type SplitCutProps = {
@@ -47,7 +47,7 @@ export type SplitCutProps = {
   sourceWidth: number;
   sourceHeight: number;
   pages: CaptionPage[];
-  watermark: RenderWatermark;
+  watermark: RenderWatermark | null;
   sfx: RenderSound[];
   images: RenderImage[];
 };
