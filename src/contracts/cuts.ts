@@ -4,6 +4,7 @@ const seconds = z.number().nonnegative();
 const percent = z.number().min(0).max(100);
 
 export const CLIP_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
+export const ACCOUNT_REF_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
 export const focusSchema = z.strictObject({ x: percent, y: percent });
 
@@ -43,6 +44,7 @@ export const clipSchema = z
     hook: z.string().max(500).optional(),
     score: z.number().min(0).max(10).optional(),
     title: z.string().max(200).optional(),
+    accounts: z.array(z.string().regex(ACCOUNT_REF_PATTERN)).min(1).max(20).optional(),
   })
   .refine((clip) => clip.end > clip.start, { message: 'end must be greater than start' });
 

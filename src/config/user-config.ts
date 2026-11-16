@@ -5,11 +5,19 @@ import { AppPaths } from './app-paths.js';
 
 export const WHISPER_MODELS = ['tiny', 'base', 'small', 'medium', 'large-v3'] as const;
 
-export const LOGO_PATTERN = /^logo\.(png|jpg|jpeg|webp)$/;
+export const ACCOUNT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
+export const MAX_ACCOUNTS = 20;
+
+const accountId = z.string().regex(ACCOUNT_ID_PATTERN);
+
+export const accountSchema = z.strictObject({
+  name: z.string().trim().min(1).max(40),
+  logo: z.string().regex(/^logo-[a-z0-9-]{1,32}\.(png|jpg|webp)$/),
+});
 
 export const userConfigSchema = z.strictObject({
-  profileName: z.string().trim().min(1).max(40).optional(),
-  logo: z.string().regex(LOGO_PATTERN).optional(),
+  accounts: z.record(accountId, accountSchema).default({}),
+  defaultAccount: accountId.optional(),
   whisperModel: z.enum(WHISPER_MODELS).default('small'),
   language: z
     .string()
@@ -22,6 +30,7 @@ export const userConfigSchema = z.strictObject({
     .default('gta6'),
 });
 
+export type Account = z.infer<typeof accountSchema>;
 export type UserConfig = z.infer<typeof userConfigSchema>;
 
 const CONFIG_MODE = 0o600;
@@ -36,7 +45,11 @@ export class UserConfigStore {
   }
 
   async update(patch: Partial<UserConfig>): Promise<UserConfig> {
-    const next = userConfigSchema.parse({ ...(await this.load()), ...patch });
+    return this.replace({ ...(await this.load()), ...patch });
+  }
+
+  async replace(config: UserConfig): Promise<UserConfig> {
+    const next = userConfigSchema.parse(config);
     await writeJson(this.paths.configFile, next, CONFIG_MODE);
     return next;
   }
