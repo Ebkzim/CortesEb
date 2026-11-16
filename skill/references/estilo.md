@@ -9,7 +9,7 @@ O visual vem dos componentes em `remotion/` e dos valores em `remotion/theme.ts`
 | Metade de cima (0 a 960 px)     | Vídeo de origem, preenchendo a área. `focus` define o ponto que fica centralizado. `crop` amplia uma região específica. |
 | Metade de baixo (960 a 1920 px) | Segundo vídeo, sem áudio, em loop se for mais curto que o corte. Cada corte começa num ponto diferente dele.            |
 | Divisa (y = 960)                | Faixa escura em degradê de 340 px com a legenda por cima.                                                               |
-| Canto superior direito          | Marca d'água: logo em círculo e nome do perfil.                                                                         |
+| Canto superior direito          | Marca d'água: logo em círculo e nome da conta.                                                                          |
 
 ## Legenda
 

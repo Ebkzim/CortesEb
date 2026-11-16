@@ -1,6 +1,6 @@
 ---
 name: cortes-eb
-description: Transforma um vídeo longo (link ou arquivo) de streamer, gameplay, podcast, filme ou série em vários cortes verticais para Shorts, cada um com um assunto e um gancho próprios, em tela dividida, com legenda palavra por palavra, pausas removidas, jump cuts com zoom e a marca d'água do perfil. Tem um nicho especial de GTA 6. Use com /cortes-eb ou quando o usuário pedir cortes, "cortar esse vídeo" ou "fazer shorts desse vídeo".
+description: Transforma um vídeo longo (link ou arquivo) de streamer, gameplay, podcast, filme ou série em vários cortes verticais para Shorts, cada um com um assunto e um gancho próprios, em tela dividida, com legenda palavra por palavra, pausas removidas, jump cuts com zoom e a marca d'água da conta. Suporta várias contas, cada uma com seu nome e logo. Tem um nicho especial de GTA 6. Use com /cortes-eb ou quando o usuário pedir cortes, "cortar esse vídeo" ou "fazer shorts desse vídeo".
 ---
 
 # cortes-eb
@@ -22,21 +22,26 @@ cortes-eb doctor
 | `ffmpeg`, `ffprobe` | Peça para o usuário instalar o FFmpeg e pare.           |
 | `whisper`           | Avise que o download é grande e rode `cortes-eb setup`. |
 | `ytdlp`             | Aceite só arquivo de vídeo, não link.                   |
-| `profile`           | Faça o passo 1.                                         |
+| `accounts`          | Lista vazia: faça o passo 1.                            |
 | `sfx`               | Opcional. Veja "Efeitos sonoros".                       |
 | `googleImages`      | Opcional. Veja "Imagens".                               |
 
 Quando faltar algo opcional, avise uma vez, em poucas linhas, com as opções. Não pare o trabalho por isso e não pergunte de novo na mesma conversa.
 
-## 1. Perfil (só na primeira vez)
+## 1. Contas
 
-Se `profile` for `false`, peça numa única mensagem o nome do perfil e a logo (PNG, JPG ou WebP, de preferência quadrada). Depois:
+Cada conta tem um id curto (minúsculas, números e hífen), o nome que aparece na marca d'água (pode ser o @) e uma logo. Se `accounts` vier vazio, peça numa única mensagem o nome e a logo (PNG, JPG ou WebP, de preferência quadrada) de cada conta que o usuário quer usar.
 
 ```bash
-cortes-eb profile --name "NOME DO PERFIL" --logo "/caminho/da/logo.png"
+cortes-eb account add gta --name "@canalgta" --logo "/caminho/da/logo.png"
+cortes-eb account list
+cortes-eb account default gta
+cortes-eb account remove gta
 ```
 
-A marca d'água é a logo em círculo com o nome ao lado, no canto superior direito de todos os cortes. Não peça de novo, a menos que o usuário queira trocar.
+`account add` com um id que já existe atualiza só o que for passado. A primeira conta cadastrada vira a padrão. A marca d'água é a logo em círculo com o nome ao lado, no canto superior direito.
+
+Se houver mais de uma conta, pergunte para quais contas os cortes vão antes de renderizar, a menos que o usuário já tenha dito. Ele pode mandar todos os cortes para as mesmas contas ou escolher por corte.
 
 ## 2. Nicho
 
@@ -114,6 +119,7 @@ O usuário não escolhe os trechos. Você decide, seguindo `references/ganchos.m
 | `turns`                           | Segundos em que o assunto vira. Só nesses pontos entram flash e whoosh. De 3 a 5 por corte.                                    |
 | `images`                          | Até 10. Cada uma com `file` ou `query`, `at` em segundos do vídeo de origem e `dur` opcional.                                  |
 | `bottomStart`                     | Segundo em que o vídeo de baixo começa.                                                                                        |
+| `accounts`                        | Opcional. Ids das contas que recebem este corte. Sem ele, valem as contas do `--account` do render.                            |
 | `topic`, `hook`, `score`, `title` | Texto de apoio para a entrega.                                                                                                 |
 
 Campos desconhecidos são recusados. Detalhes do visual em `references/estilo.md`.
@@ -137,18 +143,20 @@ Nunca peça nem escreva uma chave de API no chat.
 ## 7. Renderizar
 
 ```bash
-cortes-eb render --work cortes/<slug>/work --out cortes/<slug>
+cortes-eb render --work cortes/<slug>/work --out cortes/<slug> --account gta,filmes
 ```
 
-A saída lista cada corte com `ok`, `seconds`, `warnings` e `error`. Se um corte falhar, mostre o erro e entregue os outros.
+`--account` aceita ids separados por vírgula ou `all`. Sem ele, vale a conta padrão. Um corte com `accounts` no `cuts.json` ignora o `--account`. Cada conta recebe os arquivos em `cortes/<slug>/<conta>/`. Um corte enviado a duas contas é renderizado duas vezes, uma com cada marca d'água.
+
+A saída lista cada corte por conta com `account`, `ok`, `seconds`, `warnings` e `error`. Se um corte falhar, mostre o erro e entregue os outros.
 
 ## 8. Entregar
 
-Responda curto: os arquivos gerados e uma tabela com assunto, gancho, duração, nota e título sugerido de cada corte.
+Responda curto: os arquivos gerados por conta e uma tabela com assunto, gancho, duração, nota e título sugerido de cada corte.
 
 ## Regras
 
 - Cada execução é independente. Não reaproveite o `cuts.json` de outro vídeo.
 - A legenda é o que a pessoa falou. Não invente texto nem mude o sentido.
-- Não mude a marca d'água sem o usuário pedir.
+- Não mude o nome nem a logo de uma conta sem o usuário pedir.
 - Se algo falhar, veja `references/problemas.md`.
