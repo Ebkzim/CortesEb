@@ -15,7 +15,6 @@
 | Rosto cortado                      | Pessoa fora do centro                      | Ajuste `focus` ou use `crop`.                                                                                                 |
 | Câmera borrada                     | Câmera pequena ampliada                    | Use uma origem com a pessoa em plano grande ou em resolução maior.                                                            |
 | `erro: cuts.json inválido (...)`   | Campo fora da regra                        | A mensagem aponta o campo. Corrija e renderize de novo.                                                                       |
-| `erro: nenhuma conta cadastrada`   | Falta cadastrar uma conta                  | Rode `cortes-eb account add <id> --name ... --logo ...`.                                                                      |
 | `erro: conta desconhecida`         | Id errado no `--account` ou no `cuts.json` | Confira os ids com `cortes-eb account list`.                                                                                  |
 | Imagem pulada em `warnings`        | Sem chaves do Google ou imagem inválida    | Envie a imagem como `file` ou siga sem ela.                                                                                   |
 | Corte sem voz                      | O arquivo de origem não tem áudio          | Confira com `ffprobe -show_streams work/source.mp4`.                                                                          |

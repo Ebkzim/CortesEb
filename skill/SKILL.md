@@ -22,24 +22,35 @@ cortes-eb doctor
 | `ffmpeg`, `ffprobe` | Peça para o usuário instalar o FFmpeg e pare.           |
 | `whisper`           | Avise que o download é grande e rode `cortes-eb setup`. |
 | `ytdlp`             | Aceite só arquivo de vídeo, não link.                   |
-| `accounts`          | Lista vazia: faça o passo 1.                            |
+| `accounts`          | Opcional. Veja o passo 1.                               |
 | `sfx`               | Opcional. Veja "Efeitos sonoros".                       |
 | `googleImages`      | Opcional. Veja "Imagens".                               |
 
 Quando faltar algo opcional, avise uma vez, em poucas linhas, com as opções. Não pare o trabalho por isso e não pergunte de novo na mesma conversa.
 
-## 1. Contas
+## 1. Contas (opcional)
 
-Cada conta tem um id curto (minúsculas, números e hífen), o nome que aparece na marca d'água (pode ser o @) e uma logo. Se `accounts` vier vazio, peça numa única mensagem o nome e a logo (PNG, JPG ou WebP, de preferência quadrada) de cada conta que o usuário quer usar.
+Uma conta é um destino para os cortes: um id curto (minúsculas, números e hífen) e, se o usuário quiser, um nome (pode ser o @) e uma logo (PNG, JPG ou WebP) para a marca d'água. Nome e logo são opcionais e independentes:
+
+| A conta tem     | Marca d'água no corte                                          |
+| --------------- | -------------------------------------------------------------- |
+| Nome e logo     | Logo em círculo com o nome ao lado, no canto superior direito. |
+| Só nome         | Só o nome.                                                     |
+| Só logo         | Só a logo.                                                     |
+| Nenhum dos dois | Nenhuma.                                                       |
 
 ```bash
 cortes-eb account add gta --name "@canalgta" --logo "/caminho/da/logo.png"
+cortes-eb account add games
+cortes-eb account add gta --clear-logo
 cortes-eb account list
 cortes-eb account default gta
 cortes-eb account remove gta
 ```
 
-`account add` com um id que já existe atualiza só o que for passado. A primeira conta cadastrada vira a padrão. A marca d'água é a logo em círculo com o nome ao lado, no canto superior direito.
+`account add` com um id que já existe atualiza só o que for passado. `--clear-name` e `--clear-logo` removem um item. A primeira conta cadastrada vira a padrão.
+
+Não exija nome nem logo. Se `accounts` vier vazio, pergunte uma vez se o usuário quer cadastrar contas ou seguir sem marca d'água. Sem nenhuma conta, o render sai direto na pasta de saída, sem marca d'água.
 
 Se houver mais de uma conta, pergunte para quais contas os cortes vão antes de renderizar, a menos que o usuário já tenha dito. Ele pode mandar todos os cortes para as mesmas contas ou escolher por corte.
 
@@ -146,7 +157,7 @@ Nunca peça nem escreva uma chave de API no chat.
 cortes-eb render --work cortes/<slug>/work --out cortes/<slug> --account gta,filmes
 ```
 
-`--account` aceita ids separados por vírgula ou `all`. Sem ele, vale a conta padrão. Um corte com `accounts` no `cuts.json` ignora o `--account`. Cada conta recebe os arquivos em `cortes/<slug>/<conta>/`. Um corte enviado a duas contas é renderizado duas vezes, uma com cada marca d'água.
+`--account` aceita ids separados por vírgula ou `all`. Sem ele, vale a conta padrão. Um corte com `accounts` no `cuts.json` ignora o `--account`. Cada conta recebe os arquivos em `cortes/<slug>/<conta>/`. Sem nenhuma conta cadastrada, os arquivos saem em `cortes/<slug>/`, sem marca d'água. Um corte enviado a duas contas é renderizado duas vezes, uma com cada marca d'água.
 
 A saída lista cada corte por conta com `account`, `ok`, `seconds`, `warnings` e `error`. Se um corte falhar, mostre o erro e entregue os outros.
 
