@@ -1,14 +1,15 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Injectable } from '@nestjs/common';
+import { AccountService, type AccountView } from '../accounts/account.service.js';
 import { AppError } from '../common/app-error.js';
 import { exists, readJson, writeJson } from '../common/json-file.js';
 import { Output } from '../common/output.js';
 import { resolveInside } from '../common/safe-path.js';
-import { AppPaths } from '../config/app-paths.js';
-import { UserConfigStore, type UserConfig } from '../config/user-config.js';
-import { cutsSchema } from '../contracts/cuts.js';
+import { UserConfigStore } from '../config/user-config.js';
+import { cutsSchema, type Clip } from '../contracts/cuts.js';
 import { captionsSchema, silencesSchema, sourceMetaSchema } from '../contracts/media.js';
+import type { RenderWatermark } from '../contracts/render.js';
 import { MediaTools } from '../media/media-tools.js';
 import { SFX_NAMES, SfxLibrary } from '../sfx/sfx-library.js';
 import type { Workspace } from '../workspace/workspace.js';
@@ -18,6 +19,7 @@ import type { StagedSounds } from './sound-plan.js';
 
 export interface ClipResult {
   id: string;
+  account: string;
   file: string;
   seconds: number;
   ok: boolean;
@@ -25,11 +27,16 @@ export interface ClipResult {
   error?: string;
 }
 
+interface Target {
+  account: AccountView;
+  watermark: RenderWatermark;
+}
+
 @Injectable()
 export class RenderService {
   constructor(
-    private readonly paths: AppPaths,
     private readonly config: UserConfigStore,
+    private readonly accounts: AccountService,
     private readonly media: MediaTools,
     private readonly sfx: SfxLibrary,
     private readonly composer: ClipComposer,
@@ -37,33 +44,40 @@ export class RenderService {
     private readonly output: Output,
   ) {}
 
-  async run(workspace: Workspace, outDir: string): Promise<ClipResult[]> {
-    const config = await this.config.load();
+  async run(
+    workspace: Workspace,
+    outDir: string,
+    requested: readonly string[] | undefined,
+  ): Promise<ClipResult[]> {
     const cuts = await readJson(workspace.cuts, cutsSchema);
-    const context = await this.buildContext(workspace, config);
-    const target = path.resolve(outDir);
-    await fs.mkdir(target, { recursive: true });
+    const plan = await this.planTargets(cuts.clips, requested, workspace);
+    const context = await this.buildContext(workspace);
+    const base = path.resolve(outDir);
     const session = await this.engine.open(workspace.root);
     const results: ClipResult[] = [];
     try {
       for (const [index, clip] of cuts.clips.entries()) {
-        const file = resolveInside(target, `${clip.id}.mp4`);
         const composed = await this.composer.compose(clip, index, context);
         const seconds = Number(composed.props.totalSeconds.toFixed(1));
-        await writeJson(workspace.file(`props-${clip.id}.json`), composed.props);
-        this.output.info(`> renderizando ${clip.id} (${seconds} s)`);
-        try {
-          await this.engine.render(session, composed.props, file);
-          results.push({ id: clip.id, file, seconds, ok: true, warnings: composed.warnings });
-        } catch (error) {
-          results.push({
-            id: clip.id,
-            file,
-            seconds,
-            ok: false,
-            warnings: composed.warnings,
-            error: error instanceof Error ? firstLine(error.message) : 'falha no render',
-          });
+        for (const target of plan.get(clip.id) ?? []) {
+          const folder = resolveInside(base, target.account.id);
+          const file = resolveInside(folder, `${clip.id}.mp4`);
+          const props = { ...composed.props, watermark: target.watermark };
+          await fs.mkdir(folder, { recursive: true });
+          await writeJson(workspace.file(`props-${clip.id}-${target.account.id}.json`), props);
+          this.output.info(`> renderizando ${clip.id} para ${target.account.id} (${seconds} s)`);
+          const result = { id: clip.id, account: target.account.id, file, seconds };
+          try {
+            await this.engine.render(session, props, file);
+            results.push({ ...result, ok: true, warnings: composed.warnings });
+          } catch (error) {
+            results.push({
+              ...result,
+              ok: false,
+              warnings: composed.warnings,
+              error: error instanceof Error ? firstLine(error.message) : 'falha no render',
+            });
+          }
         }
       }
     } finally {
@@ -72,17 +86,38 @@ export class RenderService {
     return results;
   }
 
-  private async buildContext(workspace: Workspace, config: UserConfig): Promise<RenderContext> {
-    if (config.profileName === undefined || config.logo === undefined) {
-      throw new AppError('NOT_CONFIGURED', 'perfil não configurado: rode cortes-eb profile');
+  private async planTargets(
+    clips: readonly Clip[],
+    requested: readonly string[] | undefined,
+    workspace: Workspace,
+  ): Promise<Map<string, Target[]>> {
+    const staged = new Map<string, Target>();
+    const plan = new Map<string, Target[]>();
+    for (const clip of clips) {
+      const targets: Target[] = [];
+      for (const account of await this.accounts.resolve(clip.accounts ?? requested)) {
+        let target = staged.get(account.id);
+        if (target === undefined) {
+          const logo = `wm-${account.logo}`;
+          await workspace.ensure();
+          await fs.copyFile(await this.accounts.logoFile(account), workspace.file(logo));
+          target = { account, watermark: { logo, name: account.name } };
+          staged.set(account.id, target);
+        }
+        targets.push(target);
+      }
+      plan.set(clip.id, targets);
     }
+    return plan;
+  }
+
+  private async buildContext(workspace: Workspace): Promise<RenderContext> {
     for (const role of ['source', 'bottom'] as const) {
       if (!(await exists(workspace.video(role)))) {
         throw new AppError('MISSING_FILE', `falta o ${role}.mp4 na pasta de trabalho`);
       }
     }
-    const logo = `wm-${config.logo}`;
-    await fs.copyFile(this.paths.inHome(config.logo), workspace.file(logo));
+    const config = await this.config.load();
     return {
       workspace,
       words: await readJson(workspace.captions, captionsSchema),
@@ -90,7 +125,6 @@ export class RenderService {
       meta: await readJson(workspace.meta, sourceMetaSchema),
       sourceDuration: await this.media.duration(workspace.video('source')),
       bottomDuration: await this.media.duration(workspace.video('bottom')),
-      watermark: { logo, name: config.profileName },
       sounds: await this.stageSounds(workspace),
       sfxGain: config.sfxGain,
     };

@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { exists } from '../common/json-file.js';
 import { ProcessRunner } from '../common/process-runner.js';
 import { AppPaths } from '../config/app-paths.js';
 import { Secrets } from '../config/secrets.js';
@@ -18,8 +17,8 @@ export interface DoctorReport {
   whisper: boolean;
   whisperModel: string;
   language: string;
-  profile: boolean;
-  profileName: string | null;
+  accounts: string[];
+  defaultAccount: string | null;
   niche: string;
   sfx: number;
   elevenlabsKey: boolean;
@@ -51,10 +50,6 @@ export class DoctorService {
       this.sfx.count(),
     ]);
     const nodeOk = Number(process.versions.node.split('.')[0]) >= MIN_NODE_MAJOR;
-    const profile =
-      config.profileName !== undefined &&
-      config.logo !== undefined &&
-      (await exists(this.paths.inHome(config.logo)));
     return {
       ready: nodeOk && ffmpeg && ffprobe && whisper,
       node: process.versions.node,
@@ -65,8 +60,8 @@ export class DoctorService {
       whisper,
       whisperModel: config.whisperModel,
       language: config.language,
-      profile,
-      profileName: config.profileName ?? null,
+      accounts: Object.keys(config.accounts),
+      defaultAccount: config.defaultAccount ?? null,
       niche: config.niche,
       sfx,
       elevenlabsKey: this.secrets.has('ELEVENLABS_API_KEY'),

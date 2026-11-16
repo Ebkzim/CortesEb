@@ -15,13 +15,14 @@ export interface RenderContext {
   meta: SourceMeta;
   sourceDuration: number;
   bottomDuration: number;
-  watermark: { logo: string; name: string };
   sounds: StagedSounds;
   sfxGain: number;
 }
 
+export type ClipBase = Omit<SplitCutProps, 'watermark'>;
+
 export interface ComposedClip {
-  props: SplitCutProps;
+  props: ClipBase;
   warnings: string[];
 }
 
@@ -70,7 +71,6 @@ export class ClipComposer {
         sourceWidth: context.meta.width,
         sourceHeight: context.meta.height,
         pages: plan.pages,
-        watermark: context.watermark,
         sfx: planSounds(
           plan.placed,
           images.map((image) => image.at),
