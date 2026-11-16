@@ -1,41 +1,41 @@
 import type { Crop, Focus } from './cuts.js';
 
-export interface RenderWord {
+export type RenderWord = {
   text: string;
   startMs: number;
   endMs: number;
-}
+};
 
-export interface CaptionPage {
+export type CaptionPage = {
   words: RenderWord[];
   startMs: number;
   endMs: number;
-}
+};
 
-export interface RenderSegment {
+export type RenderSegment = {
   from: number;
   to: number;
   turn: boolean;
-}
+};
 
-export interface RenderSound {
+export type RenderSound = {
   file: string;
   at: number;
   volume: number;
-}
+};
 
-export interface RenderImage {
+export type RenderImage = {
   file: string;
   at: number;
   dur: number;
-}
+};
 
-export interface RenderWatermark {
+export type RenderWatermark = {
   logo: string;
   name: string;
-}
+};
 
-export interface SplitCutProps {
+export type SplitCutProps = {
   totalSeconds: number;
   segments: RenderSegment[];
   sourceFile: string;
@@ -50,7 +50,7 @@ export interface SplitCutProps {
   watermark: RenderWatermark;
   sfx: RenderSound[];
   images: RenderImage[];
-}
+};
 
 export const RENDER_FPS = 30;
 export const RENDER_WIDTH = 1080;
