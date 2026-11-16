@@ -1,30 +1,33 @@
 import { Command, Option } from 'nest-commander';
 import { z } from 'zod';
+import { AccountService } from '../../accounts/account.service.js';
 import { AppError } from '../../common/app-error.js';
 import { Output } from '../../common/output.js';
-import { AppPaths } from '../../config/app-paths.js';
 import { UserConfigStore, WHISPER_MODELS, type UserConfig } from '../../config/user-config.js';
-import { ImageFetcher } from '../../images/image-fetcher.js';
 import { NicheRegistry } from '../../niches/niche-registry.js';
 import { GuardedCommand, parseOptions, type RawOptions } from '../guarded-command.js';
 
-const profileOptions = z.object({
+const accountOptions = z.object({
   name: z.string().trim().min(1).max(40).optional(),
   logo: z.string().min(1).max(1024).optional(),
 });
 
-@Command({ name: 'profile', description: 'define o nome e a logo da marca d’água' })
-export class ProfileCommand extends GuardedCommand {
+const ACCOUNT_ACTIONS = ['add', 'list', 'remove', 'default'] as const;
+
+@Command({
+  name: 'account',
+  arguments: '<acao> [id]',
+  description: 'gerencia as contas: add, list, remove ou default',
+})
+export class AccountCommand extends GuardedCommand {
   constructor(
-    private readonly config: UserConfigStore,
-    private readonly paths: AppPaths,
-    private readonly images: ImageFetcher,
+    private readonly accounts: AccountService,
     private readonly output: Output,
   ) {
     super();
   }
 
-  @Option({ flags: '-n, --name <nome>', description: 'nome do perfil' })
+  @Option({ flags: '-n, --name <nome>', description: 'nome que aparece na marca d’água' })
   parseName(value: string): string {
     return value;
   }
@@ -34,19 +37,32 @@ export class ProfileCommand extends GuardedCommand {
     return value;
   }
 
-  protected async execute(_params: string[], raw: RawOptions): Promise<void> {
-    const options = parseOptions(profileOptions, raw);
-    if (options.name === undefined && options.logo === undefined) {
-      throw new AppError('INVALID_INPUT', 'informe --name, --logo ou os dois');
+  protected async execute(params: string[], raw: RawOptions): Promise<void> {
+    const [action, id] = params;
+    const parsed = z.enum(ACCOUNT_ACTIONS).safeParse(action);
+    if (!parsed.success) {
+      throw new AppError('INVALID_INPUT', `ação inválida: use ${ACCOUNT_ACTIONS.join(', ')}`);
     }
-    const patch: Partial<UserConfig> = {};
-    if (options.name !== undefined) patch.profileName = options.name;
-    if (options.logo !== undefined) {
-      const stored = await this.images.importFile(options.logo, this.paths.home, 'logo');
-      patch.logo = stored.slice(this.paths.home.length + 1);
+    if (parsed.data === 'list') {
+      this.output.json(await this.accounts.list());
+      return;
     }
-    const next = await this.config.update(patch);
-    this.output.json({ profileName: next.profileName ?? null, logo: next.logo ?? null });
+    if (id === undefined) throw new AppError('INVALID_INPUT', 'informe o id da conta');
+    if (parsed.data === 'remove') {
+      this.output.json(await this.accounts.remove(id));
+      return;
+    }
+    if (parsed.data === 'default') {
+      this.output.json(await this.accounts.setDefault(id));
+      return;
+    }
+    const options = parseOptions(accountOptions, raw);
+    this.output.json(
+      await this.accounts.save(id, {
+        ...(options.name === undefined ? {} : { name: options.name }),
+        ...(options.logo === undefined ? {} : { logo: options.logo }),
+      }),
+    );
   }
 }
 

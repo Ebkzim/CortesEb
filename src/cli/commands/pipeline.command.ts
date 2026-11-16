@@ -144,7 +144,11 @@ export class FrameCommand extends WorkspaceCommand {
   }
 }
 
-const renderOptions = z.object({ work: workDir, out: z.string().min(1).max(1024) });
+const renderOptions = z.object({
+  work: workDir,
+  out: z.string().min(1).max(1024),
+  account: z.string().min(1).max(700).optional(),
+});
 
 @Command({ name: 'render', description: 'renderiza os cortes do cuts.json' })
 export class RenderCommand extends WorkspaceCommand {
@@ -160,9 +164,18 @@ export class RenderCommand extends WorkspaceCommand {
     return value;
   }
 
+  @Option({ flags: '-a, --account <ids>', description: 'contas separadas por vírgula, ou all' })
+  parseAccount(value: string): string {
+    return value;
+  }
+
   protected async execute(_params: string[], raw: RawOptions): Promise<void> {
     const options = parseOptions(renderOptions, raw);
-    const results = await this.renderer.run(new Workspace(options.work), options.out);
+    const results = await this.renderer.run(
+      new Workspace(options.work),
+      options.out,
+      options.account?.split(','),
+    );
     this.output.json(results);
     if (results.some((result) => !result.ok)) process.exitCode = 1;
   }

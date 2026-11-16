@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AccountsModule } from '../accounts/accounts.module.js';
 import { CommonModule } from '../common/common.module.js';
 import { ConfigModule } from '../config/config.module.js';
 import { DoctorService } from '../doctor/doctor.service.js';
@@ -9,7 +10,7 @@ import { NicheRegistry } from '../niches/niche-registry.js';
 import { RenderModule } from '../render/render.module.js';
 import { SfxModule } from '../sfx/sfx.module.js';
 import { TranscriptionModule } from '../transcription/transcription.module.js';
-import { ConfigCommand, NichesCommand, ProfileCommand } from './commands/config.command.js';
+import { AccountCommand, ConfigCommand, NichesCommand } from './commands/config.command.js';
 import { DoctorCommand, SetupCommand } from './commands/doctor.command.js';
 import {
   FetchCommand,
@@ -22,6 +23,7 @@ import {
 
 @Module({
   imports: [
+    AccountsModule,
     CommonModule,
     ConfigModule,
     MediaModule,
@@ -36,7 +38,7 @@ import {
     NicheRegistry,
     DoctorCommand,
     SetupCommand,
-    ProfileCommand,
+    AccountCommand,
     ConfigCommand,
     NichesCommand,
     FetchCommand,
