@@ -19,7 +19,7 @@ import type { StagedSounds } from './sound-plan.js';
 
 export interface ClipResult {
   id: string;
-  account: string;
+  account: string | null;
   file: string;
   seconds: number;
   ok: boolean;
@@ -28,9 +28,11 @@ export interface ClipResult {
 }
 
 interface Target {
-  account: AccountView;
-  watermark: RenderWatermark;
+  account: AccountView | null;
+  watermark: RenderWatermark | null;
 }
+
+const NO_ACCOUNT: Target = { account: null, watermark: null };
 
 @Injectable()
 export class RenderService {
@@ -60,13 +62,16 @@ export class RenderService {
         const composed = await this.composer.compose(clip, index, context);
         const seconds = Number(composed.props.totalSeconds.toFixed(1));
         for (const target of plan.get(clip.id) ?? []) {
-          const folder = resolveInside(base, target.account.id);
+          const account = target.account?.id ?? null;
+          const folder = account === null ? base : resolveInside(base, account);
           const file = resolveInside(folder, `${clip.id}.mp4`);
           const props = { ...composed.props, watermark: target.watermark };
           await fs.mkdir(folder, { recursive: true });
-          await writeJson(workspace.file(`props-${clip.id}-${target.account.id}.json`), props);
-          this.output.info(`> renderizando ${clip.id} para ${target.account.id} (${seconds} s)`);
-          const result = { id: clip.id, account: target.account.id, file, seconds };
+          await writeJson(workspace.file(`props-${clip.id}-${account ?? 'sem-conta'}.json`), props);
+          this.output.info(
+            `> renderizando ${clip.id} para ${account ?? 'sem conta'} (${seconds} s)`,
+          );
+          const result = { id: clip.id, account, file, seconds };
           try {
             await this.engine.render(session, props, file);
             results.push({ ...result, ok: true, warnings: composed.warnings });
@@ -98,17 +103,27 @@ export class RenderService {
       for (const account of await this.accounts.resolve(clip.accounts ?? requested)) {
         let target = staged.get(account.id);
         if (target === undefined) {
-          const logo = `wm-${account.logo}`;
-          await workspace.ensure();
-          await fs.copyFile(await this.accounts.logoFile(account), workspace.file(logo));
-          target = { account, watermark: { logo, name: account.name } };
+          target = { account, watermark: await this.stageWatermark(account, workspace) };
           staged.set(account.id, target);
         }
         targets.push(target);
       }
-      plan.set(clip.id, targets);
+      plan.set(clip.id, targets.length > 0 ? targets : [NO_ACCOUNT]);
     }
     return plan;
+  }
+
+  private async stageWatermark(
+    account: AccountView,
+    workspace: Workspace,
+  ): Promise<RenderWatermark | null> {
+    const source = await this.accounts.logoFile(account);
+    if (source === null && account.name === null) return null;
+    if (source === null || account.logo === null) return { logo: null, name: account.name };
+    const logo = `wm-${account.logo}`;
+    await workspace.ensure();
+    await fs.copyFile(source, workspace.file(logo));
+    return { logo, name: account.name };
   }
 
   private async buildContext(workspace: Workspace): Promise<RenderContext> {

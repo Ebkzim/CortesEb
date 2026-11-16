@@ -15,30 +15,34 @@ export const Watermark = ({ logo, name }: RenderWatermark): ReactElement => (
       gap: watermarkStyle.gap,
     }}
   >
-    <Img
-      src={staticFile(logo)}
-      style={{
-        width: watermarkStyle.logoSize,
-        height: watermarkStyle.logoSize,
-        borderRadius: '50%',
-        objectFit: 'cover',
-        border: `4px solid ${colors.text}`,
-        boxShadow: '0 6px 18px rgba(0,0,0,0.45)',
-      }}
-    />
-    <span
-      style={{
-        fontFamily,
-        fontWeight: 900,
-        fontSize: watermarkStyle.fontSize,
-        textTransform: 'uppercase',
-        color: colors.text,
-        WebkitTextStroke: `7px ${colors.watermarkStroke}`,
-        paintOrder: 'stroke fill',
-        textShadow: `0 4px 0 ${colors.watermarkShadow}`,
-      }}
-    >
-      {name}
-    </span>
+    {logo === null ? null : (
+      <Img
+        src={staticFile(logo)}
+        style={{
+          width: watermarkStyle.logoSize,
+          height: watermarkStyle.logoSize,
+          borderRadius: '50%',
+          objectFit: 'cover',
+          border: `4px solid ${colors.text}`,
+          boxShadow: '0 6px 18px rgba(0,0,0,0.45)',
+        }}
+      />
+    )}
+    {name === null ? null : (
+      <span
+        style={{
+          fontFamily,
+          fontWeight: 900,
+          fontSize: watermarkStyle.fontSize,
+          textTransform: 'uppercase',
+          color: colors.text,
+          WebkitTextStroke: `7px ${colors.watermarkStroke}`,
+          paintOrder: 'stroke fill',
+          textShadow: `0 4px 0 ${colors.watermarkShadow}`,
+        }}
+      >
+        {name}
+      </span>
+    )}
   </div>
 );

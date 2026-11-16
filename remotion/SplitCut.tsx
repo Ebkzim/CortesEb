@@ -26,7 +26,9 @@ export const SplitCut = (props: SplitCutProps): ReactElement => (
     <ImageLayer images={props.images} />
     <Divider />
     <Captions pages={props.pages} />
-    <Watermark logo={props.watermark.logo} name={props.watermark.name} />
+    {props.watermark === null ? null : (
+      <Watermark logo={props.watermark.logo} name={props.watermark.name} />
+    )}
     <SoundLayer sounds={props.sfx} />
   </AbsoluteFill>
 );

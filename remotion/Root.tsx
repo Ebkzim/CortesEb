@@ -21,7 +21,7 @@ const previewProps: SplitCutProps = {
   sourceWidth: 1280,
   sourceHeight: 720,
   pages: [],
-  watermark: { logo: 'logo.png', name: 'PERFIL' },
+  watermark: null,
   sfx: [],
   images: [],
 };
