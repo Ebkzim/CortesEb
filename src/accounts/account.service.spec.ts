@@ -56,10 +56,6 @@ describe('AccountService', () => {
         code: 'INVALID_INPUT',
       });
     }
-    await expect(service.save('gta', { name: 'x' })).rejects.toMatchObject({
-      code: 'INVALID_INPUT',
-    });
-    await expect(service.save('gta', { logo })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
     const fake = path.join(home, 'fake.png');
     await fs.writeFile(fake, '<svg/>');
     await expect(service.save('gta', { name: 'x', logo: fake })).rejects.toMatchObject({
@@ -67,8 +63,18 @@ describe('AccountService', () => {
     });
   });
 
+  it('keeps name and logo optional and clears them on request', async () => {
+    const bare = await service.save('games', {});
+    expect(bare).toEqual({ id: 'games', name: null, logo: null, isDefault: true });
+    expect(await service.logoFile(bare)).toBeNull();
+    await service.save('games', { name: '@games', logo });
+    const cleared = await service.save('games', { name: null, logo: null });
+    expect(cleared).toMatchObject({ name: null, logo: null });
+    expect(await fs.readdir(path.join(home, 'data'))).toEqual(['config.json']);
+  });
+
   it('resolves default, explicit, all and unknown selections', async () => {
-    await expect(service.resolve(undefined)).rejects.toMatchObject({ code: 'NOT_CONFIGURED' });
+    expect(await service.resolve(undefined)).toEqual([]);
     await service.save('a', { name: 'A', logo });
     await service.save('b', { name: 'B', logo });
     await service.save('c', { name: 'C', logo });
