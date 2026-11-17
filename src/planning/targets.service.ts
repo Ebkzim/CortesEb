@@ -86,10 +86,13 @@ export class TargetsService {
   async fitDurations(workspace: Workspace): Promise<{ widened: boolean; check: CutsCheck }> {
     const check = await this.check(workspace);
     const targets = check.targets;
-    if (check.ok || targets === null || check.problems.length > 0) return { widened: false, check };
+    if (check.ok || targets === null || check.clips.length === 0) return { widened: false, check };
+    const cuts = await readJson(workspace.cuts, cutsSchema);
+    if (overlaps(cuts.clips).length > 0) return { widened: false, check };
     const seconds = check.clips.map((clip) => clip.seconds);
     const widened = targetsSchema.parse({
       ...targets,
+      count: check.clips.length,
       minSeconds: Math.max(
         MIN_CLIP_SECONDS,
         Math.min(targets.minSeconds, Math.floor(Math.min(...seconds))),

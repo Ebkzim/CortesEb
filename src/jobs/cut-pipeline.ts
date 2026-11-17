@@ -136,7 +136,7 @@ export class CutPipeline implements Pipeline {
     if (fitted.widened) {
       context.log(
         'warn',
-        'a duração de algum corte ficou fora da faixa depois de tirar as pausas; a faixa foi ajustada',
+        'o plano foi ajustado aos cortes escolhidos (quantidade ou duração diferentes do pedido)',
       );
     }
     const cuts = await readJson(workspace.cuts, cutsSchema);
