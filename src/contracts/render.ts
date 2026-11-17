@@ -40,6 +40,7 @@ export type SplitCutProps = {
   segments: RenderSegment[];
   sourceFile: string;
   bottomFile: string;
+  bottomSource: { crop: Crop | null } | null;
   bottomStart: number;
   bottomDuration: number;
   focus: Focus;

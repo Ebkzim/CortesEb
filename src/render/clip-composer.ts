@@ -56,7 +56,8 @@ export class ClipComposer {
         dur: image.dur ?? DEFAULT_IMAGE_SECONDS,
       });
     }
-    const bottomStart = bottomStartFor(clip, index, context.bottomDuration);
+    const bottomStart =
+      clip.bottom === 'source' ? 0 : bottomStartFor(clip, index, context.bottomDuration);
     return {
       warnings,
       props: {
@@ -64,8 +65,9 @@ export class ClipComposer {
         segments: plan.segments,
         sourceFile: 'source.mp4',
         bottomFile: 'bottom.mp4',
+        bottomSource: clip.bottom === 'source' ? { crop: clip.bottomCrop ?? null } : null,
         bottomStart,
-        bottomDuration: context.bottomDuration - bottomStart,
+        bottomDuration: Math.max(0, context.bottomDuration - bottomStart),
         focus: clip.focus,
         crop: clip.crop ?? null,
         sourceWidth: context.meta.width,

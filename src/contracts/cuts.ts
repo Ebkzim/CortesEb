@@ -35,6 +35,8 @@ export const clipSchema = z
     end: seconds,
     focus: focusSchema.default({ x: 50, y: 35 }),
     crop: cropSchema.optional(),
+    bottom: z.enum(['video', 'source']).default('video'),
+    bottomCrop: cropSchema.optional(),
     bottomStart: seconds.optional(),
     pace: paceSchema.default('jump'),
     cutEvery: z.number().min(0).max(30).optional(),

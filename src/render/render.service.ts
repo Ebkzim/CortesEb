@@ -55,7 +55,10 @@ export class RenderService {
   ): Promise<ClipResult[]> {
     const cuts = await readJson(workspace.cuts, cutsSchema);
     const plan = await this.planTargets(cuts.clips, requested, workspace);
-    const context = await this.buildContext(workspace);
+    const context = await this.buildContext(
+      workspace,
+      cuts.clips.some((clip) => clip.bottom === 'video'),
+    );
     await this.targets.assert(workspace);
     const base = path.resolve(outDir);
     const session = await this.engine.open(workspace.root);
@@ -129,8 +132,9 @@ export class RenderService {
     return { logo, name: account.name };
   }
 
-  private async buildContext(workspace: Workspace): Promise<RenderContext> {
-    for (const role of ['source', 'bottom'] as const) {
+  private async buildContext(workspace: Workspace, needsBottom: boolean): Promise<RenderContext> {
+    const roles = needsBottom ? (['source', 'bottom'] as const) : (['source'] as const);
+    for (const role of roles) {
       if (!(await exists(workspace.video(role)))) {
         throw new AppError('MISSING_FILE', `falta o ${role}.mp4 na pasta de trabalho`);
       }
@@ -142,7 +146,7 @@ export class RenderService {
       silences: await readJson(workspace.silences, silencesSchema),
       meta: await readJson(workspace.meta, sourceMetaSchema),
       sourceDuration: await this.media.duration(workspace.video('source')),
-      bottomDuration: await this.media.duration(workspace.video('bottom')),
+      bottomDuration: needsBottom ? await this.media.duration(workspace.video('bottom')) : 0,
       sounds: await this.stageSounds(workspace),
       sfxGain: config.sfxGain,
     };
