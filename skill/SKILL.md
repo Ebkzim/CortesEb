@@ -274,6 +274,30 @@ Campos: YouTube `clientId`, `clientSecret`, `refreshToken`; Instagram `accessTok
 
 Com `live --enqueue youtube,tiktok`, cada corte de uma live entra na fila como `pending`.
 
+## Quem escolhe os cortes
+
+O passo 7 pode ser feito por você (o agente da conversa) ou por um modelo configurado pelo usuário. Confira antes:
+
+```bash
+cortes-eb llm status
+```
+
+- `provider` igual a `agent` (padrão): você escolhe os cortes lendo a transcrição, como descrito no passo 7. Gasta o limite da conversa.
+- `provider` igual a `ollama`, `openai` ou `anthropic`: rode `cortes-eb select --work cortes/<slug>/work` e o modelo configurado escolhe e grava o `cuts.json`, sem gastar o limite da conversa. Depois siga com `check`, `refine` e `render`. Leia o `cuts.json` e confira o enquadramento com `frame` do mesmo jeito.
+
+O usuário escolhe uma vez:
+
+```bash
+cortes-eb config --llm ollama --llm-model qwen2.5:7b
+cortes-eb config --llm anthropic
+cortes-eb config --llm openai --llm-url https://servidor/v1 --llm-model nome
+cortes-eb config --llm agent
+```
+
+As chaves vão só por variável de ambiente: `ANTHROPIC_API_KEY` para a Anthropic e `CORTES_EB_LLM_API_KEY` para servidores compatíveis com a OpenAI. Nunca peça nem escreva uma chave no chat. O Ollama não precisa de chave. Teste com `cortes-eb llm test`. Dá para trocar o provedor numa execução só com `--llm`, `--llm-model` e `--llm-url` no `select`.
+
+Modelos pequenos erram mais: podem escolher trechos de autopromoção ou ganchos fracos. Sempre leia o resultado do `select` (ele traz `hook` e `score` de cada corte) e, se algo estiver ruim, ajuste o `cuts.json` à mão. Um modelo local de 3B levou cerca de 20 minutos para um vídeo de 27 minutos num processador fraco, sem placa de vídeo.
+
 ## 7. Escolher os cortes
 
 O usuário não escolhe os trechos. Você decide, seguindo `references/ganchos.md` e o guia do nicho.
