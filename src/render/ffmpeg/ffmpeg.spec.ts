@@ -191,3 +191,27 @@ describe('cover and crop helpers', () => {
     expect(escapeValue("C:\\a'b")).toBe("C\\:\\\\a\\'b");
   });
 });
+
+describe('credit line', () => {
+  const credit = { text: 'Live de @canal', totalMs: 12_000, fontSize: 50, bottomY: 1860 };
+
+  it('adds a credit style and one dialogue for the whole clip', () => {
+    const ass = buildAssCaptions([], style, credit);
+    expect(ass).toContain('Style: Credit,');
+    const events = ass.split('\n').filter((line) => line.startsWith('Dialogue'));
+    expect(events).toHaveLength(1);
+    expect(events[0]).toContain('0:00:00.00,0:00:12.00,Credit');
+    expect(events[0]).toContain('\\pos(540,1860)');
+    expect(events[0]).toContain('Live de @canal');
+  });
+
+  it('strips override characters from the credit', () => {
+    const ass = buildAssCaptions([], style, { ...credit, text: '{\\an1}x\\N' });
+    const event = ass.split('\n').find((line) => line.startsWith('Dialogue')) ?? '';
+    expect(event.endsWith('an1xN')).toBe(true);
+  });
+
+  it('keeps captions unchanged without a credit', () => {
+    expect(buildAssCaptions([], style)).not.toContain('Credit');
+  });
+});

@@ -32,6 +32,7 @@ export interface LiveRequest {
   keepWork: boolean;
   chat: boolean;
   camera: CameraSpec | null;
+  credit: string | null;
   protocols?: string;
 }
 
@@ -333,6 +334,7 @@ export class LiveSession {
       minWords: this.request.minWords,
       keepWork: this.request.keepWork,
       camera: this.request.camera,
+      credit: this.request.credit,
     };
   }
 

@@ -1,9 +1,11 @@
 import { Command, Option } from 'nest-commander';
 import { z } from 'zod';
+import { AppError } from '../../common/app-error.js';
 import { Output } from '../../common/output.js';
 import { LANGUAGE_PATTERN, UserConfigStore, WHISPER_MODELS } from '../../config/user-config.js';
 import { parseCamera } from '../../live/camera.js';
 import { LiveService } from '../../live/live.service.js';
+import { twitchChannel } from '../../live/twitch-chat.js';
 import { NicheRegistry } from '../../niches/niche-registry.js';
 import { GuardedCommand, parseOptions, type RawOptions } from '../guarded-command.js';
 
@@ -28,6 +30,7 @@ const liveOptions = z.object({
   keepWork: z.boolean().default(false),
   chat: z.boolean().default(true),
   camera: z.string().min(1).max(100).optional(),
+  credit: z.string().trim().min(1).max(80).optional(),
   cameraSize: z.coerce.number().min(10).max(100).default(40),
 });
 
@@ -144,6 +147,11 @@ export class LiveCommand extends GuardedCommand {
     return value;
   }
 
+  @Option({ flags: '--credit <texto>', description: 'crédito no rodapé, ou auto (Live de @canal)' })
+  parseCredit(value: string): string {
+    return value;
+  }
+
   @Option({ flags: '--no-chat', description: 'não usa o chat da Twitch como sinal' })
   parseNoChat(): boolean {
     return false;
@@ -195,6 +203,7 @@ export class LiveCommand extends GuardedCommand {
         maxQueue: options.queue,
         keepWork: options.keepWork,
         chat: options.chat,
+        credit: creditText(options.credit, link),
         camera:
           options.camera === undefined ? null : parseCamera(options.camera, options.cameraSize),
       },
@@ -237,4 +246,14 @@ export class LiveFrameCommand extends GuardedCommand {
     if (link === undefined) throw new Error('informe o link da live');
     this.output.json({ file: await this.live.snapshot(link, options.out, options.maxHeight) });
   }
+}
+
+function creditText(option: string | undefined, link: string): string | null {
+  if (option === undefined) return null;
+  if (option !== 'auto') return option;
+  const channel = twitchChannel(link);
+  if (channel === null) {
+    throw new AppError('INVALID_INPUT', '--credit auto só funciona com link da Twitch');
+  }
+  return `Live de @${channel}`;
 }

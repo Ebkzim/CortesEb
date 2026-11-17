@@ -214,6 +214,10 @@ Olhe a imagem (evite pegar um intervalo comercial) e rode o `live` com `--camera
 
 Com câmera no topo e sem `--bottom`, a metade de baixo mostra a própria live (o jogo).
 
+### Crédito do streamer
+
+`--credit auto` escreve "Live de @canal" no rodapé de cada corte (só com link da Twitch). Para outro texto, use `--credit "texto"`. No arquivo `cuts.json` o campo é `credit` (até 80 caracteres). O crédito aparece no motor `fast`; o motor `remotion` ainda não o desenha.
+
 O atraso depende do computador, porque a transcrição é a parte mais lenta. Num processador fraco, `--model tiny` ou `base` leva alguns minutos por corte. Num desktop mais forte, o `small` já fica na casa de dezenas de segundos. Avise o usuário disso antes de começar.
 
 A escolha do momento é automática (volume e quantidade de fala), então a qualidade é menor que a de um corte escolhido lendo a transcrição. Os cortes ficam em `--out` (padrão `cortes/live-<data>`), uma subpasta por conta.

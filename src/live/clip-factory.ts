@@ -33,6 +33,7 @@ export interface FactoryOptions {
   minWords: number;
   keepWork: boolean;
   camera: CameraSpec | null;
+  credit: string | null;
 }
 
 export type Produced =
@@ -112,6 +113,7 @@ export class ClipFactory {
       words: await readJson(workspace.captions, captionsSchema),
       bottom: options.hasBottom ? 'video' : 'source',
       minWords: options.minWords,
+      credit: options.credit,
     });
     if (!outcome.ok) {
       await this.discard(job, options);

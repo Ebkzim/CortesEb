@@ -11,6 +11,7 @@ export interface CutRequest {
   bottom: 'video' | 'source';
   minWords: number;
   crop?: Crop | null;
+  credit?: string | null;
 }
 
 export type CutOutcome = { ok: true; clip: Clip } | { ok: false; reason: string };
@@ -62,6 +63,7 @@ export function buildLiveClip(request: CutRequest): CutOutcome {
     start: Number(Math.max(0, start - EDGE_PAD).toFixed(2)),
     end: Number(Math.min(duration, end + EDGE_PAD).toFixed(2)),
     focus: { x: 50, y: 35 },
+    ...(request.credit === null || request.credit === undefined ? {} : { credit: request.credit }),
     ...(request.crop === null || request.crop === undefined ? {} : { crop: request.crop }),
     bottom: request.bottom,
     pace: 'jump',
