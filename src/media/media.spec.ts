@@ -60,6 +60,20 @@ describe('dropMarkers', () => {
   });
   const texts = (list: { text: string }[]): string[] => list.map((item) => item.text);
 
+  it('drops sound descriptions in parentheses', () => {
+    const input = [
+      '(birds',
+      'chirping)',
+      'You',
+      'jerk.',
+      '(music)',
+      '(dramatic',
+      'music)',
+      'Tom',
+    ].map(word);
+    expect(texts(dropMarkers(input))).toEqual(['You', 'jerk.', 'Tom']);
+  });
+
   it('removes bracketed markers split across words and lone dashes', () => {
     const input = [
       'Olha',

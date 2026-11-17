@@ -6,7 +6,7 @@ export interface Token {
   endMs: number;
 }
 
-const MARKER = /^\s*\[.*\]\s*$/;
+const MARKER = /^\s*(\[.*\]|\(.*\))\s*$/;
 
 const LONG_PHRASE = 3;
 const LONG_REPEATS = 3;
@@ -14,10 +14,12 @@ const SHORT_REPEATS = 6;
 const MAX_PHRASE = 16;
 
 const MAX_MARKER_WORDS = 6;
+const OPEN = /^[[(]/;
+const CLOSE = /[\])]/;
 const DASH_ONLY = /^([-–—]+|>+)$/;
 
-const EDGE_JUNK_START = /^[\][_>]+/;
-const EDGE_JUNK_END = /[\][_]+$/;
+const EDGE_JUNK_START = /^[\]()_>]+/;
+const EDGE_JUNK_END = /[\][()_]+$/;
 const HAS_CONTENT = /[\p{L}\p{N}]/u;
 
 export function dropMarkers(words: readonly Word[]): Word[] {
@@ -27,11 +29,11 @@ export function dropMarkers(words: readonly Word[]): Word[] {
   for (const word of words) {
     if (inside) {
       skipped += 1;
-      if (word.text.includes(']') || skipped >= MAX_MARKER_WORDS) inside = false;
+      if (CLOSE.test(word.text) || skipped >= MAX_MARKER_WORDS) inside = false;
       continue;
     }
-    if (word.text.startsWith('[')) {
-      inside = !word.text.includes(']');
+    if (OPEN.test(word.text)) {
+      inside = !CLOSE.test(word.text);
       skipped = 1;
       continue;
     }
