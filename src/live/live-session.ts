@@ -10,7 +10,7 @@ import { AdWatcher } from './ad-watcher.js';
 import { ChatCounter } from './chat-counter.js';
 import type { ChatSource } from './twitch-chat.js';
 import { LiveDetector, type LiveOptions, type LiveWindow } from './live-detector.js';
-import type { LiveRecorder, Recording } from './live-recorder.js';
+import type { LiveRecorder, Recording, ResolvedStream } from './live-recorder.js';
 import type { RmsSample } from './rms-stream.js';
 import { coveredUntil, parseSegmentList, type Segment } from './segment-log.js';
 
@@ -147,7 +147,7 @@ export class LiveSession {
     let offlineSince: number | null = null;
     let epoch = 0;
     while (!this.halted()) {
-      let input: string;
+      let input: ResolvedStream;
       try {
         const resolved = await this.deps.recorder.resolve(
           this.request.link,
@@ -158,7 +158,7 @@ export class LiveSession {
           this.deps.output.info('> a live terminou');
           return;
         }
-        input = resolved.url;
+        input = resolved;
         offlineSince = null;
       } catch (error) {
         if (error instanceof AppError && error.code === 'INVALID_INPUT') throw error;
@@ -179,10 +179,11 @@ export class LiveSession {
     }
   }
 
-  private async recordOnce(input: string, epoch: number): Promise<void> {
+  private async recordOnce(input: ResolvedStream, epoch: number): Promise<void> {
     const recording = this.deps.recorder.start(
       {
-        input,
+        input: input.url,
+        ...(input.audioUrl === undefined ? {} : { audioInput: input.audioUrl }),
         dir: this.recordingDir,
         epoch,
         ...(this.request.protocols === undefined ? {} : { protocols: this.request.protocols }),
@@ -194,7 +195,7 @@ export class LiveSession {
     this.recording = recording;
     this.lastSample = Date.now();
     const ads = this.deps.watchAds
-      ? new AdWatcher(input, (active) => {
+      ? new AdWatcher(input.url, (active) => {
           this.adActive = active;
           this.emit({ event: 'ad', active });
         })

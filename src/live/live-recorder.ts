@@ -17,10 +17,12 @@ const AUDIO_FILTER =
 export interface ResolvedStream {
   live: boolean;
   url: string;
+  audioUrl?: string;
 }
 
 export interface RecordingRequest {
   input: string;
+  audioInput?: string;
   dir: string;
   epoch: number;
   protocols?: string;
@@ -41,6 +43,7 @@ export function segmentList(dir: string, epoch: number): string {
 }
 
 export function recorderArgs(request: RecordingRequest): string[] {
+  const audioMap = request.audioInput === undefined ? '0:a:0' : '1:a:0';
   return [
     '-hide_banner',
     '-v',
@@ -51,10 +54,11 @@ export function recorderArgs(request: RecordingRequest): string[] {
     request.protocols ?? STREAM_PROTOCOLS,
     '-i',
     request.input,
+    ...(request.audioInput === undefined ? [] : ['-i', request.audioInput]),
     '-map',
     '0:v:0',
     '-map',
-    '0:a:0',
+    audioMap,
     '-c',
     'copy',
     '-f',
@@ -71,7 +75,7 @@ export function recorderArgs(request: RecordingRequest): string[] {
     'csv',
     segmentPattern(request.dir, request.epoch),
     '-map',
-    '0:a:0',
+    audioMap,
     '-vn',
     '-ac',
     '1',
@@ -104,13 +108,13 @@ export class LiveRecorder {
         '--print',
         '%(urls)s',
         '-f',
-        `best[height<=${maxHeight}]/best`,
+        `best[height<=${maxHeight}]/bv*[height<=${maxHeight}]+ba/b`,
         '--',
         page.toString(),
       ],
       { timeoutMs: RESOLVE_TIMEOUT_MS },
     );
-    const [flag, first] = result.stdout
+    const [flag, first, second] = result.stdout
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter((line) => line !== '');
@@ -120,7 +124,10 @@ export class LiveRecorder {
     }
     const stream = parsePublicUrl(first);
     await assertPublicHost(stream);
-    return { live: flag === 'True', url: stream.toString() };
+    if (second === undefined) return { live: flag === 'True', url: stream.toString() };
+    const audio = parsePublicUrl(second);
+    await assertPublicHost(audio);
+    return { live: flag === 'True', url: stream.toString(), audioUrl: audio.toString() };
   }
 
   async snapshot(input: string, output: string, protocols = STREAM_PROTOCOLS): Promise<void> {
