@@ -178,6 +178,8 @@ Para acompanhar uma live ao vivo e gerar cortes enquanto ela acontece:
 cortes-eb live "LINK_DA_LIVE" --account all --model base
 ```
 
+Em lives da Twitch o comando também lê o chat (de forma anônima, só leitura) e soma ao volume: quando o chat passa de 2 a 3 vezes o ritmo dos últimos 5 minutos, o momento vira candidato. Use `--no-chat` para desligar. Na YouTube e na Kick só o áudio conta.
+
 O comando fica rodando até a live acabar ou até o usuário parar (Ctrl+C). Rode em segundo plano e acompanhe a saída: cada linha é um JSON com `event` igual a `start`, `clip`, `skip`, `error` ou `end`. Um evento `clip` traz `files` (os vídeos prontos), `hook` e `afterPeakSeconds` (atraso entre o pico e o arquivo pronto).
 
 Como funciona: a live é gravada em pedaços de 3 s sem recodificar, o volume do áudio é medido em tempo real e, quando a empolgação passa do normal, o corte é montado a partir dos pedaços, transcrito, ajustado para começar e terminar em pausas de fala e renderizado. Cortes com pouca fala (só música ou barulho do jogo) são descartados com `skip`.
