@@ -2,6 +2,7 @@ import { Command, Option } from 'nest-commander';
 import { z } from 'zod';
 import { Output } from '../../common/output.js';
 import { UserConfigStore, WHISPER_MODELS } from '../../config/user-config.js';
+import { parseCamera } from '../../live/camera.js';
 import { LiveService } from '../../live/live.service.js';
 import { NicheRegistry } from '../../niches/niche-registry.js';
 import { GuardedCommand, parseOptions, type RawOptions } from '../guarded-command.js';
@@ -29,6 +30,8 @@ const liveOptions = z.object({
   queue: z.coerce.number().int().min(1).max(20).default(3),
   keepWork: z.boolean().default(false),
   chat: z.boolean().default(true),
+  camera: z.string().min(1).max(100).optional(),
+  cameraSize: z.coerce.number().min(10).max(100).default(40),
 });
 
 @Command({
@@ -131,6 +134,19 @@ export class LiveCommand extends GuardedCommand {
     return value;
   }
 
+  @Option({
+    flags: '--camera <posicao>',
+    description: 'rosto no topo: top-left, top-right, bottom-left, bottom-right ou x,y,w,h em %',
+  })
+  parseCamera(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '--camera-size <%>', description: 'altura da câmera nos cantos (padrão 40)' })
+  parseCameraSize(value: string): string {
+    return value;
+  }
+
   @Option({ flags: '--no-chat', description: 'não usa o chat da Twitch como sinal' })
   parseNoChat(): boolean {
     return false;
@@ -182,8 +198,46 @@ export class LiveCommand extends GuardedCommand {
         maxQueue: options.queue,
         keepWork: options.keepWork,
         chat: options.chat,
+        camera:
+          options.camera === undefined ? null : parseCamera(options.camera, options.cameraSize),
       },
       controller.signal,
     );
+  }
+}
+
+const frameOptions = z.object({
+  out: z.string().min(1).max(1024).default('live-frame.jpg'),
+  maxHeight: z.coerce.number().int().min(240).max(2160).default(1080),
+});
+
+@Command({
+  name: 'live-frame',
+  arguments: '<link>',
+  description: 'tira uma foto da live ao vivo para escolher o recorte da câmera',
+})
+export class LiveFrameCommand extends GuardedCommand {
+  constructor(
+    private readonly live: LiveService,
+    private readonly output: Output,
+  ) {
+    super();
+  }
+
+  @Option({ flags: '-o, --out <arquivo>', description: 'arquivo .jpg de saída' })
+  parseOut(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '--max-height <px>', description: 'altura máxima (padrão 1080)' })
+  parseMaxHeight(value: string): string {
+    return value;
+  }
+
+  protected async execute(params: string[], raw: RawOptions): Promise<void> {
+    const options = parseOptions(frameOptions, raw);
+    const [link] = params;
+    if (link === undefined) throw new Error('informe o link da live');
+    this.output.json({ file: await this.live.snapshot(link, options.out, options.maxHeight) });
   }
 }
