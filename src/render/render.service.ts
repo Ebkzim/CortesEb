@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { AccountService, type AccountView } from '../accounts/account.service.js';
 import { AppError } from '../common/app-error.js';
 import { exists, readJson, writeJson } from '../common/json-file.js';
-import { Output } from '../common/output.js';
+import { Progress, throttled } from '../common/progress.js';
 import { resolveInside } from '../common/safe-path.js';
 import { UserConfigStore } from '../config/user-config.js';
 import { cutsSchema, type Clip } from '../contracts/cuts.js';
@@ -51,7 +51,7 @@ export class RenderService {
     private readonly composer: ClipComposer,
     private readonly fast: FfmpegEngine,
     private readonly remotion: RemotionEngine,
-    private readonly output: Output,
+    private readonly progress: Progress,
     private readonly layouts: LayoutService,
   ) {}
 
@@ -75,6 +75,11 @@ export class RenderService {
     const base = path.resolve(outDir);
     const session = await engine.open(workspace.root);
     const results: ClipResult[] = [];
+    const total = Math.max(
+      1,
+      clips.reduce((sum, clip) => sum + (plan.get(clip.id)?.length ?? 0), 0),
+    );
+    let done = 0;
     try {
       for (const [index, clip] of clips.entries()) {
         const composed = await this.composer.compose(clip, index, context);
@@ -86,13 +91,20 @@ export class RenderService {
           const props = { ...composed.props, watermark: target.watermark };
           await fs.mkdir(folder, { recursive: true });
           await writeJson(workspace.file(`props-${clip.id}-${account ?? 'sem-conta'}.json`), props);
-          this.output.info(
-            `> renderizando ${clip.id} para ${account ?? 'sem conta'} (${seconds} s)`,
-          );
+          const position = done;
+          const report = throttled((fraction: number) => {
+            this.progress.step(
+              'render',
+              (position + fraction) / total,
+              `renderizando ${clip.id} para ${account ?? 'sem conta'} (${seconds} s)`,
+            );
+          });
+          report(0);
           const result = { id: clip.id, account, file, seconds };
           try {
-            await engine.render(session, props, file);
+            await engine.render(session, props, file, report);
             results.push({ ...result, ok: true, warnings: composed.warnings });
+            this.progress.event('rendered', { id: clip.id, account, file });
           } catch (error) {
             results.push({
               ...result,
@@ -101,6 +113,7 @@ export class RenderService {
               error: error instanceof Error ? firstLine(error.message) : 'falha no render',
             });
           }
+          done += 1;
         }
       }
     } finally {

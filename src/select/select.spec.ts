@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Output } from '../common/output.js';
+import type { Progress } from '../common/progress.js';
 import { cutsSchema } from '../contracts/cuts.js';
 import type { Word } from '../contracts/media.js';
 import type { LlmClient } from '../llm/llm-client.js';
@@ -205,8 +205,8 @@ describe('SelectorService', () => {
           maxSeconds: 60,
         }),
     } as unknown as TargetsService;
-    const output = { info: () => undefined } as unknown as Output;
-    return { service: new SelectorService(llm, targets, output), prompts };
+    const progress = { step: () => undefined } as unknown as Progress;
+    return { service: new SelectorService(llm, targets, progress), prompts };
   }
 
   const request = {

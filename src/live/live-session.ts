@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { AppError } from '../common/app-error.js';
 import { exists } from '../common/json-file.js';
-import type { Output } from '../common/output.js';
+import type { Progress } from '../common/progress.js';
 import { resolveInside } from '../common/safe-path.js';
 import type { Platform } from '../contracts/publish.js';
 import type { CameraSpec } from '../layout/camera.js';
@@ -57,7 +57,7 @@ export interface ProducedClip {
 export interface SessionDeps {
   recorder: LiveRecorder;
   factory: ClipFactory;
-  output: Output;
+  progress: Progress;
   chat: ChatSource | null;
   judge: ClipJudge | null;
   enqueue: (clip: ProducedClip) => Promise<number>;
@@ -129,7 +129,7 @@ export class LiveSession {
         this.chat.add(this.latest);
       },
       (message) => {
-        this.deps.output.info(`> chat da Twitch: ${message}`);
+        this.deps.progress.step('live', null, `chat da Twitch: ${message}`);
       },
     );
     this.emit({
@@ -167,7 +167,7 @@ export class LiveSession {
         );
         if (!resolved.live) {
           if (epoch === 0) throw new AppError('INVALID_INPUT', 'esse link não está ao vivo agora');
-          this.deps.output.info('> a live terminou');
+          this.deps.progress.step('live', null, 'a live terminou');
           return;
         }
         input = resolved;
@@ -176,17 +176,17 @@ export class LiveSession {
         if (error instanceof AppError && error.code === 'INVALID_INPUT') throw error;
         offlineSince ??= Date.now();
         if ((Date.now() - offlineSince) / 1000 > this.request.offlineWait) {
-          this.deps.output.info('> a live não voltou, encerrando');
+          this.deps.progress.step('live', null, 'a live não voltou, encerrando');
           return;
         }
-        this.deps.output.info('> live indisponível, tentando de novo em instantes');
+        this.deps.progress.step('live', null, 'live indisponível, tentando de novo em instantes');
         await sleep(RETRY_MS, this.signal);
         continue;
       }
       await this.recordOnce(input, epoch);
       epoch += 1;
       if (this.halted()) return;
-      this.deps.output.info('> gravação interrompida, reconectando');
+      this.deps.progress.step('live', null, 'gravação interrompida, reconectando');
       await sleep(RESTART_PAUSE_MS, this.signal);
     }
   }
@@ -377,8 +377,9 @@ export class LiveSession {
     this.emit({ event: 'skip', at, reason });
   }
 
-  private emit(event: Record<string, unknown>): void {
-    this.deps.output.line(JSON.stringify(event));
+  private emit(event: Record<string, unknown> & { event: string }): void {
+    const { event: name, ...data } = event;
+    this.deps.progress.event(name, data, true);
   }
 
   private async waitCovered(until: number): Promise<void> {

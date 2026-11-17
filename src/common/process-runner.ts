@@ -10,6 +10,7 @@ export interface RunOptions {
   cwd?: string;
   timeoutMs?: number;
   stream?: boolean;
+  onLine?: (line: string) => void;
 }
 
 export interface RunResult {
@@ -21,6 +22,7 @@ export interface RunResult {
 const MAX_CAPTURE_BYTES = 32 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 6 * 60 * 60 * 1000;
 const STDERR_FD = 2;
+const MAX_LINE_CHARS = 8192;
 
 @Injectable()
 export class ProcessRunner {
@@ -31,21 +33,30 @@ export class ProcessRunner {
         shell: false,
         windowsHide: true,
         timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-        stdio: options.stream === true ? ['ignore', STDERR_FD, STDERR_FD] : 'pipe',
+        stdio:
+          options.stream === true && options.onLine === undefined
+            ? ['ignore', STDERR_FD, STDERR_FD]
+            : 'pipe',
       });
       const stdout = new Capture();
       const stderr = new Capture();
+      const outLines = options.onLine === undefined ? null : new LineSplitter(options.onLine);
+      const errLines = options.onLine === undefined ? null : new LineSplitter(options.onLine);
       child.stdout?.on('data', (chunk: Buffer) => {
         stdout.push(chunk);
+        outLines?.push(chunk);
       });
       child.stderr?.on('data', (chunk: Buffer) => {
         stderr.push(chunk);
+        errLines?.push(chunk);
       });
       child.stdin?.end();
       child.on('error', () => {
         reject(new AppError('MISSING_DEPENDENCY', `não consegui executar ${bin}`));
       });
       child.on('close', (code) => {
+        outLines?.flush();
+        errLines?.flush();
         resolve({ code: code ?? 1, stdout: stdout.text(), stderr: stderr.text() });
       });
     });
@@ -104,5 +115,24 @@ class Capture {
 
   text(): string {
     return Buffer.concat(this.chunks).toString('utf8');
+  }
+}
+
+class LineSplitter {
+  private pending = '';
+
+  constructor(private readonly onLine: (line: string) => void) {}
+
+  flush(): void {
+    if (this.pending !== '') this.onLine(this.pending);
+    this.pending = '';
+  }
+
+  push(chunk: Buffer): void {
+    const parts = (this.pending + chunk.toString('utf8')).split(/\r\n|\r|\n/);
+    this.pending = (parts.pop() ?? '').slice(-MAX_LINE_CHARS);
+    for (const part of parts) {
+      if (part !== '') this.onLine(part);
+    }
   }
 }

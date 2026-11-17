@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import { Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
 import { exists, readJson, writeJson } from '../common/json-file.js';
-import { Output } from '../common/output.js';
+import { Progress, throttled } from '../common/progress.js';
 import { UserConfigStore, type UserConfig } from '../config/user-config.js';
 import { cutsSchema } from '../contracts/cuts.js';
 import { captionsSchema, silencesSchema, sourceMetaSchema } from '../contracts/media.js';
@@ -38,7 +38,7 @@ export class TranscriptionService {
     private readonly media: MediaTools,
     private readonly whisper: Whisper,
     private readonly config: UserConfigStore,
-    private readonly output: Output,
+    private readonly progress: Progress,
     private readonly youtube: YoutubeCaptions,
   ) {}
 
@@ -61,7 +61,12 @@ export class TranscriptionService {
     const audible = Math.min(meta.duration, request.maxSeconds ?? meta.duration);
     const silences = await this.media.detectSilences(workspace.audio, audible);
     await writeJson(workspace.silences, silences);
-    const words = await this.whisper.transcribe(workspace.audio, model, language, this.progress());
+    const words = await this.whisper.transcribe(
+      workspace.audio,
+      model,
+      language,
+      this.progressFor(),
+    );
     await writeJson(workspace.captions, words);
     return this.summary(words.length, silences.length, meta.duration, language, model);
   }
@@ -87,6 +92,7 @@ export class TranscriptionService {
     if (link === undefined) {
       throw new AppError('INVALID_INPUT', 'sem link de origem: use --url ou baixe com fetch');
     }
+    this.progress.step('captions', null, 'baixando a legenda automática do YouTube');
     const words = dropLoops(dropMarkers(await this.youtube.fetch(link, lang, workspace)));
     const meta = await this.media.probe(source);
     await writeJson(workspace.meta, meta);
@@ -110,7 +116,7 @@ export class TranscriptionService {
     let words = 0;
     for (const [from, to] of ranges) {
       if (from === undefined || to === undefined) continue;
-      this.output.info(`> refinando ${from.toFixed(0)}s a ${to.toFixed(0)}s`);
+      this.progress.step('refine', null, `refinando ${from.toFixed(0)}s a ${to.toFixed(0)}s`);
       words = (
         await this.redo(
           workspace,
@@ -144,7 +150,7 @@ export class TranscriptionService {
     const range = workspace.file('audio-range.wav');
     await this.media.extractAudio(workspace.video('source'), range, to - from, from);
     const found = await this.media.detectSilences(range, to - from);
-    const fresh = await this.whisper.transcribe(range, model, language, this.progress());
+    const fresh = await this.whisper.transcribe(range, model, language, this.progressFor());
     await fs.rm(range, { force: true });
     const offset = Math.round(from * 1000);
     const shifted = fresh.map((word) => ({
@@ -163,13 +169,10 @@ export class TranscriptionService {
     return { words: merged.length, silences: silences.length };
   }
 
-  private progress(): (fraction: number) => void {
-    let reported = 0;
-    return (fraction) => {
-      if (fraction < reported + PROGRESS_STEP && fraction < 1) return;
-      reported = fraction;
-      this.output.info(`> transcrevendo ${Math.round(fraction * 100)}%`);
-    };
+  private progressFor(): (fraction: number) => void {
+    return throttled((fraction) => {
+      this.progress.step('transcribe', fraction, `transcrevendo ${Math.round(fraction * 100)}%`);
+    }, PROGRESS_STEP);
   }
 
   private summary(

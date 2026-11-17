@@ -7,7 +7,8 @@ import { ProcessRunner } from '../common/process-runner.js';
 import { parsePublicUrl } from '../common/safe-url.js';
 import { MediaTools } from '../media/media-tools.js';
 import type { VideoRole, Workspace } from '../workspace/workspace.js';
-import { YtDlp } from './yt-dlp.js';
+import { Progress, throttled } from '../common/progress.js';
+import { DownloadTracker, downloadPercent, YtDlp } from './yt-dlp.js';
 
 const MAX_HEIGHT: Record<VideoRole, number> = { source: 1080, bottom: 720 };
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.mkv', '.webm', '.m4v', '.avi']);
@@ -36,6 +37,7 @@ export class VideoFetcher {
     private readonly runner: ProcessRunner,
     private readonly media: MediaTools,
     private readonly ytDlp: YtDlp,
+    private readonly progress: Progress,
   ) {}
 
   async fetch(
@@ -65,8 +67,14 @@ export class VideoFetcher {
     section?: Section,
   ): Promise<void> {
     const url = parsePublicUrl(raw);
-    const base = await this.ytDlp.baseArgs();
+    const base = await this.ytDlp.baseArgs(this.progress.active);
     await fs.rm(workspace.video(role), { force: true });
+    const step = role === 'source' ? 'download' : 'bottom';
+    const tracker = new DownloadTracker(section === undefined ? 2 : 1);
+    const report = throttled((fraction: number) => {
+      this.progress.step(step, fraction, `baixando ${Math.round(fraction * 100)}%`);
+    });
+    this.progress.step(step, 0, 'iniciando o download');
     await this.runner.exec(
       'yt-dlp',
       [
@@ -83,7 +91,17 @@ export class VideoFetcher {
         '--',
         url.toString(),
       ],
-      { stream: true },
+      {
+        stream: true,
+        ...(this.progress.active
+          ? {
+              onLine: (line: string) => {
+                const percent = downloadPercent(line);
+                if (percent !== null) report(tracker.update(percent));
+              },
+            }
+          : {}),
+      },
     );
     if (role === 'source') {
       await writeJson(workspace.origin, { url: url.toString(), offset: section?.from ?? 0 });
