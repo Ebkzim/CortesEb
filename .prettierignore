@@ -7,3 +7,5 @@ src/generated
 web/.next
 web/out
 prisma/migrations
+web/node_modules
+web/next-env.d.ts

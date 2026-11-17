@@ -36,3 +36,5 @@ README.md
 src/generated/
 web/.next/
 web/out/
+web/tsconfig.tsbuildinfo
+web/next-env.d.ts

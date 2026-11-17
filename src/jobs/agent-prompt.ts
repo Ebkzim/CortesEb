@@ -19,7 +19,7 @@ export function buildAgentPrompt(input: AgentPromptInput): string {
     '',
     `Pasta de trabalho: ${workDir}`,
     `Tipo de corte: ${input.preset} (nicho ${input.niche})`,
-    `Quantidade: ${String(targets.count)} cortes, cada um entre ${String(targets.minSeconds)} e ${String(targets.maxSeconds)} segundos.`,
+    `Quantidade: ${String(targets.count)} ${targets.count === 1 ? 'corte' : 'cortes'}, cada um entre ${String(targets.minSeconds)} e ${String(targets.maxSeconds)} segundos.`,
     '',
     'Passos:',
     `1. Leia a transcrição: cortes-eb transcript --work "${workDir}"`,
