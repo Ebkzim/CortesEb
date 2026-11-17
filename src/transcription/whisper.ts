@@ -11,9 +11,10 @@ import { exists } from '../common/json-file.js';
 import { AppPaths } from '../config/app-paths.js';
 import type { UserConfig } from '../config/user-config.js';
 import type { Word } from '../contracts/media.js';
-import { mergeTokens } from './tokens.js';
+import { dropLoops, dropMarkers, mergeTokens } from './tokens.js';
 
 export const WHISPER_VERSION = '1.5.5';
+const NO_CONTEXT_ARGS = ['--max-context', '0'];
 
 @Injectable()
 export class Whisper {
@@ -32,6 +33,7 @@ export class Whisper {
     audio: string,
     model: UserConfig['whisperModel'],
     language: string,
+    onProgress?: (fraction: number) => void,
   ): Promise<Word[]> {
     if (!(await this.isReady(model))) {
       throw new AppError('NOT_CONFIGURED', `modelo ${model} não instalado: rode cortes-eb setup`);
@@ -44,7 +46,9 @@ export class Whisper {
       tokenLevelTimestamps: true,
       language: language as Language,
       printOutput: false,
+      additionalArgs: NO_CONTEXT_ARGS,
+      ...(onProgress === undefined ? {} : { onProgress }),
     });
-    return mergeTokens(toCaptions({ whisperCppOutput: output }).captions);
+    return dropLoops(dropMarkers(mergeTokens(toCaptions({ whisperCppOutput: output }).captions)));
   }
 }

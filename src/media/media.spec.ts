@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { sniffImage } from '../images/image-sniffer.js';
 import { planSounds } from '../render/sound-plan.js';
 import { placeShots } from '../timeline/spans.js';
-import { mergeTokens } from '../transcription/tokens.js';
+import { dropLoops, dropMarkers, mergeTokens } from '../transcription/tokens.js';
 import { parseSilences } from './silence-parser.js';
 
 describe('parseSilences', () => {
@@ -48,6 +48,63 @@ describe('mergeTokens', () => {
       { text: 'Leonida,', startMs: 100, endMs: 360 },
       { text: 'mapa', startMs: 400, endMs: 600 },
     ]);
+  });
+});
+
+describe('dropMarkers', () => {
+  const word = (text: string, index: number): { text: string; startMs: number; endMs: number } => ({
+    text,
+    startMs: index * 100,
+    endMs: index * 100 + 90,
+  });
+  const texts = (list: { text: string }[]): string[] => list.map((item) => item.text);
+
+  it('removes bracketed markers split across words and lone dashes', () => {
+    const input = [
+      'Olha',
+      '[MÚSICA',
+      'DE',
+      'FUNDO]',
+      'isso',
+      '[Música]',
+      '-',
+      'tá',
+      '—',
+      'bom',
+    ].map(word);
+    expect(texts(dropMarkers(input))).toEqual(['Olha', 'isso', 'tá', 'bom']);
+  });
+
+  it('never swallows speech after an unclosed bracket', () => {
+    const input = ['[MÚSICA', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map(word);
+    expect(texts(dropMarkers(input))).toEqual(['f', 'g', 'h']);
+  });
+});
+
+describe('dropLoops', () => {
+  const words = (text: string): { text: string; startMs: number; endMs: number }[] =>
+    text
+      .split(' ')
+      .map((item, index) => ({ text: item, startMs: index * 100, endMs: index * 100 + 90 }));
+  const text = (list: { text: string }[]): string => list.map((item) => item.text).join(' ');
+
+  it('keeps one copy of a phrase repeated in a loop', () => {
+    const looped = words(
+      'Olha isso. Eu tô perdido, eu tô perdido, eu tô perdido, eu tô perdido no trailer.',
+    );
+    expect(text(dropLoops(looped))).toBe('Olha isso. Eu tô perdido, no trailer.');
+  });
+
+  it('keeps short natural repetition and removes long runs of it', () => {
+    expect(text(dropLoops(words('não, não, não, não. Vamo, vamo!')))).toBe(
+      'não, não, não, não. Vamo, vamo!',
+    );
+    expect(text(dropLoops(words('ei ei ei ei ei ei ei fim')))).toBe('ei fim');
+  });
+
+  it('leaves normal speech untouched', () => {
+    const speech = words('O mapa novo é a soma de três mapas e isso muda tudo no jogo.');
+    expect(dropLoops(speech)).toEqual(speech);
   });
 });
 

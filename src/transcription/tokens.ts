@@ -8,6 +8,74 @@ export interface Token {
 
 const MARKER = /^\s*\[.*\]\s*$/;
 
+const LONG_PHRASE = 3;
+const LONG_REPEATS = 3;
+const SHORT_REPEATS = 6;
+const MAX_PHRASE = 16;
+
+const MAX_MARKER_WORDS = 6;
+const DASH_ONLY = /^[-–—]+$/;
+
+export function dropMarkers(words: readonly Word[]): Word[] {
+  const result: Word[] = [];
+  let skipped = 0;
+  let inside = false;
+  for (const word of words) {
+    if (inside) {
+      skipped += 1;
+      if (word.text.includes(']') || skipped >= MAX_MARKER_WORDS) inside = false;
+      continue;
+    }
+    if (word.text.startsWith('[')) {
+      inside = !word.text.includes(']');
+      skipped = 1;
+      continue;
+    }
+    if (DASH_ONLY.test(word.text)) continue;
+    result.push(word);
+  }
+  return result;
+}
+
+export function dropLoops(words: readonly Word[]): Word[] {
+  const keys = words.map((word) => word.text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, ''));
+  const result: Word[] = [];
+  let index = 0;
+  while (index < words.length) {
+    const loop = findLoop(keys, index);
+    if (loop === null) {
+      const word = words[index];
+      if (word !== undefined) result.push(word);
+      index += 1;
+      continue;
+    }
+    result.push(...words.slice(index, index + loop.length));
+    index += loop.length * loop.repeats;
+  }
+  return result;
+}
+
+function findLoop(
+  keys: readonly string[],
+  start: number,
+): { length: number; repeats: number } | null {
+  for (let length = 1; length <= MAX_PHRASE; length += 1) {
+    let repeats = 1;
+    while (samePhrase(keys, start, start + length * repeats, length)) repeats += 1;
+    const needed = length >= LONG_PHRASE ? LONG_REPEATS : SHORT_REPEATS;
+    if (repeats >= needed) return { length, repeats };
+  }
+  return null;
+}
+
+function samePhrase(keys: readonly string[], a: number, b: number, length: number): boolean {
+  if (b + length > keys.length) return false;
+  for (let offset = 0; offset < length; offset += 1) {
+    if (keys[a + offset] !== keys[b + offset]) return false;
+  }
+  return true;
+}
+
 export function mergeTokens(tokens: readonly Token[]): Word[] {
   const words: Word[] = [];
   for (const token of tokens) {

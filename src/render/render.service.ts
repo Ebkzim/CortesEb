@@ -13,6 +13,7 @@ import type { RenderWatermark } from '../contracts/render.js';
 import { MediaTools } from '../media/media-tools.js';
 import { TargetsService } from '../planning/targets.service.js';
 import { SFX_NAMES, SfxLibrary } from '../sfx/sfx-library.js';
+import { dropMarkers } from '../transcription/tokens.js';
 import type { Workspace } from '../workspace/workspace.js';
 import { ClipComposer, type RenderContext } from './clip-composer.js';
 import { RemotionEngine } from './remotion-engine.js';
@@ -142,7 +143,7 @@ export class RenderService {
     const config = await this.config.load();
     return {
       workspace,
-      words: await readJson(workspace.captions, captionsSchema),
+      words: dropMarkers(await readJson(workspace.captions, captionsSchema)),
       silences: await readJson(workspace.silences, silencesSchema),
       meta: await readJson(workspace.meta, sourceMetaSchema),
       sourceDuration: await this.media.duration(workspace.video('source')),

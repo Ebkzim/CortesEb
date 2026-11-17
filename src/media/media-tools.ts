@@ -72,12 +72,19 @@ export class MediaTools {
     return value;
   }
 
-  async extractAudio(video: string, wav: string, maxSeconds?: number): Promise<void> {
+  async extractAudio(
+    video: string,
+    wav: string,
+    maxSeconds?: number,
+    startSeconds = 0,
+  ): Promise<void> {
     const limit = maxSeconds === undefined ? [] : ['-t', String(maxSeconds)];
+    const seek = startSeconds > 0 ? ['-ss', String(startSeconds)] : [];
     await this.runner.exec('ffmpeg', [
       '-y',
       '-v',
       'error',
+      ...seek,
       '-i',
       path.resolve(video),
       ...limit,

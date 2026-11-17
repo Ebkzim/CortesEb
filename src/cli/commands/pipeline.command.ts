@@ -58,6 +58,8 @@ const transcribeOptions = z.object({
     .regex(/^[a-z]{2,3}$/)
     .optional(),
   maxSeconds: z.coerce.number().positive().max(86_400).optional(),
+  from: z.coerce.number().min(0).max(86_400).optional(),
+  to: z.coerce.number().positive().max(86_400).optional(),
 });
 
 @Command({ name: 'transcribe', description: 'transcreve o source.mp4 e mede os silêncios' })
@@ -74,6 +76,16 @@ export class TranscribeCommand extends WorkspaceCommand {
     return value;
   }
 
+  @Option({ flags: '--from <segundos>', description: 'retranscreve só a partir deste ponto' })
+  parseFrom(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '--to <segundos>', description: 'retranscreve só até este ponto' })
+  parseTo(value: string): string {
+    return value;
+  }
+
   @Option({ flags: '--max-seconds <n>', description: 'transcreve só os primeiros n segundos' })
   parseMaxSeconds(value: string): string {
     return value;
@@ -84,6 +96,8 @@ export class TranscribeCommand extends WorkspaceCommand {
     const summary = await this.transcription.run(new Workspace(options.work), {
       ...(options.lang === undefined ? {} : { language: options.lang }),
       ...(options.maxSeconds === undefined ? {} : { maxSeconds: options.maxSeconds }),
+      ...(options.from === undefined ? {} : { from: options.from }),
+      ...(options.to === undefined ? {} : { to: options.to }),
     });
     this.output.json(summary);
   }
