@@ -34,6 +34,7 @@ export class LiveService {
         factory: this.factory,
         output: this.output,
         chat: channel === null ? null : new TwitchChat(channel),
+        watchAds: twitchChannel(request.link) !== null,
         fetchBottom: async (source, workRoot) => {
           this.output.info('> preparando o vídeo de baixo');
           return this.fetcher.fetch(source, 'bottom', new Workspace(workRoot));

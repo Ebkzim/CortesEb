@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LANGUAGE_PATTERN } from '../config/user-config.js';
 import type { Word } from '../contracts/media.js';
+import { AdWatcher, playlistHasAd } from './ad-watcher.js';
 import { cameraCrop, parseCamera } from './camera.js';
 import { ChatCounter } from './chat-counter.js';
 import { buildLiveClip } from './clip-cut.js';
@@ -328,5 +329,40 @@ describe('language pattern', () => {
     expect(LANGUAGE_PATTERN.test('autos')).toBe(false);
     expect(LANGUAGE_PATTERN.test('p')).toBe(false);
     expect(LANGUAGE_PATTERN.test('pt-BR')).toBe(false);
+  });
+});
+
+describe('ad detection', () => {
+  const clean = '#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:2.000,live\nseg1.ts\n';
+  const ad =
+    '#EXTM3U\n#EXT-X-DATERANGE:ID="1",CLASS="twitch-stitched-ad",START-DATE="2026-11-17T10:00:00Z"\n#EXTINF:2.000,Amazon\nad1.ts\n';
+
+  it('recognizes twitch stitched ad markers', () => {
+    expect(playlistHasAd(ad)).toBe(true);
+    expect(playlistHasAd(clean)).toBe(false);
+    expect(playlistHasAd('#EXT-X-TWITCH-INFO:X-TV-TWITCH-AD-URL="x"')).toBe(true);
+  });
+
+  it('reports only changes of state', async () => {
+    const answers = [clean, ad, ad, clean];
+    const seen: boolean[] = [];
+    const watcher = new AdWatcher(
+      'https://example.com/x.m3u8',
+      (active) => seen.push(active),
+      () => Promise.resolve(answers.shift() ?? ''),
+    );
+    for (let index = 0; index < 4; index += 1) await watcher.poll();
+    expect(seen).toEqual([true, false]);
+  });
+
+  it('keeps the last state when the playlist cannot be fetched', async () => {
+    const seen: boolean[] = [];
+    const watcher = new AdWatcher(
+      'https://example.com/x.m3u8',
+      (active) => seen.push(active),
+      () => Promise.reject(new Error('rede')),
+    );
+    await watcher.poll();
+    expect(seen).toEqual([]);
   });
 });

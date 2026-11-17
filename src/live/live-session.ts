@@ -6,6 +6,7 @@ import type { Output } from '../common/output.js';
 import { resolveInside } from '../common/safe-path.js';
 import type { CameraSpec } from './camera.js';
 import type { ClipFactory, FactoryOptions, PreparedClip } from './clip-factory.js';
+import { AdWatcher } from './ad-watcher.js';
 import { ChatCounter } from './chat-counter.js';
 import type { ChatSource } from './twitch-chat.js';
 import { LiveDetector, type LiveOptions, type LiveWindow } from './live-detector.js';
@@ -47,6 +48,7 @@ export interface SessionDeps {
   factory: ClipFactory;
   output: Output;
   chat: ChatSource | null;
+  watchAds: boolean;
   fetchBottom: (source: string, workRoot: string) => Promise<string>;
 }
 
@@ -81,6 +83,7 @@ export class LiveSession {
   private lastSample = Date.now();
   private sequence = 0;
   private stopping = false;
+  private adActive = false;
   private readonly summary: LiveSummary;
 
   constructor(
@@ -189,12 +192,20 @@ export class LiveSession {
     );
     this.recording = recording;
     this.lastSample = Date.now();
+    const ads = this.deps.watchAds
+      ? new AdWatcher(input, (active) => {
+          this.adActive = active;
+          this.emit({ event: 'ad', active });
+        })
+      : null;
+    ads?.start();
     this.epochs.push({ epoch, base: this.base, list: recording.list });
     const watchdog = setInterval(() => {
       if (Date.now() - this.lastSample > STALL_MS) recording.stop();
     }, STALL_MS / 4);
     await recording.exited;
     clearInterval(watchdog);
+    ads?.stop();
     this.recording = null;
     this.base = Math.max(this.base, coveredUntil(await this.readList(recording.list)));
   }
@@ -207,6 +218,7 @@ export class LiveSession {
     this.lastSample = Date.now();
     const time = this.base + sample.time;
     this.latest = time;
+    if (this.adActive) return;
     for (const window of this.detector.push(time, sample.level, this.chat.boost(time)))
       this.schedule(window);
   }
