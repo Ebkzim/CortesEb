@@ -25,6 +25,7 @@ export interface TranscriptionSummary {
 export interface TranscriptionRequest {
   language?: string;
   maxSeconds?: number;
+  model?: UserConfig['whisperModel'];
   from?: number;
   to?: number;
 }
@@ -48,31 +49,21 @@ export class TranscriptionService {
     }
     const config = await this.config.load();
     const language = request.language ?? config.language;
+    const model = request.model ?? config.whisperModel;
     const meta = await this.media.probe(source);
     if (request.from !== undefined || request.to !== undefined) {
       await writeJson(workspace.meta, meta);
-      const result = await this.redo(
-        workspace,
-        request,
-        meta.duration,
-        config.whisperModel,
-        language,
-      );
-      return this.summary(result.words, result.silences, meta.duration, language, config);
+      const result = await this.redo(workspace, request, meta.duration, model, language);
+      return this.summary(result.words, result.silences, meta.duration, language, model);
     }
     await writeJson(workspace.meta, meta);
     await this.media.extractAudio(source, workspace.audio, request.maxSeconds);
     const audible = Math.min(meta.duration, request.maxSeconds ?? meta.duration);
     const silences = await this.media.detectSilences(workspace.audio, audible);
     await writeJson(workspace.silences, silences);
-    const words = await this.whisper.transcribe(
-      workspace.audio,
-      config.whisperModel,
-      language,
-      this.progress(),
-    );
+    const words = await this.whisper.transcribe(workspace.audio, model, language, this.progress());
     await writeJson(workspace.captions, words);
-    return this.summary(words.length, silences.length, meta.duration, language, config);
+    return this.summary(words.length, silences.length, meta.duration, language, model);
   }
 
   async fromYoutube(
@@ -97,7 +88,7 @@ export class TranscriptionService {
     const silences = await this.media.detectSilences(workspace.audio, meta.duration);
     await writeJson(workspace.silences, silences);
     await writeJson(workspace.captions, words);
-    return this.summary(words.length, silences.length, meta.duration, lang, config);
+    return this.summary(words.length, silences.length, meta.duration, lang, config.whisperModel);
   }
 
   async refine(workspace: Workspace, pad: number): Promise<{ ranges: number[][]; words: number }> {
@@ -180,9 +171,9 @@ export class TranscriptionService {
     silences: number,
     duration: number,
     language: string,
-    config: UserConfig,
+    model: string,
   ): TranscriptionSummary {
-    return { words, silences, duration, language, model: config.whisperModel };
+    return { words, silences, duration, language, model };
   }
 
   async lines(workspace: Workspace): Promise<string[]> {
