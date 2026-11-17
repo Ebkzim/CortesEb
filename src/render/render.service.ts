@@ -69,7 +69,7 @@ export class RenderService {
     const plan = await this.planTargets(clips, requested, workspace);
     const context = await this.buildContext(
       workspace,
-      clips.some((clip) => clip.bottom === 'video'),
+      clips.some((clip) => clip.bottom === 'video' && clip.frame !== 'fit'),
     );
     await this.targets.assert(workspace);
     const base = path.resolve(outDir);

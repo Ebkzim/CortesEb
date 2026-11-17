@@ -40,6 +40,8 @@ const AUDIO_RATE = 44100;
 const FIRST_PUNCH = 1.12;
 const ODD_PUNCH = 1.06;
 const CENTER: Focus = { x: 50, y: 50 };
+const FIT_BLUR = 28;
+const FIT_DIM = -0.22;
 
 export function buildGraph(props: SplitCutProps, files: GraphFiles): GraphPlan {
   const segments = props.segments;
@@ -60,8 +62,9 @@ export function buildGraph(props: SplitCutProps, files: GraphFiles): GraphPlan {
   };
 
   const source = addInput('-ss', sec(origin), '-t', sec(span), '-i', props.sourceFile);
+  const fit = props.frame === 'fit';
   const bottomVideo =
-    props.bottomSource === null
+    !fit && props.bottomSource === null
       ? addInput(
           '-stream_loop',
           '-1',
@@ -73,7 +76,7 @@ export function buildGraph(props: SplitCutProps, files: GraphFiles): GraphPlan {
           props.bottomFile,
         )
       : null;
-  const divider = addInput(...stillArgs(total), '-i', files.dividerFile);
+  const divider = fit ? -1 : addInput(...stillArgs(total), '-i', files.dividerFile);
   const watermark =
     files.watermark === null ? null : addInput(...stillArgs(total), '-i', files.watermark.file);
   const imageInputs = props.images.map((image) =>
@@ -85,12 +88,12 @@ export function buildGraph(props: SplitCutProps, files: GraphFiles): GraphPlan {
     : addInput('-f', 'lavfi', '-t', sec(total), '-i', `anullsrc=r=${AUDIO_RATE}:cl=stereo`);
 
   const count = segments.length;
-  const dual = props.bottomSource !== null;
+  const dual = !fit && props.bottomSource !== null;
 
   lines.push(
     dual ? `[${source}:v]fps=${FPS},split=2[srcT][srcB]` : `[${source}:v]fps=${FPS}[srcT]`,
   );
-  lines.push(`[srcT]${cover(props.crop, props.focus, props)}[topc]`);
+  lines.push(fit ? `[srcT]setsar=1[topc]` : `[srcT]${cover(props.crop, props.focus, props)}[topc]`);
   lines.push(fan('topc', 't', count));
   if (props.bottomSource !== null) {
     lines.push(`[srcB]${cover(props.bottomSource.crop, CENTER, props)}[botc]`);
@@ -106,7 +109,7 @@ export function buildGraph(props: SplitCutProps, files: GraphFiles): GraphPlan {
   segments.forEach((segment, index) => {
     const from = sec(segment.from - origin);
     const to = sec(segment.to - origin);
-    const punch = punchFactor(index);
+    const punch = fit ? 1 : punchFactor(index);
     const zoom =
       punch > 1
         ? `,scale=w='iw*(1+(${punch - 1})*pow(1-min(1,t/${PUNCH_SECONDS.toFixed(4)}),3))':h='ih*(1+(${punch - 1})*pow(1-min(1,t/${PUNCH_SECONDS.toFixed(4)}),3))':eval=frame,crop=${W}:${TOP}`
@@ -136,13 +139,23 @@ export function buildGraph(props: SplitCutProps, files: GraphFiles): GraphPlan {
   );
 
   const flashes = flashFilters(props);
-  lines.push(`[topcat]${flashes === '' ? 'null' : flashes}[topf]`);
-  lines.push(
-    bottomVideo === null
-      ? `[botcat]null[bot]`
-      : `[${bottomVideo}:v]fps=${FPS},${cover(null, CENTER, props)}[bot]`,
-  );
-  lines.push(`[topf][bot]vstack=inputs=2[stack]`);
+  if (fit) {
+    lines.push(`[topcat]split=2[fitfg][fitbg]`);
+    lines.push(
+      `[fitbg]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=luma_radius=${FIT_BLUR}:luma_power=2,eq=brightness=${FIT_DIM}:saturation=0.85[fitback]`,
+    );
+    lines.push(`[fitfg]scale=${W}:-2[fitfront]`);
+    lines.push(`[fitback][fitfront]overlay=x=0:y='(H-h)/2'[fitted]`);
+    lines.push(`[fitted]${flashes === '' ? 'null' : flashes}[stack]`);
+  } else {
+    lines.push(`[topcat]${flashes === '' ? 'null' : flashes}[topf]`);
+    lines.push(
+      bottomVideo === null
+        ? `[botcat]null[bot]`
+        : `[${bottomVideo}:v]fps=${FPS},${cover(null, CENTER, props)}[bot]`,
+    );
+    lines.push(`[topf][bot]vstack=inputs=2[stack]`);
+  }
 
   let current = 'stack';
   props.images.forEach((image, index) => {
@@ -158,7 +171,9 @@ export function buildGraph(props: SplitCutProps, files: GraphFiles): GraphPlan {
     current = `ov${index}`;
   });
   lines.push(
-    `[${current}][${divider}:v]overlay=x=0:y=${TOP - DIVIDER_HEIGHT / 2}:eof_action=pass:format=auto[withdiv]`,
+    fit
+      ? `[${current}]null[withdiv]`
+      : `[${current}][${divider}:v]overlay=x=0:y=${TOP - DIVIDER_HEIGHT / 2}:eof_action=pass:format=auto[withdiv]`,
   );
   lines.push(`[withdiv]ass=${files.assFile}:fontsdir=${escapeValue(files.fontsDir)}[cap]`);
   if (watermark !== null && files.watermark !== null) {

@@ -7,6 +7,8 @@ export const PRESET_IDS = [
   'gta6-react',
   'filmes',
   'series',
+  'filmes-cena',
+  'series-cena',
   'podcast',
 ] as const;
 

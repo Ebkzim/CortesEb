@@ -14,6 +14,9 @@ export interface Preset {
   camera: 'ask' | 'none' | 'fixed';
   bottom: 'source' | 'niche';
   sources: readonly SourceType[];
+  group: 'filmes' | 'series' | null;
+  variant: 'react' | 'cena' | null;
+  frame: 'split' | 'fit';
   top: string;
   below: string;
   layout: Layout;
@@ -22,6 +25,9 @@ export interface Preset {
 export const PRESETS: readonly Preset[] = [
   {
     id: 'gameplay-camera',
+    group: null,
+    variant: null,
+    frame: 'split',
     sources: ALL_SOURCES,
     label: 'Gameplay com câmera',
     description: 'O rosto de quem joga em cima e o jogo embaixo.',
@@ -34,6 +40,9 @@ export const PRESETS: readonly Preset[] = [
   },
   {
     id: 'gta6-gameplay',
+    group: null,
+    variant: null,
+    frame: 'split',
     sources: ALL_SOURCES,
     label: 'Gameplay GTA 6',
     description: 'O gameplay em cima e o trailer de GTA 6 embaixo.',
@@ -46,6 +55,9 @@ export const PRESETS: readonly Preset[] = [
   },
   {
     id: 'gta6-react',
+    group: null,
+    variant: null,
+    frame: 'split',
     sources: ALL_SOURCES,
     label: 'React GTA 6',
     description: 'O rosto de quem reage em cima e o GTA 6 embaixo.',
@@ -58,9 +70,12 @@ export const PRESETS: readonly Preset[] = [
   },
   {
     id: 'filmes',
+    group: 'filmes',
+    variant: 'react',
+    frame: 'split',
     sources: RECORDED,
-    label: 'Filmes',
-    description: 'Quem comenta em cima e a cena do filme embaixo.',
+    label: 'React de filme',
+    description: 'Quem reage em cima e a cena do filme embaixo.',
     niche: 'filmes-series',
     camera: 'ask',
     bottom: 'source',
@@ -70,9 +85,12 @@ export const PRESETS: readonly Preset[] = [
   },
   {
     id: 'series',
+    group: 'series',
+    variant: 'react',
+    frame: 'split',
     sources: RECORDED,
-    label: 'Séries',
-    description: 'Quem comenta em cima e a cena da série embaixo.',
+    label: 'React de série',
+    description: 'Quem reage em cima e a cena da série embaixo.',
     niche: 'filmes-series',
     camera: 'ask',
     bottom: 'source',
@@ -81,7 +99,40 @@ export const PRESETS: readonly Preset[] = [
     layout: { bottom: 'source' },
   },
   {
+    id: 'filmes-cena',
+    group: 'filmes',
+    variant: 'cena',
+    frame: 'fit',
+    sources: RECORDED,
+    label: 'Cena de filme',
+    description: 'A cena inteira no meio, título em cima e legenda embaixo.',
+    niche: 'filmes-series',
+    camera: 'none',
+    bottom: 'source',
+    top: 'título',
+    below: 'cena do filme',
+    layout: { camera: 'none', frame: 'fit' },
+  },
+  {
+    id: 'series-cena',
+    group: 'series',
+    variant: 'cena',
+    frame: 'fit',
+    sources: RECORDED,
+    label: 'Cena de série',
+    description: 'A cena inteira no meio, título em cima e legenda embaixo.',
+    niche: 'filmes-series',
+    camera: 'none',
+    bottom: 'source',
+    top: 'título',
+    below: 'cena da série',
+    layout: { camera: 'none', frame: 'fit' },
+  },
+  {
     id: 'podcast',
+    group: null,
+    variant: null,
+    frame: 'split',
     sources: ALL_SOURCES,
     label: 'Podcast',
     description: 'Um lado da conversa em cima e o outro embaixo.',
@@ -128,6 +179,7 @@ export function bottomPlan(
 }
 
 export function withBottom(layout: Layout, plan: BottomPlan): Layout {
+  if (layout.frame === 'fit') return { ...layout };
   if (plan.kind === 'source') return { ...layout, bottom: 'source' };
   const rest: Layout = { ...layout, bottom: 'video' };
   delete rest.bottomArea;

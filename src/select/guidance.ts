@@ -18,6 +18,10 @@ export const PRESET_HINTS: Record<string, string> = {
     'É alguém reagindo ou comentando um filme. O começo costuma ser a pessoa falando sozinha antes de a cena começar: ignore essa abertura. Os melhores cortes são reações fortes, vereditos, teorias e detalhes que passaram despercebidos.',
   series:
     'É alguém reagindo ou comentando uma série. O começo costuma ser a pessoa falando sozinha antes do episódio: ignore essa abertura. Os melhores cortes são reações fortes, vereditos, teorias e detalhes que passaram despercebidos.',
+  'filmes-cena':
+    'São cenas de um filme, sem ninguém comentando. Os melhores cortes são falas marcantes, piadas, duplo sentido, humor ácido ou humor negro, frases de efeito, tensão e reviravolta. O corte precisa fazer sentido sozinho para quem nunca viu o filme e terminar na frase de impacto ou na risada.',
+  'series-cena':
+    'São cenas de uma série, sem ninguém comentando. Os melhores cortes são falas marcantes, piadas, duplo sentido, humor ácido ou humor negro, frases de efeito, discussões, tensão e reviravolta. O corte precisa fazer sentido sozinho para quem nunca viu a série e terminar na frase de impacto ou na risada.',
   podcast:
     'É uma conversa entre pessoas. Os melhores cortes são histórias completas, opiniões polêmicas, revelações e respostas marcantes.',
 };

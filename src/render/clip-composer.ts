@@ -73,6 +73,8 @@ export class ClipComposer {
         sourceWidth: context.meta.width,
         sourceHeight: context.meta.height,
         pages: plan.pages,
+        frame: clip.frame ?? 'split',
+        headline: clip.frame === 'fit' ? (clip.title ?? clip.hook ?? null) : null,
         credit: clip.credit ?? null,
         sfx: planSounds(
           plan.placed,
