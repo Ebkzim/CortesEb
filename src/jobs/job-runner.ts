@@ -86,6 +86,9 @@ export class JobRunner implements OnModuleDestroy {
     }
     const request = parsed.data;
     const preset = presetOf(request.preset);
+    if (!preset.sources.includes(request.source.type)) {
+      throw new AppError('INVALID_INPUT', `${preset.label} não aceita essa origem de vídeo`);
+    }
     const id = randomUUID();
     const job = await this.jobs.create({
       id,

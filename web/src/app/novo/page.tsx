@@ -34,6 +34,7 @@ import { PLATFORM_LABEL, linkError } from '@/lib/links';
 import type {
   AccountView,
   ApiKeyView,
+  JobBottom,
   JobRequest,
   JobSelector,
   JobSource,
@@ -56,6 +57,23 @@ const PRESET_ICON: Record<PresetId, ReactNode> = {
 };
 
 type SourceKind = 'file' | 'youtube' | 'vod' | 'live';
+
+const SOURCE_OPTIONS: { kind: SourceKind; icon: ReactNode; title: string; text: string }[] = [
+  { kind: 'file', icon: <Upload size={18} />, title: 'Arquivo', text: 'Um vídeo do computador.' },
+  { kind: 'youtube', icon: <Video size={18} />, title: 'YouTube', text: 'Um vídeo publicado.' },
+  {
+    kind: 'vod',
+    icon: <Clapperboard size={18} />,
+    title: 'VOD de live',
+    text: 'Twitch, Kick ou YouTube.',
+  },
+  {
+    kind: 'live',
+    icon: <Radio size={18} />,
+    title: 'Live agora',
+    text: 'Corta enquanto a live roda.',
+  },
+];
 type SelectorKind = JobSelector['kind'];
 
 interface OllamaState {
@@ -81,6 +99,11 @@ export default function NewCutPage() {
   const [to, setTo] = useState('');
   const [uploadState, setUploadState] = useState<{ id: string; name: string } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [bottomMode, setBottomMode] = useState<'default' | 'source' | 'other'>('default');
+  const [bottomKind, setBottomKind] = useState<'url' | 'file'>('url');
+  const [bottomLink, setBottomLink] = useState('');
+  const [bottomUpload, setBottomUpload] = useState<{ id: string; name: string } | null>(null);
+  const [bottomProgress, setBottomProgress] = useState<number | null>(null);
   const [selectorKind, setSelectorKind] = useState<SelectorKind | null>(null);
   const [keys, setKeys] = useState<ApiKeyView[]>([]);
   const [keyId, setKeyId] = useState<string | null>(null);
@@ -172,9 +195,51 @@ export default function NewCutPage() {
     return null;
   }, [selectorKind, keyId, ollamaModel, agent, isLive]);
 
-  const canAdvance = [preset !== null, targets !== null, source !== null, selector !== null, true][
-    step
-  ];
+  const allowedSources: SourceKind[] = chosenPreset?.sources ?? ['file', 'youtube', 'vod', 'live'];
+
+  useEffect(() => {
+    if (sourceKind !== null && !allowedSources.includes(sourceKind)) setSourceKind(null);
+    setBottomMode(chosenPreset?.bottom === 'niche' ? 'default' : 'source');
+  }, [preset]);
+
+  const bottomProblem = useMemo((): string | null => {
+    if (bottomMode !== 'other') return null;
+    if (bottomKind === 'file') return bottomUpload === null ? 'envie o vídeo de baixo' : null;
+    return linkError(bottomLink, 'youtube');
+  }, [bottomMode, bottomKind, bottomUpload, bottomLink]);
+
+  const bottomChoice: JobBottom | undefined = useMemo(() => {
+    if (bottomMode === 'default') return undefined;
+    if (bottomMode === 'source') return { type: 'source' };
+    if (bottomKind === 'file')
+      return bottomUpload === null ? undefined : { type: 'file', uploadId: bottomUpload.id };
+    return { type: 'url', url: bottomLink.trim() };
+  }, [bottomMode, bottomKind, bottomUpload, bottomLink]);
+
+  async function sendBottom(file: File): Promise<void> {
+    setBottomProgress(0);
+    setBottomUpload(null);
+    try {
+      const result = await upload<{ uploadId: string; name: string }>(
+        '/uploads',
+        file,
+        setBottomProgress,
+      );
+      setBottomUpload({ id: result.uploadId, name: result.name });
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'falha no envio');
+    } finally {
+      setBottomProgress(null);
+    }
+  }
+
+  const canAdvance = [
+    preset !== null,
+    targets !== null,
+    source !== null && bottomProblem === null,
+    selector !== null,
+    true,
+  ][step];
 
   async function start(): Promise<void> {
     if (preset === null || targets === null || source === null || selector === null) return;
@@ -184,6 +249,7 @@ export default function NewCutPage() {
       source,
       targets,
       selector,
+      ...(bottomChoice === undefined ? {} : { bottom: bottomChoice }),
       ...(title.trim() === '' ? {} : { title: title.trim() }),
       ...(watermark === 'on' && chosenAccounts.length > 0 ? { accounts: chosenAccounts } : {}),
     };
@@ -224,8 +290,9 @@ export default function NewCutPage() {
           : `de ${duration(targets.minSeconds)} a ${duration(targets.maxSeconds)}`,
     });
   }
-  if (step > 1 && source !== null)
+  if (step > 1 && source !== null) {
     summary.push({ label: 'Origem', value: sourceLabel(source, uploadState?.name) });
+  }
   if (step > 2 && selector !== null) {
     summary.push({ label: 'Inteligência', value: selectorLabel(selector, keys) });
   }
@@ -371,46 +438,31 @@ export default function NewCutPage() {
               <>
                 <Heading
                   title="De onde vem o vídeo?"
-                  text="Um arquivo, um link ou uma live no ar agora."
+                  text={
+                    allowedSources.includes('live')
+                      ? 'Um arquivo, um link ou uma live no ar agora.'
+                      : 'Um arquivo ou um link.'
+                  }
                 />
-                <div className="grid grid--4">
-                  <Choice
-                    active={sourceKind === 'file'}
-                    icon={<Upload size={18} />}
-                    title="Arquivo"
-                    text="Um vídeo do computador."
-                    onClick={() => {
-                      setSourceKind('file');
-                    }}
-                  />
-                  <Choice
-                    active={sourceKind === 'youtube'}
-                    icon={<Video size={18} />}
-                    title="YouTube"
-                    text="Um vídeo publicado."
-                    onClick={() => {
-                      setSourceKind('youtube');
-                    }}
-                  />
-                  <Choice
-                    active={sourceKind === 'vod'}
-                    icon={<Clapperboard size={18} />}
-                    title="VOD de live"
-                    text="Twitch, Kick ou YouTube."
-                    onClick={() => {
-                      setSourceKind('vod');
-                    }}
-                  />
-                  <Choice
-                    active={sourceKind === 'live'}
-                    icon={<Radio size={18} />}
-                    title="Live agora"
-                    text="Corta enquanto a live roda."
-                    onClick={() => {
-                      setSourceKind('live');
-                      if (selectorKind === 'agent') setSelectorKind(null);
-                    }}
-                  />
+                <div className={`grid grid--${String(Math.max(2, allowedSources.length))}`}>
+                  {SOURCE_OPTIONS.filter((option) => allowedSources.includes(option.kind)).map(
+                    (option) => (
+                      <Choice
+                        key={option.kind}
+                        active={sourceKind === option.kind}
+                        icon={option.icon}
+                        title={option.title}
+                        text={option.text}
+                        onClick={() => {
+                          setSourceKind(option.kind);
+                          if (option.kind === 'live' && selectorKind === 'agent')
+                            setSelectorKind(null);
+                          if (option.kind !== 'live' && selectorKind === 'rules')
+                            setSelectorKind(null);
+                        }}
+                      />
+                    ),
+                  )}
                 </div>
                 <AnimatePresence mode="wait">
                   {sourceKind !== null && (
@@ -505,6 +557,80 @@ export default function NewCutPage() {
                     </motion.div>
                   )}
                 </AnimatePresence>
+                {sourceKind !== null && chosenPreset !== null && (
+                  <motion.div className="panel stack" {...fade}>
+                    <span className="field__label">O que vai embaixo?</span>
+                    <Segmented
+                      id="bottom"
+                      value={bottomMode}
+                      options={[
+                        ...(chosenPreset.bottom === 'niche'
+                          ? [
+                              {
+                                value: 'default' as const,
+                                label:
+                                  chosenPreset.below.charAt(0).toUpperCase() +
+                                  chosenPreset.below.slice(1),
+                              },
+                            ]
+                          : []),
+                        { value: 'source' as const, label: 'O próprio vídeo' },
+                        { value: 'other' as const, label: 'Outro vídeo' },
+                      ]}
+                      onChange={setBottomMode}
+                    />
+                    <AnimatePresence mode="wait">
+                      {bottomMode === 'other' ? (
+                        <motion.div key="other" className="stack" {...fade}>
+                          <Segmented
+                            id="bottom-kind"
+                            value={bottomKind}
+                            options={[
+                              { value: 'url', label: 'Link do YouTube' },
+                              { value: 'file', label: 'Arquivo' },
+                            ]}
+                            onChange={setBottomKind}
+                          />
+                          {bottomKind === 'url' ? (
+                            <label className="field">
+                              <input
+                                className={`input ${bottomLink !== '' && bottomProblem !== null ? 'input--error' : ''}`}
+                                placeholder="https://www.youtube.com/watch?v=…"
+                                value={bottomLink}
+                                onChange={(event) => {
+                                  setBottomLink(event.target.value);
+                                }}
+                              />
+                              {bottomLink !== '' && bottomProblem !== null && (
+                                <span className="field__hint">{bottomProblem}</span>
+                              )}
+                            </label>
+                          ) : (
+                            <Dropzone
+                              name={bottomUpload?.name ?? null}
+                              progress={bottomProgress}
+                              onFile={(file) => {
+                                void sendBottom(file);
+                              }}
+                            />
+                          )}
+                          <span className="field__hint">
+                            Ex.: gameplay sem som, um trailer ou um vídeo satisfatório. Ele toca sem
+                            áudio embaixo do corte.
+                          </span>
+                        </motion.div>
+                      ) : (
+                        <motion.p key={bottomMode} className="field__hint" {...fade}>
+                          {bottomMode === 'default'
+                            ? `Embaixo entra o ${chosenPreset.below}, baixado uma vez e reaproveitado.`
+                            : chosenPreset.id === 'podcast'
+                              ? 'Um lado da conversa em cima e o outro embaixo.'
+                              : 'A metade de baixo mostra o próprio vídeo (o jogo ou a cena).'}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                )}
               </>
             )}
 

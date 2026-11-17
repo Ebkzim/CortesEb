@@ -39,6 +39,13 @@ export const sourceSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('live'), platform: z.enum(PLATFORM_IDS), url: link }),
 ]);
 
+export const bottomSchema = z.discriminatedUnion('type', [
+  z.strictObject({ type: z.literal('default') }),
+  z.strictObject({ type: z.literal('source') }),
+  z.strictObject({ type: z.literal('url'), url: link }),
+  z.strictObject({ type: z.literal('file'), uploadId: z.uuid() }),
+]);
+
 export const targetsSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('count'), count: z.number().int().min(1).max(20) }),
   z
@@ -76,6 +83,7 @@ export const jobRequestSchema = z
     selector: selectorSchema,
     accounts: z.array(z.string().regex(ACCOUNT_REF_PATTERN)).max(20).optional(),
     camera: percentRectSchema.optional(),
+    bottom: bottomSchema.optional(),
     resume: z.uuid().optional(),
   })
   .superRefine((request, context) => {
@@ -113,3 +121,4 @@ export type JobSource = z.infer<typeof sourceSchema>;
 export type JobTargets = z.infer<typeof targetsSchema>;
 export type JobSelector = z.infer<typeof selectorSchema>;
 export type JobRequest = z.infer<typeof jobRequestSchema>;
+export type JobBottom = z.infer<typeof bottomSchema>;

@@ -20,7 +20,14 @@ import { TranscriptionService } from '../transcription/transcription.service.js'
 import { Workspace } from '../workspace/workspace.js';
 import { buildAgentPrompt } from './agent-prompt.js';
 import { assertActive, pause, type Pipeline, type PipelineContext } from './pipeline-context.js';
-import { DEFAULT_CAMERA, layoutFor, type Preset } from './presets.js';
+import {
+  bottomPlan,
+  DEFAULT_CAMERA,
+  layoutFor,
+  withBottom,
+  type BottomPlan,
+  type Preset,
+} from './presets.js';
 import { buildGuidance, introSeconds } from '../select/guidance.js';
 import { SelectorClients } from './selector-client.js';
 import { SpeedBook } from './speed-book.js';
@@ -78,7 +85,7 @@ export class CutPipeline implements Pipeline {
   steps(request: JobRequest, preset: Preset): JobStepId[] {
     return [
       'download',
-      ...(preset.bottom === 'niche' ? (['bottom'] as const) : []),
+      ...(this.bottomOf(request, preset).kind === 'source' ? [] : (['bottom'] as const)),
       ...(preset.camera === 'ask' && request.camera === undefined ? (['camera'] as const) : []),
       'transcribe',
       'select',
@@ -111,7 +118,7 @@ export class CutPipeline implements Pipeline {
         tracker.finish('bottom', 'reaproveitado');
       } else {
         tracker.start('bottom', 'buscando o vídeo de baixo');
-        await this.prepareBottom(preset, workspace);
+        await this.prepareBottom(this.bottomOf(request, preset), workspace);
         tracker.finish('bottom');
       }
       assertActive(signal);
@@ -154,7 +161,11 @@ export class CutPipeline implements Pipeline {
       camera = await context.waitForCamera(path.basename(frame), DEFAULT_CAMERA);
       tracker.finish('camera');
     }
-    if (!reused.layout) await this.layouts.saveForWorkspace(workspace, layoutFor(preset, camera));
+    if (!reused.layout)
+      await this.layouts.saveForWorkspace(
+        workspace,
+        withBottom(layoutFor(preset, camera), this.bottomOf(request, preset)),
+      );
     assertActive(signal);
 
     if (reused.transcript) {
@@ -287,10 +298,17 @@ export class CutPipeline implements Pipeline {
     return resolveInside(this.paths.uploadsDir, name);
   }
 
-  private async prepareBottom(preset: Preset, workspace: Workspace): Promise<void> {
-    const url = this.niches.get(preset.niche).defaultBottomUrl;
-    if (url === null)
-      throw new AppError('NOT_CONFIGURED', 'esse tipo não tem vídeo de baixo padrão');
+  private bottomOf(request: JobRequest, preset: Preset): BottomPlan {
+    return bottomPlan(preset, request.bottom, this.niches.get(preset.niche).defaultBottomUrl);
+  }
+
+  private async prepareBottom(plan: BottomPlan, workspace: Workspace): Promise<void> {
+    if (plan.kind === 'source') return;
+    if (plan.kind === 'file') {
+      await this.fetcher.fetch(await this.uploadPath(plan.uploadId), 'bottom', workspace);
+      return;
+    }
+    const url = plan.url;
     const key = createHash('sha256').update(url).digest('hex').slice(0, 16);
     const cache = new Workspace(path.join(this.paths.cacheDir, 'bottom', key));
     if (!(await exists(cache.video('bottom')))) {

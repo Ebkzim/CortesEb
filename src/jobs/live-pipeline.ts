@@ -1,12 +1,16 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Injectable } from '@nestjs/common';
+import { AppError } from '../common/app-error.js';
+import { resolveInside } from '../common/safe-path.js';
+import { AppPaths } from '../config/app-paths.js';
 import { UserConfigStore } from '../config/user-config.js';
 import type { JobRequest } from '../contracts/job.js';
 import { parseCamera } from '../layout/camera.js';
 import { LiveService } from '../live/live.service.js';
 import { NicheRegistry } from '../niches/niche-registry.js';
 import type { Pipeline, PipelineContext } from './pipeline-context.js';
-import { DEFAULT_CAMERA, rectSpec, type Preset } from './presets.js';
+import { bottomPlan, DEFAULT_CAMERA, rectSpec, type BottomPlan, type Preset } from './presets.js';
 import { SelectorClients } from './selector-client.js';
 import type { JobStepId } from './step-tracker.js';
 
@@ -20,6 +24,7 @@ export class LivePipeline implements Pipeline {
     private readonly clients: SelectorClients,
     private readonly niches: NicheRegistry,
     private readonly config: UserConfigStore,
+    private readonly paths: AppPaths,
   ) {}
 
   steps(request: JobRequest, preset: Preset): JobStepId[] {
@@ -27,6 +32,12 @@ export class LivePipeline implements Pipeline {
       ...(preset.camera === 'ask' && request.camera === undefined ? (['camera'] as const) : []),
       'live',
     ];
+  }
+
+  private async liveBottom(plan: BottomPlan): Promise<string | null> {
+    if (plan.kind === 'source') return null;
+    if (plan.kind === 'url') return plan.url;
+    return uploadedFile(this.paths.uploadsDir, plan.uploadId);
   }
 
   async run(context: PipelineContext): Promise<Record<string, unknown>> {
@@ -94,7 +105,7 @@ export class LivePipeline implements Pipeline {
         link,
         outDir: context.outDir,
         accounts: request.accounts ?? [],
-        bottom: preset.bottom === 'niche' ? niche.defaultBottomUrl : null,
+        bottom: await this.liveBottom(bottomPlan(preset, request.bottom, niche.defaultBottomUrl)),
         language: settings.language,
         model: undefined,
         detector:
@@ -123,6 +134,14 @@ export class LivePipeline implements Pipeline {
     tracker.finish('live', `${String(summary.produced)} cortes prontos`);
     return { ...summary };
   }
+}
+
+async function uploadedFile(uploads: string, uploadId: string): Promise<string> {
+  const names = await fs.readdir(uploads).catch(() => []);
+  const name = names.find((item) => item.startsWith(`${uploadId}.`));
+  if (name === undefined)
+    throw new AppError('MISSING_FILE', 'o vídeo de baixo enviado não existe mais');
+  return resolveInside(uploads, name);
 }
 
 function isText(value: unknown): value is string {

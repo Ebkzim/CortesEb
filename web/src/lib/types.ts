@@ -10,6 +10,7 @@ export interface Preset {
   niche: string;
   camera: 'ask' | 'none' | 'fixed';
   bottom: 'source' | 'niche';
+  sources: ('file' | 'youtube' | 'vod' | 'live')[];
   top: string;
   below: string;
   example: string | null;
@@ -28,6 +29,12 @@ export type JobSource =
   | { type: 'vod'; platform: PlatformId; url: string; from?: number; to?: number }
   | { type: 'live'; platform: PlatformId; url: string };
 
+export type JobBottom =
+  | { type: 'default' }
+  | { type: 'source' }
+  | { type: 'url'; url: string }
+  | { type: 'file'; uploadId: string };
+
 export type JobTargets =
   { mode: 'count'; count: number } | { mode: 'duration'; minSeconds: number; maxSeconds: number };
 
@@ -44,6 +51,7 @@ export interface JobRequest {
   targets: JobTargets;
   selector: JobSelector;
   accounts?: string[];
+  bottom?: JobBottom;
 }
 
 export type StepStatus = 'pending' | 'running' | 'waiting' | 'done' | 'skipped' | 'failed';
