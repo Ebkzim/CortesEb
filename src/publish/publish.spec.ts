@@ -2,8 +2,10 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { AccountService } from '../accounts/account.service.js';
 import type { AppPaths } from '../config/app-paths.js';
 import { advance, canTransition, isFinal } from './job-state.js';
+import { QueueService, type EnqueueRequest } from './queue.service.js';
 import { QueueStore, type NewJob } from './queue-store.js';
 
 describe('job state machine', () => {
@@ -121,5 +123,76 @@ describe('QueueStore', () => {
 
   it('refuses an unknown id', async () => {
     await expect(store.get('j-000000000000')).rejects.toThrow();
+  });
+});
+
+describe('QueueService', () => {
+  let dir = '';
+  let video = '';
+  let store: QueueStore;
+  let service: QueueService;
+
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-service-'));
+    video = path.join(dir, 'meu-corte_legal.mp4');
+    await fs.writeFile(video, 'x');
+    store = new QueueStore({ queueFile: path.join(dir, 'queue.json') } as AppPaths);
+    const accounts = {
+      resolve: (requested: readonly string[] | undefined) =>
+        Promise.resolve((requested ?? ['main', 'segunda']).map((id) => ({ id }))),
+    } as unknown as AccountService;
+    service = new QueueService(store, accounts);
+  });
+
+  afterEach(async () => {
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  const request = (patch: Partial<EnqueueRequest> = {}): EnqueueRequest => ({
+    files: [video],
+    accounts: undefined,
+    platforms: undefined,
+    title: undefined,
+    description: undefined,
+    tags: [],
+    scheduledAt: undefined,
+    ...patch,
+  });
+
+  it('creates one pending job per file, account and platform with a title from the file', async () => {
+    const jobs = await service.enqueue(request());
+    expect(jobs).toHaveLength(6);
+    expect(jobs.every((job) => job.status === 'pending')).toBe(true);
+    expect(jobs[0]?.title).toBe('meu corte legal');
+  });
+
+  it('limits platforms and accounts when asked', async () => {
+    const jobs = await service.enqueue(request({ accounts: ['main'], platforms: ['youtube'] }));
+    expect(jobs).toHaveLength(1);
+  });
+
+  it('approves, rejects and retries only from the right states', async () => {
+    const [first, second] = await service.enqueue(request({ platforms: ['youtube'] }));
+    if (first === undefined || second === undefined) throw new Error('sem jobs');
+    expect((await service.approve([first.id]))[0]?.status).toBe('approved');
+    await expect(service.approve([first.id])).rejects.toThrow();
+    expect((await service.reject([second.id]))[0]?.status).toBe('rejected');
+    await expect(service.retry([first.id])).rejects.toThrow();
+    const summary = await service.summary();
+    expect(summary.byStatus.approved).toBe(1);
+    expect(summary.byStatus.rejected).toBe(1);
+  });
+
+  it('approves everything pending with all', async () => {
+    await service.enqueue(request());
+    expect(await service.approve(['all'])).toHaveLength(6);
+    expect((await service.summary()).byStatus.pending).toBe(0);
+  });
+
+  it('refuses to enqueue without any account', async () => {
+    const empty = new QueueService(store, {
+      resolve: () => Promise.resolve([]),
+    } as unknown as AccountService);
+    await expect(empty.enqueue(request())).rejects.toThrow();
   });
 });
