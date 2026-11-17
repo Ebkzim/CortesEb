@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { clipSchema, cutsSchema } from '../contracts/cuts.js';
 import type { Word } from '../contracts/media.js';
+import { nearest, sentenceEnds, sentenceStarts } from './boundaries.js';
 import { paginate, remapWords, transcriptLines } from './captions.js';
 import { bottomStartFor, cutInterval, planClip } from './plan.js';
 import {
@@ -244,5 +245,25 @@ describe('cuts contract', () => {
     expect(clipSchema.safeParse({ id: 'a', start: 0, end: 1, images: [{ at: 0 }] }).success).toBe(
       false,
     );
+  });
+});
+
+describe('sentence boundaries', () => {
+  const word = (text: string, start: number, end: number): Word => ({
+    text,
+    startMs: start * 1000,
+    endMs: end * 1000,
+  });
+  const words = [word('a', 1, 1.2), word('b', 1.25, 1.5), word('c', 2.5, 2.8), word('d', 2.85, 3)];
+
+  it('marks starts and ends where the speech pauses', () => {
+    expect(sentenceStarts(words)).toEqual([1, 2.5]);
+    expect(sentenceEnds(words)).toEqual([1.5, 3]);
+  });
+
+  it('picks the closest value inside the allowed reach', () => {
+    expect(nearest([1, 2.5, 6], 2.9, 1, 1)).toBe(2.5);
+    expect(nearest([1, 6], 3.5, 1, 1)).toBeNull();
+    expect(nearest([], 3, 1, 1)).toBeNull();
   });
 });
