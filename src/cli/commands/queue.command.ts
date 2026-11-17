@@ -3,10 +3,11 @@ import { z } from 'zod';
 import { AppError } from '../../common/app-error.js';
 import { Output } from '../../common/output.js';
 import { JOB_STATUSES, PLATFORMS } from '../../contracts/publish.js';
+import { PublishWorker, WORKER_DEFAULTS } from '../../publish/publish-worker.js';
 import { QueueService } from '../../publish/queue.service.js';
 import { GuardedCommand, parseOptions, type RawOptions } from '../guarded-command.js';
 
-const ACTIONS = ['add', 'list', 'status', 'approve', 'reject', 'retry'] as const;
+const ACTIONS = ['add', 'list', 'status', 'approve', 'reject', 'retry', 'run'] as const;
 
 const queueOptions = z.object({
   account: z.string().min(1).max(700).optional(),
@@ -16,16 +17,19 @@ const queueOptions = z.object({
   tags: z.string().max(500).optional(),
   at: z.iso.datetime({ offset: true }).optional(),
   state: z.enum(JOB_STATUSES).optional(),
+  once: z.boolean().default(false),
+  interval: z.coerce.number().min(5).max(3600).default(30),
 });
 
 @Command({
   name: 'queue',
   arguments: '<acao> [itens...]',
-  description: 'fila de postagem: add, list, status, approve, reject ou retry',
+  description: 'fila de postagem: add, list, status, approve, reject, retry ou run',
 })
 export class QueueCommand extends GuardedCommand {
   constructor(
     private readonly queue: QueueService,
+    private readonly worker: PublishWorker,
     private readonly output: Output,
   ) {
     super();
@@ -63,6 +67,16 @@ export class QueueCommand extends GuardedCommand {
 
   @Option({ flags: '--state <estado>', description: 'filtra o list por estado' })
   parseState(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '--once', description: 'no run: processa o que estiver pronto e sai' })
+  parseOnce(): boolean {
+    return true;
+  }
+
+  @Option({ flags: '--interval <segundos>', description: 'no run: espera entre verificações' })
+  parseInterval(value: string): string {
     return value;
   }
 
@@ -105,6 +119,19 @@ export class QueueCommand extends GuardedCommand {
         return;
       case 'retry':
         this.output.json(await this.queue.retry(required(items, 'informe os ids ou all')));
+        return;
+      case 'run': {
+        const controller = new AbortController();
+        const stop = (): void => {
+          controller.abort();
+        };
+        process.once('SIGINT', stop);
+        process.once('SIGTERM', stop);
+        await this.worker.run(
+          { ...WORKER_DEFAULTS, once: options.once, intervalMs: options.interval * 1000 },
+          controller.signal,
+        );
+      }
     }
   }
 }
