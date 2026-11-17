@@ -234,6 +234,46 @@ O atraso depende do computador, porque a transcrição é a parte mais lenta. Nu
 
 A escolha do momento é automática (volume e quantidade de fala), então a qualidade é menor que a de um corte escolhido lendo a transcrição. Os cortes ficam em `--out` (padrão `cortes/live-<data>`), uma subpasta por conta.
 
+## Fila de postagem (opcional)
+
+Quem só quer os cortes pode ignorar esta parte. A fila guarda o que será postado, em qual conta e em qual rede, e só publica o que o usuário aprovou.
+
+```bash
+cortes-eb queue add cortes/x/01.mp4 --account main --platform youtube,tiktok --title "Título"
+cortes-eb queue list --state pending
+cortes-eb queue approve <id> | all
+cortes-eb queue run --once
+```
+
+Estados de cada item: `pending` (espera aprovação), `approved`, `publishing`, `published`, `failed` e `rejected`. Nada é publicado sem passar por `approve`. Use `reject` para descartar e `retry` para tentar de novo um `failed`.
+
+`queue run` processa só o que está aprovado e vencido. Por padrão ele NÃO publica: copia o vídeo e os metadados para a pasta `outbox` em `home` (veja o `doctor`), para conferir antes. Para publicar de verdade, passe `--live`. As proteções valem nos dois modos:
+
+- no máximo 3 posts por dia por conta e rede, e 30 min entre posts (`--max-per-day`, `--min-gap`); o que passa do limite é reagendado, não perdido;
+- até 3 tentativas com espera crescente em falhas temporárias; erros de autenticação não são repetidos;
+- um item preso em `publishing` por uma queda volta a `approved` na próxima execução.
+
+### Credenciais
+
+As credenciais ficam em um arquivo privado (modo 600) e entram só pela entrada padrão, nunca como argumento nem no chat:
+
+```bash
+cat youtube.json | cortes-eb credentials set youtube main
+cortes-eb credentials list
+```
+
+Campos: YouTube `clientId`, `clientSecret`, `refreshToken`; Instagram `accessToken`, `userId`; TikTok `accessToken`, `openId`. O `list` mostra só os nomes dos campos.
+
+### O que funciona hoje
+
+| Rede      | Estado                                                                                                                                                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| YouTube   | Adaptador pronto (envio retomável pela API oficial, padrão `--privacy private`). Testado só com respostas simuladas; falta validar com uma conta real. Projetos novos do Google podem ficar limitados a vídeos privados. |
+| Instagram | Sem adaptador. Exige conta profissional e a API da Meta.                                                                                                                                                                 |
+| TikTok    | Sem adaptador. Apps não auditados só publicam em modo privado.                                                                                                                                                           |
+
+Com `live --enqueue youtube,tiktok`, cada corte de uma live entra na fila como `pending`.
+
 ## 7. Escolher os cortes
 
 O usuário não escolhe os trechos. Você decide, seguindo `references/ganchos.md` e o guia do nicho.
