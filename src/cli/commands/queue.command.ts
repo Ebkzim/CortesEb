@@ -21,6 +21,8 @@ const queueOptions = z.object({
   interval: z.coerce.number().min(5).max(3600).default(30),
   maxPerDay: z.coerce.number().int().min(1).max(50).default(3),
   minGap: z.coerce.number().min(0).max(1440).default(30),
+  live: z.boolean().default(false),
+  privacy: z.enum(['private', 'unlisted', 'public']).default('private'),
 });
 
 @Command({
@@ -92,6 +94,22 @@ export class QueueCommand extends GuardedCommand {
     return value;
   }
 
+  @Option({
+    flags: '--live',
+    description: 'no run: publica de verdade (padrão: só pasta de saída)',
+  })
+  parseLive(): boolean {
+    return true;
+  }
+
+  @Option({
+    flags: '--privacy <nivel>',
+    description: 'no run: private (padrão), unlisted ou public',
+  })
+  parsePrivacy(value: string): string {
+    return value;
+  }
+
   protected async execute(params: string[], raw: RawOptions): Promise<void> {
     const [action, ...items] = params;
     const parsed = z.enum(ACTIONS).safeParse(action);
@@ -144,6 +162,8 @@ export class QueueCommand extends GuardedCommand {
             ...WORKER_DEFAULTS,
             once: options.once,
             intervalMs: options.interval * 1000,
+            mode: options.live ? 'live' : 'outbox',
+            privacy: options.privacy,
             limits: { maxPerDay: options.maxPerDay, minGapMs: options.minGap * 60_000 },
           },
           controller.signal,

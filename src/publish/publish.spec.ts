@@ -12,6 +12,7 @@ import { CredentialVault } from './credential-vault.js';
 import { evaluatePolicy } from './publish-policy.js';
 import { PublishWorker } from './publish-worker.js';
 import { PublishError } from './publisher.js';
+import { isGoogleUpload, YoutubePublisher, type FetchLike } from './youtube-publisher.js';
 import { QueueService, type EnqueueRequest } from './queue.service.js';
 import { QueueStore, type NewJob } from './queue-store.js';
 
@@ -442,5 +443,134 @@ describe('CredentialVault', () => {
     }
     expect(message).not.toBe('');
     expect(message).not.toContain('super-secret-xyz');
+  });
+});
+
+describe('YoutubePublisher', () => {
+  let dir = '';
+  let video = '';
+  let vault: CredentialVault;
+  const job = (): Job => ({
+    id: 'j-aaaaaaaaaaaa',
+    file: video,
+    account: 'main',
+    platform: 'youtube',
+    title: 'Meu corte',
+    description: 'olha isso',
+    tags: ['gta'],
+    status: 'publishing',
+    attempts: 1,
+    createdAt: '2026-11-17T10:00:00.000Z',
+    updatedAt: '2026-11-17T10:00:00.000Z',
+  });
+
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-yt-'));
+    video = path.join(dir, 'c.mp4');
+    await fs.writeFile(video, 'conteudo-do-video');
+    vault = new CredentialVault({
+      credentialsFile: path.join(dir, 'credentials.json'),
+    } as AppPaths);
+    await vault.save('youtube', 'main', {
+      clientId: 'client-id-123',
+      clientSecret: 'client-secret-123',
+      refreshToken: 'refresh-token-123',
+    });
+  });
+
+  afterEach(async () => {
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  function scripted(responses: Response[]): {
+    fetch: FetchLike;
+    calls: { url: string; init?: RequestInit }[];
+  } {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    return {
+      calls,
+      fetch: (url, init) => {
+        calls.push({ url, ...(init === undefined ? {} : { init }) });
+        const next = responses.shift();
+        return next === undefined
+          ? Promise.reject(new Error('sem resposta'))
+          : Promise.resolve(next);
+      },
+    };
+  }
+
+  const json = (data: unknown, init: ResponseInit = {}): Response =>
+    new Response(JSON.stringify(data), { status: 200, ...init });
+
+  it('refreshes the token, opens a resumable session and uploads the file', async () => {
+    const script = scripted([
+      json({ access_token: 'token-abc' }),
+      new Response(null, {
+        status: 200,
+        headers: { location: 'https://www.googleapis.com/upload/youtube/v3/videos?upload_id=1' },
+      }),
+      json({ id: 'AbCdEfGhIjK' }),
+    ]);
+    const result = await new YoutubePublisher(vault, 'private', script.fetch).publish(job());
+    expect(result.url).toBe('https://www.youtube.com/shorts/AbCdEfGhIjK');
+    expect(script.calls.map((call) => call.init?.method)).toEqual(['POST', 'POST', 'PUT']);
+    const init = script.calls[1]?.init;
+    expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-abc');
+    const body = JSON.parse(init?.body as string) as {
+      snippet: { description: string; title: string };
+      status: { privacyStatus: string };
+    };
+    expect(body.status.privacyStatus).toBe('private');
+    expect(body.snippet.description).toContain('#Shorts');
+    expect(body.snippet.title).toBe('Meu corte');
+    expect((script.calls[0]?.init?.body as URLSearchParams).get('grant_type')).toBe(
+      'refresh_token',
+    );
+  });
+
+  it('refuses an upload address outside googleapis.com', async () => {
+    const script = scripted([
+      json({ access_token: 'token-abc' }),
+      new Response(null, { status: 200, headers: { location: 'https://evil.example/upload' } }),
+    ]);
+    await expect(
+      new YoutubePublisher(vault, 'private', script.fetch).publish(job()),
+    ).rejects.toThrow(/inesperado/);
+    expect(script.calls).toHaveLength(2);
+  });
+
+  it('marks auth failures as final and rate limits as retryable', async () => {
+    const denied = scripted([new Response('{}', { status: 401 })]);
+    const first = await new YoutubePublisher(vault, 'private', denied.fetch)
+      .publish(job())
+      .catch((error: unknown) => error as PublishError);
+    expect(first).toBeInstanceOf(PublishError);
+    expect((first as PublishError).retryable).toBe(false);
+
+    const limited = scripted([new Response('{}', { status: 429 })]);
+    const second = await new YoutubePublisher(vault, 'private', limited.fetch)
+      .publish(job())
+      .catch((error: unknown) => error as PublishError);
+    expect((second as PublishError).retryable).toBe(true);
+  });
+
+  it('fails without credentials and never sends secrets in the error', async () => {
+    const empty = new CredentialVault({
+      credentialsFile: path.join(dir, 'vazio.json'),
+    } as AppPaths);
+    const script = scripted([]);
+    const error = await new YoutubePublisher(empty, 'private', script.fetch)
+      .publish(job())
+      .catch((caught: unknown) => caught as PublishError);
+    expect(error).toBeInstanceOf(PublishError);
+    expect((error as PublishError).message).toContain('sem credenciais');
+    expect(script.calls).toHaveLength(0);
+  });
+
+  it('keeps the shorts tag only once and recognizes google upload hosts', () => {
+    expect(isGoogleUpload('https://www.googleapis.com/upload/x')).toBe(true);
+    expect(isGoogleUpload('http://www.googleapis.com/upload/x')).toBe(false);
+    expect(isGoogleUpload('https://googleapis.com.evil.com/x')).toBe(false);
+    expect(isGoogleUpload('nada')).toBe(false);
   });
 });

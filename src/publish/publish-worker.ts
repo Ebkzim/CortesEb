@@ -2,9 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { Output } from '../common/output.js';
 import type { Job } from '../contracts/publish.js';
 import { OutboxPublisher } from './outbox-publisher.js';
+import { CredentialVault } from './credential-vault.js';
 import { evaluatePolicy, POLICY_DEFAULTS, type PolicyLimits } from './publish-policy.js';
 import { PublishError, type Publisher } from './publisher.js';
 import { QueueStore } from './queue-store.js';
+import { YoutubePublisher, type Privacy } from './youtube-publisher.js';
 
 export interface WorkerOptions {
   once: boolean;
@@ -12,6 +14,8 @@ export interface WorkerOptions {
   maxAttempts: number;
   baseBackoffMs: number;
   limits?: PolicyLimits;
+  mode?: 'outbox' | 'live';
+  privacy?: Privacy;
 }
 
 export interface WorkerSummary {
@@ -36,10 +40,19 @@ export class PublishWorker {
     private readonly store: QueueStore,
     private readonly outbox: OutboxPublisher,
     private readonly output: Output,
+    private readonly vault?: CredentialVault,
   ) {}
 
-  publisherFor(platform: Job['platform']): Publisher {
-    return this.outbox.for(platform);
+  publisherFor(platform: Job['platform'], options?: WorkerOptions): Publisher {
+    if (options?.mode !== 'live') return this.outbox.for(platform);
+    if (platform === 'youtube' && this.vault !== undefined) {
+      return new YoutubePublisher(this.vault, options.privacy ?? 'private');
+    }
+    return {
+      platform,
+      publish: () =>
+        Promise.reject(new PublishError(`ainda não há adaptador de ${platform}`, false)),
+    };
   }
 
   async run(options: WorkerOptions, signal: AbortSignal): Promise<WorkerSummary> {
@@ -81,7 +94,7 @@ export class PublishWorker {
       return;
     }
     try {
-      const result = await this.publisherFor(job.platform).publish(job);
+      const result = await this.publisherFor(job.platform, options).publish(job);
       await this.store.transition(job.id, 'published', { publishedUrl: result.url });
       summary.published += 1;
       this.event({ event: 'published', id: job.id, platform: job.platform, url: result.url });
