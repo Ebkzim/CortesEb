@@ -4,7 +4,7 @@ import { AppError } from '../../common/app-error.js';
 import { Output } from '../../common/output.js';
 import { PLATFORMS } from '../../contracts/publish.js';
 import { LANGUAGE_PATTERN, UserConfigStore, WHISPER_MODELS } from '../../config/user-config.js';
-import { parseCamera } from '../../live/camera.js';
+import { parseCamera } from '../../layout/camera.js';
 import { LiveService } from '../../live/live.service.js';
 import { twitchChannel } from '../../live/twitch-chat.js';
 import { NicheRegistry } from '../../niches/niche-registry.js';

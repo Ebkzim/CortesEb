@@ -6,7 +6,7 @@ import { enqueueClip } from './enqueue.js';
 import { AdWatcher, playlistHasAd } from './ad-watcher.js';
 import type { LlmClient } from '../llm/llm-client.js';
 import { ClipJudge, transcriptOf } from './clip-judge.js';
-import { cameraCrop, parseCamera } from './camera.js';
+import { cameraCrop, parseCamera } from '../layout/camera.js';
 import { ChatCounter } from './chat-counter.js';
 import { buildLiveClip } from './clip-cut.js';
 import { LiveDetector, type LiveWindow } from './live-detector.js';

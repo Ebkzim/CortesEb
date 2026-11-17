@@ -35,6 +35,10 @@ export class Workspace {
     return this.file('cuts.json');
   }
 
+  get layout(): string {
+    return this.file('layout.json');
+  }
+
   get imagesDir(): string {
     return this.file('imgs');
   }

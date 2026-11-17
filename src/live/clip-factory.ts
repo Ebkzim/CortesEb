@@ -12,7 +12,7 @@ import { TranscriptionService } from '../transcription/transcription.service.js'
 import { Workspace } from '../workspace/workspace.js';
 import { buildLiveClip } from './clip-cut.js';
 import { transcriptOf, type ClipJudge } from './clip-judge.js';
-import { cameraCrop, type CameraSpec } from './camera.js';
+import { cameraCrop, type CameraSpec } from '../layout/camera.js';
 import type { LiveWindow } from './live-detector.js';
 import type { Segment } from './segment-log.js';
 

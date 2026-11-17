@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { exists, readJson, writeJson } from '../common/json-file.js';
+import { layoutSchema } from '../contracts/layout.js';
 import { AppPaths } from './app-paths.js';
 
 export const WHISPER_MODELS = ['tiny', 'base', 'small', 'medium', 'large-v3'] as const;
@@ -39,6 +40,7 @@ export const userConfigSchema = z.strictObject({
     .regex(/^[a-z0-9-]{1,32}$/)
     .default('gta6'),
   llm: llmSettingsSchema.default({ provider: 'agent' }),
+  layout: layoutSchema.default({}),
 });
 
 export type Account = z.infer<typeof accountSchema>;

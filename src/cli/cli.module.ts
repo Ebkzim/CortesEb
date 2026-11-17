@@ -8,6 +8,7 @@ import { DownloadModule } from '../download/download.module.js';
 import { LlmModule } from '../llm/llm.module.js';
 import { SelectModule } from '../select/select.module.js';
 import { PublishModule } from '../publish/publish.module.js';
+import { LayoutModule } from '../layout/layout.module.js';
 import { LiveModule } from '../live/live.module.js';
 import { ImagesModule } from '../images/images.module.js';
 import { MediaModule } from '../media/media.module.js';
@@ -19,6 +20,7 @@ import { TranscriptionModule } from '../transcription/transcription.module.js';
 import { AccountCommand, ConfigCommand, NichesCommand } from './commands/config.command.js';
 import { DoctorCommand, SetupCommand } from './commands/doctor.command.js';
 import { CredentialsCommand } from './commands/credentials.command.js';
+import { LayoutCommand } from './commands/layout.command.js';
 import { LlmCommand } from './commands/llm.command.js';
 import { SelectCommand } from './commands/select.command.js';
 import { QueueCommand } from './commands/queue.command.js';
@@ -54,6 +56,7 @@ import {
     PublishModule,
     LlmModule,
     SelectModule,
+    LayoutModule,
   ],
   providers: [
     DoctorService,
@@ -80,6 +83,7 @@ import {
     CredentialsCommand,
     LlmCommand,
     SelectCommand,
+    LayoutCommand,
   ],
 })
 export class CliModule {}

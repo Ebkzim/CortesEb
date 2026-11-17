@@ -379,6 +379,23 @@ cortes-eb sfx
 
 Nunca peça nem escreva uma chave de API no chat.
 
+## Layout: rosto em cima, gameplay embaixo
+
+O layout vale para qualquer forma de escolher os cortes (você, `select` com Ollama ou API). Ele é aplicado na hora do `render` e só preenche o que o corte não definiu: um `crop` ou um `bottom` escrito no `cuts.json` sempre vence.
+
+```bash
+cortes-eb frame --work cortes/<slug>/work --at 30
+cortes-eb layout --work cortes/<slug>/work --camera 0.7,2.8,17.5,27.6 --bottom source
+cortes-eb layout --work cortes/<slug>/work
+```
+
+- `--camera`: onde fica o rosto no vídeo de origem. Um canto (`top-left`, `top-right`, `bottom-left`, `bottom-right`, com `--camera-size` para a altura em % do quadro), um retângulo `x,y,w,h` em % do quadro, ou `none` para não recortar.
+- `--bottom`: `source` mostra a própria live ou vídeo embaixo (o gameplay); `video` usa o `bottom.mp4` (trailer ou b-roll do nicho).
+- Sem `--work` e com `--global`, grava o padrão para todos os vídeos. `--clear` remove o layout. O comando sem opções mostra o layout efetivo.
+- Ordem de prioridade: o que está no corte, depois o layout do vídeo, depois o padrão global, depois o padrão antigo (centro em cima e `video` embaixo).
+
+Olhe um quadro com `frame` antes de escolher o `--camera`. Sem um layout, o topo é o centro do quadro e a metade de baixo é o `bottom.mp4`.
+
 ## 8. Renderizar
 
 ```bash

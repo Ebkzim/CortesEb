@@ -65,7 +65,6 @@ export function toClip(picked: Picked, index: number, total: number): Clip {
     start: Number(Math.max(0, picked.start - EDGE_PAD).toFixed(2)),
     end: Number(Math.min(total, picked.end + EDGE_PAD).toFixed(2)),
     focus: { x: 50, y: 35 },
-    bottom: 'video',
     pace: 'jump',
     turns: [],
     images: [],
