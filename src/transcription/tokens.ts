@@ -16,6 +16,10 @@ const MAX_PHRASE = 16;
 const MAX_MARKER_WORDS = 6;
 const DASH_ONLY = /^([-–—]+|>+)$/;
 
+const EDGE_JUNK_START = /^[\][_>]+/;
+const EDGE_JUNK_END = /[\][_]+$/;
+const HAS_CONTENT = /[\p{L}\p{N}]/u;
+
 export function dropMarkers(words: readonly Word[]): Word[] {
   const result: Word[] = [];
   let skipped = 0;
@@ -32,7 +36,9 @@ export function dropMarkers(words: readonly Word[]): Word[] {
       continue;
     }
     if (DASH_ONLY.test(word.text)) continue;
-    result.push(word);
+    const text = word.text.replace(EDGE_JUNK_START, '').replace(EDGE_JUNK_END, '');
+    if (!HAS_CONTENT.test(text)) continue;
+    result.push(text === word.text ? word : { ...word, text });
   }
   return result;
 }

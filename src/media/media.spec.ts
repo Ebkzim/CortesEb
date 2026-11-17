@@ -76,6 +76,17 @@ describe('dropMarkers', () => {
     ].map(word);
     expect(texts(dropMarkers(input))).toEqual(['Olha', 'isso', 'tá', 'bom']);
   });
+  it('drops leftover brackets and underscores from captions', () => {
+    const words = ['__', 'Tá?', ']', 'Muito', ']Então', 'assim,', 'GTA', '6', '>>'].map(word);
+    expect(dropMarkers(words).map((item) => item.text)).toEqual([
+      'Tá?',
+      'Muito',
+      'Então',
+      'assim,',
+      'GTA',
+      '6',
+    ]);
+  });
 
   it('never swallows speech after an unclosed bracket', () => {
     const input = ['[MÚSICA', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map(word);

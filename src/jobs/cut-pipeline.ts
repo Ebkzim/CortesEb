@@ -21,6 +21,7 @@ import { Workspace } from '../workspace/workspace.js';
 import { buildAgentPrompt } from './agent-prompt.js';
 import { assertActive, pause, type Pipeline, type PipelineContext } from './pipeline-context.js';
 import { DEFAULT_CAMERA, layoutFor, type Preset } from './presets.js';
+import { buildGuidance, introSeconds } from '../select/guidance.js';
 import { SelectorClients } from './selector-client.js';
 import type { JobStepId } from './step-tracker.js';
 
@@ -290,7 +291,7 @@ export class CutPipeline implements Pipeline {
 
   private async select(
     context: PipelineContext,
-    plan: { count: number; minSeconds: number; maxSeconds: number },
+    plan: { count: number; minSeconds: number; maxSeconds: number; sourceSeconds: number },
   ): Promise<void> {
     const { request, preset, workspace } = context;
     const niche = this.niches.get(preset.niche);
@@ -314,6 +315,9 @@ export class CutPipeline implements Pipeline {
       minScore: MIN_SCORE,
       chunk: {},
       fallback: true,
+      guidance: await buildGuidance(preset.id, niche.guide),
+      avoidStartSeconds: introSeconds(preset.id, plan.sourceSeconds),
+      judge: true,
     });
     for (const warning of result.warnings) context.log('warn', warning);
   }

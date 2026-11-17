@@ -283,21 +283,52 @@ describe('SelectorService', () => {
     await expect(service.run(new Workspace(dir), request)).rejects.toThrow(/nota/);
   });
 
+  it('rescores candidates with the judge and skips the opening', async () => {
+    const answer = JSON.stringify({
+      clips: [
+        { start: 5, end: 45, score: 9, hook: 'fala galera', title: 'Abertura' },
+        { start: 100, end: 140, score: 9, hook: 'h', title: 'Fraco' },
+        { start: 300, end: 340, score: 6, hook: 'h', title: 'Forte' },
+      ],
+    });
+    const { service, prompts } = build([
+      answer,
+      JSON.stringify({ clips: [] }),
+      '{"score":2,"title":"x"}',
+      '{"score":10,"title":"y"}',
+    ]);
+    const result = await service.run(new Workspace(dir), {
+      ...request,
+      avoidStartSeconds: 60,
+      judge: true,
+      guidance: 'É um react de GTA 6.',
+    });
+    expect(result.clips.map((clip) => [clip.start, clip.score])).toEqual([[300.45, 9]]);
+    expect(result.warnings.join(' ')).toContain('abertura do vídeo');
+    expect(prompts).toHaveLength(4);
+  });
+
   it('falls back to the best weak clips when asked, with a warning', async () => {
     const weak = JSON.stringify({
       clips: [{ start: 40, end: 80, score: 4, hook: 'h', title: 'Fraco' }],
     });
     const { service } = build([weak]);
     const result = await service.run(new Workspace(dir), { ...request, fallback: true });
-    expect(result.clips).toHaveLength(1);
+    expect(result.clips.length).toBeGreaterThan(0);
     expect(result.warnings.join(' ')).toContain('maior nota');
+    expect(result.warnings.join(' ')).toContain('mais fala');
   });
 
-  it('explains when the model returns no usable clip at all', async () => {
-    const { service } = build([JSON.stringify({ clips: [] })]);
-    await expect(service.run(new Workspace(dir), { ...request, fallback: true })).rejects.toThrow(
-      /nenhum trecho válido/,
-    );
+  it('uses the densest speech when the model returns nothing, if fallback is on', async () => {
+    const { service } = build([JSON.stringify({ clips: [] }), JSON.stringify({ clips: [] })]);
+    const result = await service.run(new Workspace(dir), { ...request, fallback: true });
+    expect(result.clips.length).toBeGreaterThan(0);
+    expect(result.warnings.join(' ')).toContain('mais fala');
+  });
+
+  it('explains when the model returns no usable clip and fallback is off', async () => {
+    const { service } = build([JSON.stringify({ clips: [] }), JSON.stringify({ clips: [] })]);
+    await expect(service.run(new Workspace(dir), request)).rejects.toThrow(/nenhum trecho válido/);
   });
 
   it('warns when fewer clips than planned pass the score', async () => {

@@ -20,6 +20,7 @@ export interface PromptContext {
   perChunk: number;
   targets: Pick<ClipTargets, 'minSeconds' | 'maxSeconds'>;
   peaks: readonly number[];
+  guidance?: string;
 }
 
 export function answerJsonSchema(perChunk: number): Record<string, unknown> {
@@ -64,6 +65,13 @@ export function buildSystemPrompt(context: PromptContext): string {
     `- Return at most ${context.perChunk} clips, from different topics, without overlapping times. Return an empty list if nothing is good.`,
     '- Write hook, title and topic in the same language as the transcript. The hook is the opening sentence of the clip. The title is a short headline of at most 60 characters.',
     '',
+    ...(context.guidance === undefined || context.guidance === ''
+      ? []
+      : [
+          'Context about this video and what makes a good clip (in Portuguese):',
+          context.guidance,
+          '',
+        ]),
     'Answer only with JSON in the form {"clips":[{"start":0,"end":0,"score":0,"hook":"","title":"","topic":""}]}.',
   ].join('\n');
 }

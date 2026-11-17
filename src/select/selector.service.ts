@@ -10,6 +10,9 @@ import { peaksFileSchema } from '../analysis/peaks.service.js';
 import { TargetsService, type TargetsInput } from '../planning/targets.service.js';
 import { dropMarkers } from '../transcription/tokens.js';
 import type { Workspace } from '../workspace/workspace.js';
+import { ClipJudge } from '../live/clip-judge.js';
+import type { Word } from '../contracts/media.js';
+import { filterCandidates, speechWindows, textOf } from './filters.js';
 import { pickBest, separate, snap, toClip, usable, type Limits } from './candidates.js';
 import {
   answerJsonSchema,
@@ -29,6 +32,9 @@ export interface SelectRequest {
   minScore: number;
   chunk: Partial<ChunkOptions>;
   fallback?: boolean;
+  guidance?: string;
+  avoidStartSeconds?: number;
+  judge?: boolean;
 }
 
 export interface SelectResult {
@@ -43,6 +49,10 @@ export interface SelectResult {
 const MAX_TOKENS = 900;
 const MIN_PER_CHUNK = 2;
 const MAX_PER_CHUNK = 5;
+const JUDGE_POOL_FACTOR = 3;
+const JUDGE_POOL_MAX = 12;
+const MODEL_WEIGHT = 1;
+const JUDGE_WEIGHT = 2;
 
 @Injectable()
 export class SelectorService {
@@ -62,20 +72,25 @@ export class SelectorService {
       maxSeconds: plan.maxSeconds,
       total: plan.sourceSeconds,
     };
-    const chunks = chunkTranscript(words, request.chunk);
+    const avoid = request.avoidStartSeconds ?? 0;
+    const chunks = chunkTranscript(
+      words.filter((word) => word.startMs / 1000 >= avoid),
+      request.chunk,
+    );
     if (chunks.length === 0) throw new AppError('INVALID_INPUT', 'a transcrição está vazia');
     const peaks = await this.peaks(workspace);
     const context = {
       niche: request.niche,
-      perChunk: Math.max(MIN_PER_CHUNK, Math.min(MAX_PER_CHUNK, plan.count)),
+      perChunk: Math.max(MIN_PER_CHUNK, Math.min(MAX_PER_CHUNK, plan.count + 1)),
       targets: plan,
+      ...(request.guidance === undefined ? {} : { guidance: request.guidance }),
     };
     const warnings: string[] = [];
     const found: Candidate[] = [];
     for (const [index, chunk] of chunks.entries()) {
       this.progress.step(
         'select',
-        index / chunks.length,
+        ((request.judge === true ? 0.6 : 1) * index) / chunks.length,
         `lendo o trecho ${index + 1} de ${chunks.length} com ${client.label}`,
       );
       const answer = await this.ask(client, chunk, {
@@ -90,14 +105,42 @@ export class SelectorService {
         if (fitted !== null) found.push(fitted);
       }
     }
-    let best = pickBest(found, plan.count, request.minScore);
-    if (best.length === 0 && request.fallback === true && found.length > 0) {
-      best = pickBest(found, plan.count, 0);
+    const filtered = filterCandidates(found, words, request.avoidStartSeconds ?? 0);
+    if (filtered.dropped.length > 0) {
+      warnings.push(
+        `${String(filtered.dropped.length)} trecho(s) descartado(s): ${[...new Set(filtered.dropped.map((item) => item.reason))].join(', ')}`,
+      );
+    }
+    let candidates = filtered.kept;
+    if (candidates.length < plan.count && request.fallback === true) {
+      const extra = speechWindows(words, {
+        from: avoid,
+        total: plan.sourceSeconds,
+        length: (plan.minSeconds + plan.maxSeconds) / 2,
+        limit: Math.min(JUDGE_POOL_MAX, plan.count * JUDGE_POOL_FACTOR),
+      }).filter(
+        (window) => !candidates.some((item) => window.start < item.end && item.start < window.end),
+      );
+      const usableExtra = filterCandidates(extra, words, avoid).kept;
+      if (usableExtra.length > 0) {
+        warnings.push(
+          `o modelo sugeriu poucos trechos; somei ${String(usableExtra.length)} trecho(s) com mais fala para avaliação`,
+        );
+        candidates = [...candidates, ...usableExtra];
+      }
+    }
+    const pool =
+      request.judge === true
+        ? await this.rejudge(client, candidates, words, request, plan.count)
+        : candidates;
+    let best = pickBest(pool, plan.count, request.minScore);
+    if (best.length === 0 && request.fallback === true && pool.length > 0) {
+      best = pickBest(pool, plan.count, 0);
       warnings.push(
         `nenhum trecho chegou à nota ${String(request.minScore)}; usei os de maior nota que o modelo achou`,
       );
     }
-    if (best.length === 0 && found.length === 0) {
+    if (best.length === 0 && pool.length === 0) {
       throw new AppError(
         'REMOTE_FAILED',
         'o modelo não devolveu nenhum trecho válido (tente outro modelo ou uma transcrição melhor)',
@@ -154,6 +197,41 @@ export class SelectorService {
       const retry = `${user}\n\nYour previous answer was not valid. Answer again with only the JSON object.`;
       return parseAnswer(await client.complete({ ...base, user: retry }), chunk);
     }
+  }
+
+  private async rejudge(
+    client: LlmClient,
+    candidates: readonly Candidate[],
+    words: readonly Word[],
+    request: SelectRequest,
+    count: number,
+  ): Promise<Candidate[]> {
+    const pool = [...candidates]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, Math.min(JUDGE_POOL_MAX, Math.max(count, count * JUDGE_POOL_FACTOR)));
+    const judge = new ClipJudge(client, 0, `${request.niche}\n${request.guidance ?? ''}`);
+    const judged: Candidate[] = [];
+    for (const [index, candidate] of pool.entries()) {
+      this.progress.step(
+        'select',
+        0.6 + (0.4 * index) / Math.max(1, pool.length),
+        `avaliando o trecho ${String(index + 1)} de ${String(pool.length)}`,
+      );
+      const verdict = await judge
+        .judge(textOf(words, candidate.start, candidate.end))
+        .catch(() => null);
+      judged.push(
+        verdict === null
+          ? candidate
+          : {
+              ...candidate,
+              score:
+                (candidate.score * MODEL_WEIGHT + verdict.score * JUDGE_WEIGHT) /
+                (MODEL_WEIGHT + JUDGE_WEIGHT),
+            },
+      );
+    }
+    return judged;
   }
 
   private async peaks(workspace: Workspace): Promise<number[]> {
