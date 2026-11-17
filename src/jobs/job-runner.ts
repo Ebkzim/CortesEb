@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
+import { withCancellation } from '../common/cancellation.js';
 import { withProgress, type StepId } from '../common/progress.js';
 import { AppPaths } from '../config/app-paths.js';
 import { jobRequestSchema, type JobRequest, type PercentRect } from '../contracts/job.js';
@@ -102,7 +103,7 @@ export class JobRunner implements OnModuleDestroy {
     const job = await this.jobs.get(id);
     if (this.active?.id === id) {
       this.active.controller.abort();
-      return job;
+      return this.setStatus(id, { status: 'canceled', finishedAt: new Date(), waiting: null });
     }
     if (job.status !== 'queued')
       throw new AppError('INVALID_INPUT', 'essa tarefa não pode ser cancelada');
@@ -259,7 +260,7 @@ export class JobRunner implements OnModuleDestroy {
             listener?.(name, data);
           },
         },
-        () => pipeline.run(context),
+        () => withCancellation(controller.signal, () => pipeline.run(context)),
       );
       if (saving.timer !== null) clearTimeout(saving.timer);
       await this.jobs.update(job.id, {

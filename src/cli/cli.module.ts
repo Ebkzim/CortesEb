@@ -20,6 +20,7 @@ import { TranscriptionModule } from '../transcription/transcription.module.js';
 import { AccountCommand, ConfigCommand, NichesCommand } from './commands/config.command.js';
 import { DoctorCommand, SetupCommand } from './commands/doctor.command.js';
 import { CredentialsCommand } from './commands/credentials.command.js';
+import { UiCommand } from './commands/ui.command.js';
 import { DbCommand } from './commands/db.command.js';
 import { LayoutCommand } from './commands/layout.command.js';
 import { LlmCommand } from './commands/llm.command.js';
@@ -86,6 +87,7 @@ import {
     SelectCommand,
     LayoutCommand,
     DbCommand,
+    UiCommand,
   ],
 })
 export class CliModule {}

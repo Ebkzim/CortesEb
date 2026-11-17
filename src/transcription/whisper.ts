@@ -7,6 +7,7 @@ import {
   type Language,
 } from '@remotion/install-whisper-cpp';
 import { AppError } from '../common/app-error.js';
+import { currentSignal } from '../common/cancellation.js';
 import { exists } from '../common/json-file.js';
 import { AppPaths } from '../config/app-paths.js';
 import type { UserConfig } from '../config/user-config.js';
@@ -38,6 +39,7 @@ export class Whisper {
     if (!(await this.isReady(model))) {
       throw new AppError('NOT_CONFIGURED', `modelo ${model} não instalado: rode cortes-eb setup`);
     }
+    const signal = currentSignal();
     const output = await transcribe({
       inputPath: audio,
       whisperPath: this.paths.whisperDir,
@@ -48,6 +50,7 @@ export class Whisper {
       printOutput: false,
       additionalArgs: NO_CONTEXT_ARGS,
       ...(onProgress === undefined ? {} : { onProgress }),
+      ...(signal === undefined ? {} : { signal }),
     });
     return dropLoops(dropMarkers(mergeTokens(toCaptions({ whisperCppOutput: output }).captions)));
   }
