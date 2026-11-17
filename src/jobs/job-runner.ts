@@ -122,7 +122,8 @@ export class JobRunner implements OnModuleDestroy {
     if (!['failed', 'canceled', 'interrupted'].includes(job.status)) {
       throw new AppError('INVALID_INPUT', 'só dá para repetir uma tarefa que parou');
     }
-    return this.submit(job.request);
+    const request = jobRequestSchema.parse(job.request);
+    return this.submit({ ...request, resume: job.id });
   }
 
   activeId(): string | null {

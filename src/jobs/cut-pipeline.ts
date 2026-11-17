@@ -25,6 +25,16 @@ import { SelectorClients } from './selector-client.js';
 import type { JobStepId } from './step-tracker.js';
 
 const AGENT_POLL_MS = 3000;
+const REUSABLE = [
+  'source.mp4',
+  'bottom.mp4',
+  'meta.json',
+  'origin.json',
+  'captions.json',
+  'silences.json',
+  'audio16k.wav',
+  'layout.json',
+] as const;
 const CAMERA_FRAME_WIDTH = 960;
 const MIN_SCORE = 6;
 const CHUNK_SECONDS = 360;
@@ -80,16 +90,25 @@ export class CutPipeline implements Pipeline {
     tracker.estimate('download', 60);
     tracker.estimate('organize', 5);
 
-    tracker.start('download', 'buscando o vídeo');
-    await this.fetchSource(request.source, workspace);
+    const reused = await this.reuse(request.resume, workspace);
+    if (reused.source) {
+      tracker.finish('download', 'reaproveitado da tentativa anterior');
+    } else {
+      tracker.start('download', 'buscando o vídeo');
+      await this.fetchSource(request.source, workspace);
+    }
     const meta = await this.media.probe(workspace.video('source'));
-    tracker.finish('download', `vídeo de ${formatSeconds(meta.duration)}`);
+    if (!reused.source) tracker.finish('download', `vídeo de ${formatSeconds(meta.duration)}`);
     assertActive(signal);
 
     if (tracker.has('bottom')) {
-      tracker.start('bottom', 'buscando o vídeo de baixo');
-      await this.prepareBottom(preset, workspace);
-      tracker.finish('bottom');
+      if (reused.bottom) {
+        tracker.finish('bottom', 'reaproveitado');
+      } else {
+        tracker.start('bottom', 'buscando o vídeo de baixo');
+        await this.prepareBottom(preset, workspace);
+        tracker.finish('bottom');
+      }
       assertActive(signal);
     }
 
@@ -104,7 +123,9 @@ export class CutPipeline implements Pipeline {
     );
 
     let camera = request.camera;
-    if (tracker.has('camera')) {
+    if (reused.layout) {
+      if (tracker.has('camera')) tracker.skip('camera', 'enquadramento reaproveitado');
+    } else if (tracker.has('camera')) {
       const frame = workspace.file('frame-camera.jpg');
       await this.media.frame(
         workspace.video('source'),
@@ -116,12 +137,16 @@ export class CutPipeline implements Pipeline {
       camera = await context.waitForCamera(path.basename(frame), DEFAULT_CAMERA);
       tracker.finish('camera');
     }
-    await this.layouts.saveForWorkspace(workspace, layoutFor(preset, camera));
+    if (!reused.layout) await this.layouts.saveForWorkspace(workspace, layoutFor(preset, camera));
     assertActive(signal);
 
-    tracker.start('transcribe', 'preparando a transcrição');
-    await this.transcribe(youtube, workspace, context);
-    tracker.finish('transcribe');
+    if (reused.transcript) {
+      tracker.finish('transcribe', 'transcrição reaproveitada');
+    } else {
+      tracker.start('transcribe', 'preparando a transcrição');
+      await this.transcribe(youtube, workspace, context);
+      tracker.finish('transcribe');
+    }
     assertActive(signal);
 
     const plan = await this.targets.define(workspace, targetsInput(request));
@@ -168,6 +193,30 @@ export class CutPipeline implements Pipeline {
       clips: results.filter((item) => item.ok).length,
       failed: failed.length,
       seconds: Math.round(meta.duration),
+    };
+  }
+
+  private async reuse(
+    previous: string | undefined,
+    workspace: Workspace,
+  ): Promise<{ source: boolean; bottom: boolean; transcript: boolean; layout: boolean }> {
+    const none = { source: false, bottom: false, transcript: false, layout: false };
+    if (previous === undefined) return none;
+    const old = new Workspace(path.join(this.paths.jobsDir, previous, 'work'));
+    const carried = new Set<string>();
+    for (const name of REUSABLE) {
+      const from = old.file(name);
+      if (!(await exists(from))) continue;
+      const to = workspace.file(name);
+      await fs.rm(to, { force: true });
+      await fs.link(from, to).catch(() => fs.copyFile(from, to));
+      carried.add(name);
+    }
+    return {
+      source: carried.has('source.mp4') && carried.has('meta.json'),
+      bottom: carried.has('bottom.mp4'),
+      transcript: carried.has('captions.json') && carried.has('silences.json'),
+      layout: carried.has('layout.json'),
     };
   }
 

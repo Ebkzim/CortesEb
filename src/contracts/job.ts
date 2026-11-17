@@ -76,6 +76,7 @@ export const jobRequestSchema = z
     selector: selectorSchema,
     accounts: z.array(z.string().regex(ACCOUNT_REF_PATTERN)).max(20).optional(),
     camera: percentRectSchema.optional(),
+    resume: z.uuid().optional(),
   })
   .superRefine((request, context) => {
     const live = request.source.type === 'live';
