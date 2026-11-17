@@ -1,4 +1,5 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcessByStdio } from 'node:child_process';
+import type { Readable } from 'node:stream';
 import { constants } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -48,6 +49,16 @@ export class ProcessRunner {
         resolve({ code: code ?? 1, stdout: stdout.text(), stderr: stderr.text() });
       });
     });
+  }
+
+  start(bin: string, args: readonly string[]): ChildProcessByStdio<null, null, Readable> {
+    const child = spawn(bin, [...args], {
+      shell: false,
+      windowsHide: true,
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+    child.on('error', () => undefined);
+    return child;
   }
 
   async exec(bin: string, args: readonly string[], options: RunOptions = {}): Promise<RunResult> {
