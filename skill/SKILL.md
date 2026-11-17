@@ -195,6 +195,21 @@ Como funciona: a live é gravada em pedaços de 3 s sem recodificar, o volume do
 | `--queue`        | Cortes esperando render; se encher, descarta o de menor nota. |
 | `--offline-wait` | Quanto esperar a live voltar se cair (padrão 120 s).          |
 
+### Câmera do streamer
+
+Por padrão o topo do corte é o centro da live. Para mostrar o rosto do streamer, descubra onde a câmera fica:
+
+```bash
+cortes-eb live-frame "LINK_DA_LIVE" --out live-frame.jpg
+```
+
+Olhe a imagem (evite pegar um intervalo comercial) e rode o `live` com `--camera`:
+
+- um canto: `--camera bottom-left` (ou `top-left`, `top-right`, `bottom-right`), com `--camera-size 40` para a altura da câmera em % do quadro;
+- um retângulo exato, em % do quadro: `--camera 0,60,25,40` (x, y, largura, altura).
+
+Com câmera no topo e sem `--bottom`, a metade de baixo mostra a própria live (o jogo).
+
 O atraso depende do computador, porque a transcrição é a parte mais lenta. Num processador fraco, `--model tiny` ou `base` leva alguns minutos por corte. Num desktop mais forte, o `small` já fica na casa de dezenas de segundos. Avise o usuário disso antes de começar.
 
 A escolha do momento é automática (volume e quantidade de fala), então a qualidade é menor que a de um corte escolhido lendo a transcrição. Os cortes ficam em `--out` (padrão `cortes/live-<data>`), uma subpasta por conta.
