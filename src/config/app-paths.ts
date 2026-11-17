@@ -26,6 +26,18 @@ export class AppPaths {
     return path.join(this.home, 'whisper.cpp');
   }
 
+  get queueFile(): string {
+    return path.join(this.home, 'queue.json');
+  }
+
+  get outboxDir(): string {
+    return path.join(this.home, 'outbox');
+  }
+
+  get credentialsFile(): string {
+    return path.join(this.home, 'credentials.json');
+  }
+
   get sfxDir(): string {
     return path.join(this.home, 'sfx');
   }
