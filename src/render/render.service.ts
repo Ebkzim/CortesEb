@@ -10,6 +10,8 @@ import { UserConfigStore } from '../config/user-config.js';
 import { cutsSchema, type Clip } from '../contracts/cuts.js';
 import { captionsSchema, silencesSchema, sourceMetaSchema } from '../contracts/media.js';
 import type { RenderWatermark } from '../contracts/render.js';
+import { applyLayout } from '../layout/layout.js';
+import { LayoutService } from '../layout/layout.service.js';
 import { MediaTools } from '../media/media-tools.js';
 import { TargetsService } from '../planning/targets.service.js';
 import { SFX_NAMES, SfxLibrary } from '../sfx/sfx-library.js';
@@ -50,6 +52,7 @@ export class RenderService {
     private readonly fast: FfmpegEngine,
     private readonly remotion: RemotionEngine,
     private readonly output: Output,
+    private readonly layouts: LayoutService,
   ) {}
 
   async run(
@@ -60,17 +63,20 @@ export class RenderService {
   ): Promise<ClipResult[]> {
     const engine: RenderEngine = engineName === 'fast' ? this.fast : this.remotion;
     const cuts = await readJson(workspace.cuts, cutsSchema);
-    const plan = await this.planTargets(cuts.clips, requested, workspace);
+    const layout = await this.layouts.effective(workspace);
+    const frame = await readJson(workspace.meta, sourceMetaSchema);
+    const clips = cuts.clips.map((clip) => applyLayout(clip, layout, frame));
+    const plan = await this.planTargets(clips, requested, workspace);
     const context = await this.buildContext(
       workspace,
-      cuts.clips.some((clip) => clip.bottom === 'video'),
+      clips.some((clip) => clip.bottom === 'video'),
     );
     await this.targets.assert(workspace);
     const base = path.resolve(outDir);
     const session = await engine.open(workspace.root);
     const results: ClipResult[] = [];
     try {
-      for (const [index, clip] of cuts.clips.entries()) {
+      for (const [index, clip] of clips.entries()) {
         const composed = await this.composer.compose(clip, index, context);
         const seconds = Number(composed.props.totalSeconds.toFixed(1));
         for (const target of plan.get(clip.id) ?? []) {

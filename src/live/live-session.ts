@@ -5,7 +5,7 @@ import { exists } from '../common/json-file.js';
 import type { Output } from '../common/output.js';
 import { resolveInside } from '../common/safe-path.js';
 import type { Platform } from '../contracts/publish.js';
-import type { CameraSpec } from './camera.js';
+import type { CameraSpec } from '../layout/camera.js';
 import type { ClipFactory, FactoryOptions, PreparedClip } from './clip-factory.js';
 import { AdWatcher } from './ad-watcher.js';
 import type { ClipJudge } from './clip-judge.js';
