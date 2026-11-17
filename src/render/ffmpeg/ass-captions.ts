@@ -14,6 +14,13 @@ export interface AssStyle {
   shadowAlpha: number;
 }
 
+export interface AssCredit {
+  text: string;
+  totalMs: number;
+  fontSize: number;
+  bottomY: number;
+}
+
 const FORBIDDEN = /[{}\\\r\n]/g;
 
 export function assColor(hex: string): string {
@@ -33,7 +40,11 @@ export function assTime(ms: number): string {
   return `${hours}:${pad(minutes)}:${pad(seconds)}.${pad(cs)}`;
 }
 
-export function buildAssCaptions(pages: readonly CaptionPage[], style: AssStyle): string {
+export function buildAssCaptions(
+  pages: readonly CaptionPage[],
+  style: AssStyle,
+  credit: AssCredit | null = null,
+): string {
   const lines = [
     '[Script Info]',
     'ScriptType: v4.00+',
@@ -45,6 +56,11 @@ export function buildAssCaptions(pages: readonly CaptionPage[], style: AssStyle)
     '[V4+ Styles]',
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
     `Style: Cap,${style.fontName},${style.fontSize},${assColor(style.base)},${assColor(style.base)},&H00000000&,&H00000000&,0,0,0,0,100,100,0,0,1,${style.outline},0,5,${style.sideMargin},${style.sideMargin},0,1`,
+    ...(credit === null
+      ? []
+      : [
+          `Style: Credit,${style.fontName},${credit.fontSize},&H00FFFFFF&,&H00FFFFFF&,&H00000000&,&H00000000&,0,0,0,0,100,100,0,0,1,3,0,2,${style.sideMargin},${style.sideMargin},0,1`,
+        ]),
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -55,6 +71,11 @@ export function buildAssCaptions(pages: readonly CaptionPage[], style: AssStyle)
         `Dialogue: 0,${assTime(slice.from)},${assTime(slice.to)},Cap,,0,0,0,,${text(page, slice.active, style)}`,
       );
     }
+  }
+  if (credit !== null) {
+    lines.push(
+      `Dialogue: 1,${assTime(0)},${assTime(credit.totalMs)},Credit,,0,0,0,,{\\an2\\pos(${style.width / 2},${credit.bottomY})\\alpha&H33&}${credit.text.replace(FORBIDDEN, '')}`,
+    );
   }
   return `${lines.join('\n')}\n`;
 }

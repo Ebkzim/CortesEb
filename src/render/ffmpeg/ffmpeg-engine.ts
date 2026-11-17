@@ -11,7 +11,7 @@ import {
   type SplitCutProps,
 } from '../../contracts/render.js';
 import type { RenderEngine, RenderSession } from '../render-engine.js';
-import { buildAssCaptions, type AssStyle } from './ass-captions.js';
+import { buildAssCaptions, type AssCredit, type AssStyle } from './ass-captions.js';
 import { buildGraph } from './filter-graph.js';
 import { cellHeightRatio } from './text-metrics.js';
 import { planWatermark, writeTextFile } from './watermark-image.js';
@@ -19,6 +19,8 @@ import { planWatermark, writeTextFile } from './watermark-image.js';
 const FONT_FILE = 'Montserrat-Black.ttf';
 const FONT_NAME = 'Montserrat Black';
 const CAPTION_SIZE = 96;
+const CREDIT_SIZE = 34;
+const CREDIT_BOTTOM = 60;
 const DIVIDER_HEIGHT = 340;
 const DIVIDER_FILE = 'divider.png';
 const CRF = '20';
@@ -44,7 +46,7 @@ export class FfmpegEngine implements RenderEngine {
     await this.ensureDivider(root);
     await fs.writeFile(
       path.join(root, assFile),
-      buildAssCaptions(props.pages, this.assStyle(fontFile)),
+      buildAssCaptions(props.pages, this.assStyle(fontFile), this.credit(props, fontFile)),
     );
     const watermark = await this.buildWatermark(root, props, fontFile, tag);
     const hasAudio = await this.hasAudio(root, props.sourceFile);
@@ -100,6 +102,16 @@ export class FfmpegEngine implements RenderEngine {
         ),
       );
     }
+  }
+
+  private credit(props: SplitCutProps, fontFile: string): AssCredit | null {
+    if (props.credit === undefined || props.credit === null) return null;
+    return {
+      text: props.credit,
+      totalMs: Math.round(props.totalSeconds * 1000),
+      fontSize: Math.round(CREDIT_SIZE * cellHeightRatio(fontFile)),
+      bottomY: RENDER_HEIGHT - CREDIT_BOTTOM,
+    };
   }
 
   private assStyle(fontFile: string): AssStyle {

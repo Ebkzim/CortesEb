@@ -49,6 +49,7 @@ export type SplitCutProps = {
   sourceHeight: number;
   pages: CaptionPage[];
   watermark: RenderWatermark | null;
+  credit?: string | null;
   sfx: RenderSound[];
   images: RenderImage[];
 };

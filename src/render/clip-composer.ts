@@ -73,6 +73,7 @@ export class ClipComposer {
         sourceWidth: context.meta.width,
         sourceHeight: context.meta.height,
         pages: plan.pages,
+        credit: clip.credit ?? null,
         sfx: planSounds(
           plan.placed,
           images.map((image) => image.at),

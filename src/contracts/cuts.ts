@@ -46,6 +46,7 @@ export const clipSchema = z
     hook: z.string().max(500).optional(),
     score: z.number().min(0).max(10).optional(),
     title: z.string().max(200).optional(),
+    credit: z.string().trim().min(1).max(80).optional(),
     accounts: z.array(z.string().regex(ACCOUNT_REF_PATTERN)).min(1).max(20).optional(),
   })
   .refine((clip) => clip.end > clip.start, { message: 'end must be greater than start' });
