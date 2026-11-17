@@ -24,9 +24,14 @@ export class JobsController {
   }
 
   @Get('jobs')
-  async list(@Query('limit') limit?: string): Promise<{ jobs: JobView[]; active: string | null }> {
+  async list(@Query('limit') limit?: string): Promise<{
+    jobs: JobView[];
+    active: string | null;
+    covers: Record<string, { clipId: string; count: number }>;
+  }> {
     const rows = await this.jobs.list(Number(limit ?? 30) || 30);
-    return { jobs: rows.map(jobView), active: this.runner.activeId() };
+    const covers = await this.jobs.covers(rows.map((row) => row.id));
+    return { jobs: rows.map(jobView), active: this.runner.activeId(), covers };
   }
 
   @Post('jobs')

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Controller, Delete, Get, Headers, Param, ParseUUIDPipe, Res } from '@nestjs/common';
+import { Controller, Delete, Get, Headers, Param, ParseUUIDPipe, Query, Res } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import { AppError } from '../common/app-error.js';
 import { JobRepository, type DaySummary } from '../database/job.repository.js';
@@ -20,6 +20,11 @@ export class LibraryController {
   @Get('library/days')
   days(): Promise<DaySummary[]> {
     return this.jobs.days();
+  }
+
+  @Get('clips/recent')
+  async recent(@Query('limit') limit?: string): Promise<ClipView[]> {
+    return (await this.jobs.recentClips(Number(limit ?? 12) || 12)).map(clipView);
   }
 
   @Get('library/days/:day')

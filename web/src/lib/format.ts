@@ -56,3 +56,22 @@ export const STATUS_LABEL: Record<string, string> = {
   canceled: 'Cancelado',
   interrupted: 'Interrompido',
 };
+
+export const PRESET_LABEL: Record<string, string> = {
+  'gameplay-camera': 'Gameplay com câmera',
+  'gta6-gameplay': 'Gameplay GTA 6',
+  'gta6-react': 'React GTA 6',
+  filmes: 'Filmes',
+  series: 'Séries',
+  podcast: 'Podcast',
+};
+
+export function ago(iso: string): string {
+  const minutes = Math.round((Date.now() - Date.parse(iso)) / 60_000);
+  if (minutes < 1) return 'agora';
+  if (minutes < 60) return `há ${String(minutes)} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `há ${String(hours)} h`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? 'ontem' : `há ${String(days)} dias`;
+}

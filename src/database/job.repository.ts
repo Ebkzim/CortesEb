@@ -135,6 +135,31 @@ export class JobRepository {
     return clip;
   }
 
+  recentClips(limit = 12): Promise<ClipRow[]> {
+    return this.prisma.db.clip.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(PAGE_LIMIT, Math.max(1, limit)),
+    });
+  }
+
+  async covers(
+    jobIds: readonly string[],
+  ): Promise<Record<string, { clipId: string; count: number }>> {
+    if (jobIds.length === 0) return {};
+    const rows = await this.prisma.db.clip.findMany({
+      where: { jobId: { in: [...jobIds] } },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, jobId: true },
+    });
+    const found: Record<string, { clipId: string; count: number }> = {};
+    for (const row of rows) {
+      const current = found[row.jobId];
+      if (current === undefined) found[row.jobId] = { clipId: row.id, count: 1 };
+      else current.count += 1;
+    }
+    return found;
+  }
+
   async examples(): Promise<Record<string, string>> {
     const rows = await this.prisma.db.clip.findMany({
       orderBy: { createdAt: 'desc' },
