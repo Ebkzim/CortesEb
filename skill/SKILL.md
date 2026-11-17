@@ -184,6 +184,8 @@ Na Twitch, os intervalos comerciais são detectados pela lista de reprodução e
 
 Se não souber o idioma da live, use `--lang auto` e o whisper detecta sozinho. Vale também para `transcribe` e para `config --language auto`; a legenda automática do YouTube continua pedindo um idioma explícito.
 
+Com `--enqueue youtube,tiktok` cada corte pronto entra na fila de postagem (uma entrada por conta e rede), sempre pendente de aprovação.
+
 O comando fica rodando até a live acabar ou até o usuário parar (Ctrl+C). Rode em segundo plano e acompanhe a saída: cada linha é um JSON com `event` igual a `start`, `clip`, `skip`, `error` ou `end`. Um evento `clip` traz `files` (os vídeos prontos), `hook` e `afterPeakSeconds` (atraso entre o pico e o arquivo pronto).
 
 Como funciona: a live é gravada em pedaços de 3 s sem recodificar, o volume do áudio é medido em tempo real e, quando a empolgação passa do normal, o corte é montado a partir dos pedaços, transcrito, ajustado para começar e terminar em pausas de fala e renderizado. Cortes com pouca fala (só música ou barulho do jogo) são descartados com `skip`.

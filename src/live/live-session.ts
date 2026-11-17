@@ -4,6 +4,7 @@ import { AppError } from '../common/app-error.js';
 import { exists } from '../common/json-file.js';
 import type { Output } from '../common/output.js';
 import { resolveInside } from '../common/safe-path.js';
+import type { Platform } from '../contracts/publish.js';
 import type { CameraSpec } from './camera.js';
 import type { ClipFactory, FactoryOptions, PreparedClip } from './clip-factory.js';
 import { AdWatcher } from './ad-watcher.js';
@@ -31,6 +32,7 @@ export interface LiveRequest {
   maxQueue: number;
   keepWork: boolean;
   chat: boolean;
+  enqueue: Platform[] | null;
   camera: CameraSpec | null;
   credit: string | null;
   protocols?: string;
@@ -44,11 +46,18 @@ export interface LiveSummary {
   outDir: string;
 }
 
+export interface ProducedClip {
+  id: string;
+  hook: string | null;
+  files: { account: string | null; file: string }[];
+}
+
 export interface SessionDeps {
   recorder: LiveRecorder;
   factory: ClipFactory;
   output: Output;
   chat: ChatSource | null;
+  enqueue: (clip: ProducedClip) => Promise<number>;
   watchAds: boolean;
   fetchBottom: (source: string, workRoot: string) => Promise<string>;
 }
@@ -310,6 +319,7 @@ export class LiveSession {
           continue;
         }
         this.summary.produced += 1;
+        const queued = await this.enqueue(done);
         this.emit({
           event: 'clip',
           id: done.id,
@@ -317,11 +327,29 @@ export class LiveSession {
           hook: done.hook,
           afterPeakSeconds: done.afterPeakSeconds,
           files: done.results.filter((result) => result.ok).map((result) => result.file),
+          queued,
         });
       } catch (error) {
         this.summary.failed += 1;
         this.emit({ event: 'error', id: job.id, message: messageOf(error) });
       }
+    }
+  }
+
+  private async enqueue(done: {
+    id: string;
+    hook: string | null;
+    results: { ok: boolean; account: string | null; file: string }[];
+  }): Promise<number> {
+    if (this.request.enqueue === null) return 0;
+    const files = done.results
+      .filter((result) => result.ok)
+      .map((result) => ({ account: result.account, file: result.file }));
+    try {
+      return await this.deps.enqueue({ id: done.id, hook: done.hook, files });
+    } catch (error) {
+      this.emit({ event: 'error', id: done.id, message: messageOf(error) });
+      return 0;
     }
   }
 

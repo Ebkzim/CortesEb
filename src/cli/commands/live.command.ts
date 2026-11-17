@@ -2,6 +2,7 @@ import { Command, Option } from 'nest-commander';
 import { z } from 'zod';
 import { AppError } from '../../common/app-error.js';
 import { Output } from '../../common/output.js';
+import { PLATFORMS } from '../../contracts/publish.js';
 import { LANGUAGE_PATTERN, UserConfigStore, WHISPER_MODELS } from '../../config/user-config.js';
 import { parseCamera } from '../../live/camera.js';
 import { LiveService } from '../../live/live.service.js';
@@ -31,6 +32,7 @@ const liveOptions = z.object({
   chat: z.boolean().default(true),
   camera: z.string().min(1).max(100).optional(),
   credit: z.string().trim().min(1).max(80).optional(),
+  enqueue: z.string().min(1).max(100).optional(),
   cameraSize: z.coerce.number().min(10).max(100).default(40),
 });
 
@@ -152,6 +154,15 @@ export class LiveCommand extends GuardedCommand {
     return value;
   }
 
+  @Option({
+    flags: '--enqueue <redes>',
+    description:
+      'põe cada corte na fila de postagem (youtube,instagram,tiktok), pendente de aprovação',
+  })
+  parseEnqueue(value: string): string {
+    return value;
+  }
+
   @Option({ flags: '--no-chat', description: 'não usa o chat da Twitch como sinal' })
   parseNoChat(): boolean {
     return false;
@@ -204,6 +215,7 @@ export class LiveCommand extends GuardedCommand {
         keepWork: options.keepWork,
         chat: options.chat,
         credit: creditText(options.credit, link),
+        enqueue: platformsOf(options.enqueue),
         camera:
           options.camera === undefined ? null : parseCamera(options.camera, options.cameraSize),
       },
@@ -256,4 +268,16 @@ function creditText(option: string | undefined, link: string): string | null {
     throw new AppError('INVALID_INPUT', '--credit auto só funciona com link da Twitch');
   }
   return `Live de @${channel}`;
+}
+
+function platformsOf(value: string | undefined): (typeof PLATFORMS)[number][] | null {
+  if (value === undefined) return null;
+  const list = z
+    .array(z.enum(PLATFORMS))
+    .min(1)
+    .safeParse(value.split(',').map((item) => item.trim()));
+  if (!list.success) {
+    throw new AppError('INVALID_INPUT', `rede inválida: use ${PLATFORMS.join(', ')}`);
+  }
+  return list.data;
 }
