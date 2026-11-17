@@ -61,5 +61,6 @@ function validated(layout: Layout): Layout {
   if (layout.camera !== undefined && layout.camera !== NO_CAMERA) {
     parseCamera(layout.camera, layout.cameraSize ?? 40);
   }
+  if (layout.bottomArea !== undefined) parseCamera(layout.bottomArea, 40);
   return layout;
 }
