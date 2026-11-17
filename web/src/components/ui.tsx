@@ -1,8 +1,117 @@
 'use client';
 
 import { Check } from 'lucide-react';
-import { motion } from 'motion/react';
-import type { ReactNode } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import Link from 'next/link';
+import { useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
+
+export const EASE = [0.22, 1, 0.36, 1] as const;
+
+interface Ripple {
+  id: number;
+  x: number;
+  y: number;
+}
+
+interface ButtonProps {
+  children: ReactNode;
+  variant?: 'dark' | 'light' | 'ghost';
+  size?: 'small';
+  icon?: ReactNode;
+  lead?: ReactNode;
+  href?: string;
+  download?: boolean;
+  disabled?: boolean;
+  type?: 'button' | 'submit';
+  className?: string;
+  onClick?: (event: MouseEvent) => void;
+}
+
+export function Button({
+  children,
+  variant = 'dark',
+  size,
+  icon,
+  lead,
+  href,
+  download,
+  disabled,
+  type = 'button',
+  className,
+  onClick,
+}: ButtonProps) {
+  const [ripples, setRipples] = useState<Ripple[]>([]);
+  const classes = ['btn', `btn--${variant}`, size === 'small' ? 'btn--small' : '', className ?? '']
+    .filter(Boolean)
+    .join(' ');
+  function press(event: PointerEvent<HTMLElement>): void {
+    const box = event.currentTarget.getBoundingClientRect();
+    const id = Date.now() + Math.random();
+    setRipples((current) => [
+      ...current,
+      { id, x: event.clientX - box.left, y: event.clientY - box.top },
+    ]);
+    setTimeout(() => {
+      setRipples((current) => current.filter((ripple) => ripple.id !== id));
+    }, 650);
+  }
+  const content = (
+    <>
+      <span className="btn__fill" />
+      <AnimatePresence>
+        {ripples.map((ripple) => (
+          <motion.span
+            key={ripple.id}
+            className="btn__ripple"
+            style={{ left: ripple.x, top: ripple.y }}
+            initial={{ scale: 0, opacity: 0.9 }}
+            animate={{ scale: 28, opacity: 0 }}
+            transition={{ duration: 0.65, ease: EASE }}
+          />
+        ))}
+      </AnimatePresence>
+      {lead !== undefined && <span className="btn__icon">{lead}</span>}
+      <span className="btn__roll">
+        <span>{children}</span>
+        <span aria-hidden="true">{children}</span>
+      </span>
+      {icon !== undefined && <span className="btn__icon">{icon}</span>}
+    </>
+  );
+  const tap = disabled === true ? undefined : { scale: 0.96 };
+  if (href !== undefined) {
+    return (
+      <motion.span
+        whileTap={tap}
+        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        style={{ display: 'inline-flex' }}
+      >
+        {download === true ? (
+          <a href={href} download className={classes} onPointerDown={press}>
+            {content}
+          </a>
+        ) : (
+          <Link href={href} className={classes} onPointerDown={press}>
+            {content}
+          </Link>
+        )}
+      </motion.span>
+    );
+  }
+  return (
+    <motion.button
+      type={type}
+      className={classes}
+      disabled={disabled}
+      onPointerDown={press}
+      onClick={onClick}
+      whileTap={tap}
+      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+    >
+      {content}
+    </motion.button>
+  );
+}
 
 export function Choice({
   active,
@@ -24,7 +133,7 @@ export function Choice({
   children?: ReactNode;
 }) {
   return (
-    <button
+    <motion.button
       type="button"
       className={`choice ${active ? 'choice--active' : ''} ${disabled === true ? 'choice--disabled' : ''}`}
       onClick={onClick}
@@ -34,22 +143,28 @@ export function Choice({
       onBlur={() => onHover?.(false)}
       aria-pressed={active}
       disabled={disabled}
+      whileHover={{ y: -3 }}
+      whileTap={{ scale: 0.97 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 30 }}
     >
-      {active && (
-        <motion.span
-          className="choice__check"
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-        >
-          <Check size={14} strokeWidth={3} />
-        </motion.span>
-      )}
+      <AnimatePresence>
+        {active && (
+          <motion.span
+            className="choice__check"
+            initial={{ scale: 0, rotate: -45 }}
+            animate={{ scale: 1, rotate: 0 }}
+            exit={{ scale: 0 }}
+            transition={{ type: 'spring', stiffness: 520, damping: 26 }}
+          >
+            <Check size={13} strokeWidth={3} />
+          </motion.span>
+        )}
+      </AnimatePresence>
       {icon !== undefined && <span className="choice__icon">{icon}</span>}
       <span className="choice__title">{title}</span>
       {text !== undefined && <span className="choice__text">{text}</span>}
       {children}
-    </button>
+    </motion.button>
   );
 }
 
@@ -67,12 +182,13 @@ export function Segmented<T extends string>({
   return (
     <div className="segmented" role="tablist">
       {options.map((option) => (
-        <button
+        <motion.button
           key={option.value}
           type="button"
           role="tab"
           aria-selected={option.value === value}
           className={`segmented__item ${option.value === value ? 'segmented__item--active' : ''}`}
+          whileTap={{ scale: 0.95 }}
           onClick={() => {
             onChange(option.value);
           }}
@@ -85,7 +201,7 @@ export function Segmented<T extends string>({
             />
           )}
           {option.label}
-        </button>
+        </motion.button>
       ))}
     </div>
   );
@@ -103,8 +219,8 @@ export function Progress({ value, active }: { value: number | null; active?: boo
 }
 
 export const fade = {
-  initial: { opacity: 0, y: 18 },
+  initial: { opacity: 0, y: 16 },
   animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -12 },
-  transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const },
+  exit: { opacity: 0, y: -10 },
+  transition: { duration: 0.45, ease: EASE },
 };

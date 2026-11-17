@@ -1,7 +1,7 @@
 'use client';
 
 import { Clapperboard, FolderOpen, Plus, Settings } from 'lucide-react';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -49,8 +49,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 <Link
                   key={href}
                   href={href}
-                  className={`nav__link row ${active(href) ? 'nav__link--active' : ''}`}
-                  style={{ gap: 8 }}
+                  className={`nav__link ${active(href) ? 'nav__link--active' : ''}`}
                 >
                   {active(href) && (
                     <motion.span
@@ -64,7 +63,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 </Link>
               ))}
             </nav>
-            <Link href="/config/" className="icon-button" aria-label="Configurações">
+            <Link href="/config/" className="icon-button topbar__end" aria-label="Configurações">
               <Settings size={18} />
             </Link>
           </div>
@@ -79,7 +78,20 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           </main>
         ) : (
-          ready && <main className="page">{children}</main>
+          ready && (
+            <AnimatePresence mode="wait">
+              <motion.main
+                key={pathname}
+                className="page"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {children}
+              </motion.main>
+            </AnimatePresence>
+          )
         )}
       </div>
     </ToastProvider>

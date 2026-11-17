@@ -1,10 +1,11 @@
 'use client';
 
-import { Download, Play, Trash2, X } from 'lucide-react';
+import { Download, Trash2, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState } from 'react';
 import { bytes, duration } from '@/lib/format';
 import type { ClipView } from '@/lib/types';
+import { Button } from './ui';
 
 export function ClipCard({
   clip,
@@ -58,9 +59,6 @@ export function ClipCard({
             playsInline
             preload="none"
           />
-          <span className="clip__play">
-            <Play size={18} fill="currentColor" />
-          </span>
           <span className="clip__time">{duration(clip.seconds)}</span>
         </button>
         <div className="clip__body">
@@ -129,13 +127,14 @@ export function ClipCard({
               <div className="spread">
                 <p className="clip__title">{clip.title}</p>
                 <span className="row">
-                  <a
-                    className="button button--dark button--small"
+                  <Button
                     href={`/api/clips/${clip.id}/download`}
                     download
+                    size="small"
+                    icon={<Download />}
                   >
-                    Baixar <Download />
-                  </a>
+                    Baixar
+                  </Button>
                   <button
                     type="button"
                     className="icon-button"

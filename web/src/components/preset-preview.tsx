@@ -1,87 +1,107 @@
 'use client';
 
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Preset } from '@/lib/types';
+import { EASE } from './ui';
 
-const WORDS = ['ISSO', 'MUDA', 'TUDO', 'NO', 'JOGO'];
+const WORDS = ['ISSO', 'MUDA', 'TUDO'];
 
-function Scene({
-  kind,
-  label,
-}: {
-  kind: 'face' | 'game' | 'trailer' | 'scene' | 'person';
-  label: string;
-}) {
+export function PresetPreview({ preset }: { preset: Preset | null }) {
   return (
-    <div className={`scene scene--${kind}`}>
-      {kind === 'face' || kind === 'person' ? (
-        <div className="scene__face">
-          <span className="scene__head" />
-          <span className="scene__body" />
-        </div>
-      ) : (
-        <div className="scene__lines">
-          <span />
-          <span />
-          <span />
-        </div>
-      )}
-      <span className="scene__label">{label}</span>
+    <div className="preview">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`${preset?.id ?? 'vazio'}-${preset?.example ?? 'esquema'}`}
+          className="preview__frame"
+          initial={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
+          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, scale: 0.98, filter: 'blur(4px)' }}
+          transition={{ duration: 0.45, ease: EASE }}
+        >
+          {preset === null ? (
+            <div className="preview__empty">Escolha um tipo para ver como fica</div>
+          ) : preset.example !== null ? (
+            <Example clipId={preset.example} />
+          ) : (
+            <Schema top={preset.top} below={preset.below} />
+          )}
+        </motion.div>
+      </AnimatePresence>
+      <AnimatePresence mode="wait">
+        <motion.p
+          key={preset?.id ?? 'nada'}
+          className="preview__caption"
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {preset === null
+            ? ''
+            : preset.example !== null
+              ? 'Um corte real seu neste formato'
+              : `${preset.top} em cima, ${preset.below} embaixo`}
+        </motion.p>
+      </AnimatePresence>
     </div>
   );
 }
 
-function sceneFor(text: string, top: boolean): 'face' | 'game' | 'trailer' | 'scene' | 'person' {
-  if (text.includes('câmera')) return 'face';
-  if (text.includes('lado')) return 'person';
-  if (text.includes('trailer')) return 'trailer';
-  if (text.includes('cena')) return 'scene';
-  return top ? 'game' : 'game';
+function Example({ clipId }: { clipId: string }) {
+  const video = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const element = video.current;
+    if (element === null) return;
+    const start = (): void => {
+      element.currentTime = Math.min(4, element.duration / 3);
+      void element.play().catch(() => undefined);
+    };
+    element.addEventListener('loadedmetadata', start, { once: true });
+    return () => {
+      element.removeEventListener('loadedmetadata', start);
+    };
+  }, [clipId]);
+  return (
+    <video
+      ref={video}
+      className="preview__video"
+      src={`/api/clips/${clipId}/video`}
+      muted
+      loop
+      playsInline
+      preload="metadata"
+    />
+  );
 }
 
-export function PresetPreview({ preset }: { preset: Preset | null }) {
+function Schema({ top, below }: { top: string; below: string }) {
   const [word, setWord] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => {
       setWord((current) => (current + 1) % WORDS.length);
-    }, 520);
+    }, 600);
     return () => {
       clearInterval(timer);
     };
   }, []);
   return (
-    <div className="phone">
-      <div className="phone__notch" />
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={preset?.id ?? 'vazio'}
-          className="phone__screen"
-          initial={{ opacity: 0, scale: 0.97 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.97 }}
-          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        >
-          {preset === null ? (
-            <div className="phone__empty">Passe o mouse sobre um tipo para ver como fica</div>
-          ) : (
-            <>
-              <Scene kind={sceneFor(preset.top, true)} label={preset.top} />
-              <div className="phone__caption">
-                {WORDS.slice(Math.max(0, word - 1), word + 2).map((text, index) => (
-                  <span
-                    key={`${text}-${String(index)}`}
-                    className={text === WORDS[word] ? 'is-on' : ''}
-                  >
-                    {text}
-                  </span>
-                ))}
-              </div>
-              <Scene kind={sceneFor(preset.below, false)} label={preset.below} />
-            </>
-          )}
-        </motion.div>
-      </AnimatePresence>
+    <div className="schema">
+      <div className="schema__half">
+        <span className="schema__shape schema__shape--face" />
+        <span className="schema__name">{top}</span>
+      </div>
+      <div className="schema__caption">
+        {WORDS.map((text, index) => (
+          <span key={text} className={index === word ? 'is-on' : ''}>
+            {text}
+          </span>
+        ))}
+      </div>
+      <div className="schema__half schema__half--below">
+        <span className="schema__shape schema__shape--scene" />
+        <span className="schema__name">{below}</span>
+      </div>
     </div>
   );
 }

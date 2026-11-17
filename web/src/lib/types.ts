@@ -12,6 +12,7 @@ export interface Preset {
   bottom: 'source' | 'niche';
   top: string;
   below: string;
+  example: string | null;
 }
 
 export interface PercentRect {

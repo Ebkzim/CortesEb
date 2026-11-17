@@ -1,17 +1,16 @@
 'use client';
 
-import { Check, Copy, FolderOpen, Minus, RotateCcw, Square, X } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
-import Link from 'next/link';
+import { Check, Copy, FolderOpen, RotateCcw, Square } from 'lucide-react';
+import { AnimatePresence, motion, useSpring, useTransform } from 'motion/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { CameraPicker } from '@/components/camera-picker';
 import { ClipCard } from '@/components/clip-card';
 import { useToast } from '@/components/toast';
-import { Progress, fade } from '@/components/ui';
+import { Button, EASE, Progress, fade } from '@/components/ui';
 import { api, post } from '@/lib/api';
 import { useJobEvents } from '@/lib/events';
-import { STATUS_LABEL, clock, remaining } from '@/lib/format';
+import { STATUS_LABEL, clock, duration, remaining } from '@/lib/format';
 import type { ClipView, JobView, LogLine, StepState } from '@/lib/types';
 
 interface Detail {
@@ -118,51 +117,97 @@ function JobScreen() {
 
   return (
     <div className="job">
-      <header className="job__head">
-        <div className="stack" style={{ gap: 12 }}>
-          <span className="row" style={{ gap: 10 }}>
+      <div className="job__main">
+        <header className="job__head">
+          <div className="stack" style={{ gap: 10 }}>
             <span className={`status status--${job.status}`}>
-              {active && <span className="status__dot" />}
-              {STATUS_LABEL[job.status] ?? job.status}
+              {active && <span className="dot dot--live" />}
+              {STATUS_LABEL[job.status] ?? job.status} · {clock(job.createdAt)}
             </span>
-            <span className="muted small">criada às {clock(job.createdAt)}</span>
-          </span>
-          <h1 className="title-lg">{job.title}</h1>
-        </div>
-        <div className="row">
-          {active && (
-            <button
-              type="button"
-              className="button button--light"
-              onClick={() => {
-                void cancel();
-              }}
-            >
-              {isLive ? 'Parar a live' : 'Cancelar'} <Square size={16} />
-            </button>
-          )}
-          {['failed', 'canceled', 'interrupted'].includes(job.status) && (
-            <button
-              type="button"
-              className="button button--dark"
-              onClick={() => {
-                void retry();
-              }}
-            >
-              Tentar de novo <RotateCcw />
-            </button>
-          )}
-          {job.status === 'done' && (
-            <Link href="/clipes/" className="button button--dark">
-              Abrir Meus clipes <FolderOpen />
-            </Link>
-          )}
-        </div>
-      </header>
+            <h1 className="title-lg">{job.title}</h1>
+          </div>
+        </header>
 
-      <section className="panel stack job__overall">
-        <div className="spread">
-          <span className="title-md">{Math.round(overall * 100)}%</span>
+        <AnimatePresence>
+          {job.status === 'waiting' && job.waiting?.kind === 'camera' && (
+            <motion.section key="camera" className="panel stack" {...fade}>
+              <h2 className="title-md">Onde está o rosto?</h2>
+              <CameraPicker
+                src={`/api/jobs/${job.id}/frame/${job.waiting.frame}`}
+                suggestion={job.waiting.suggestion}
+                onConfirm={(rect) => {
+                  void post(`/jobs/${job.id}/camera`, rect).catch((caught: unknown) => {
+                    toast(caught instanceof Error ? caught.message : 'não consegui enviar');
+                  });
+                }}
+              />
+            </motion.section>
+          )}
+          {job.status === 'waiting' && job.waiting?.kind === 'agent' && (
+            <motion.section key="agent" className="panel stack" {...fade}>
+              <AgentPanel waiting={job.waiting} />
+            </motion.section>
+          )}
+        </AnimatePresence>
+
+        {(clips.length > 0 || isLive) && (
+          <section className="stack">
+            <h2 className="title-md">Cortes prontos · {clips.length}</h2>
+            {clips.length === 0 ? (
+              <div className="empty">Os cortes aparecem aqui assim que ficam prontos.</div>
+            ) : (
+              <div className="clips">
+                {clips.map((clip) => (
+                  <ClipCard key={clip.id} clip={clip} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        <section className="stack">
+          <div>
+            <Button
+              variant="ghost"
+              size="small"
+              onClick={() => {
+                setShowLogs((value) => !value);
+              }}
+            >
+              {showLogs ? 'Esconder detalhes' : 'Ver detalhes técnicos'}
+            </Button>
+          </div>
+          <AnimatePresence>
+            {showLogs && (
+              <motion.div
+                className="logs"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.4, ease: EASE }}
+              >
+                {logs.length === 0 ? (
+                  <p className="muted small">Sem mensagens.</p>
+                ) : (
+                  logs.map((line, index) => (
+                    <p
+                      key={`${line.at}-${String(index)}`}
+                      className={`logs__line logs__line--${line.level}`}
+                    >
+                      <span>{clock(line.at)}</span> {line.message}
+                    </p>
+                  ))
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+      </div>
+
+      <aside className="job__side">
+        <div className="meter">
+          <AnimatedPercent value={job.status === 'done' ? 1 : overall} />
+          <Progress value={job.status === 'done' ? 1 : overall} active={job.status === 'running'} />
           <span className="muted small">
             {job.status === 'done'
               ? 'pronto'
@@ -172,138 +217,117 @@ function JobScreen() {
                   ? isLive
                     ? 'acompanhando a live'
                     : remaining(remainingSeconds)
-                  : ''}
+                  : (STATUS_LABEL[job.status] ?? '').toLowerCase()}
           </span>
-        </div>
-        <Progress value={job.status === 'done' ? 1 : overall} active={job.status === 'running'} />
-        {job.error !== null && <p className="job__error">{job.error}</p>}
-      </section>
-
-      <AnimatePresence>
-        {job.status === 'waiting' && job.waiting?.kind === 'camera' && (
-          <motion.section key="camera" className="panel stack" {...fade}>
-            <span className="eyebrow">Sua vez</span>
-            <h2 className="title-md">Onde está o rosto?</h2>
-            <CameraPicker
-              src={`/api/jobs/${job.id}/frame/${job.waiting.frame}`}
-              suggestion={job.waiting.suggestion}
-              onConfirm={(rect) => {
-                void post(`/jobs/${job.id}/camera`, rect).catch((caught: unknown) => {
-                  toast(caught instanceof Error ? caught.message : 'não consegui enviar');
-                });
-              }}
-            />
-          </motion.section>
-        )}
-        {job.status === 'waiting' && job.waiting?.kind === 'agent' && (
-          <motion.section key="agent" className="panel stack" {...fade}>
-            <AgentPanel waiting={job.waiting} />
-          </motion.section>
-        )}
-      </AnimatePresence>
-
-      <section className="steps">
-        {job.steps.map((step, index) => (
-          <StepRow key={step.id} step={step} index={index} />
-        ))}
-      </section>
-
-      {(clips.length > 0 || isLive) && (
-        <section className="stack">
-          <div className="spread">
-            <h2 className="title-md">Cortes prontos</h2>
-            <span className="chip">{clips.length}</span>
+          {job.error !== null && <p className="job__error">{job.error}</p>}
+          <div className="row wrap">
+            {active && (
+              <Button
+                variant="light"
+                size="small"
+                lead={<Square size={14} />}
+                onClick={() => {
+                  void cancel();
+                }}
+              >
+                {isLive ? 'Parar a live' : 'Cancelar'}
+              </Button>
+            )}
+            {['failed', 'canceled', 'interrupted'].includes(job.status) && (
+              <Button
+                size="small"
+                icon={<RotateCcw />}
+                onClick={() => {
+                  void retry();
+                }}
+              >
+                Tentar de novo
+              </Button>
+            )}
+            {job.status === 'done' && (
+              <Button href="/clipes/" size="small" icon={<FolderOpen />}>
+                Meus clipes
+              </Button>
+            )}
           </div>
-          {clips.length === 0 ? (
-            <div className="empty">Os cortes aparecem aqui assim que ficam prontos.</div>
-          ) : (
-            <div className="clips">
-              {clips.map((clip) => (
-                <ClipCard key={clip.id} clip={clip} />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      <section className="stack">
-        <button
-          type="button"
-          className="button button--ghost button--small"
-          style={{ alignSelf: 'flex-start' }}
-          onClick={() => {
-            setShowLogs((value) => !value);
-          }}
-        >
-          {showLogs ? 'Esconder detalhes' : 'Ver detalhes técnicos'}
-        </button>
-        <AnimatePresence>
-          {showLogs && (
-            <motion.div
-              className="logs"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-            >
-              {logs.length === 0 ? (
-                <p className="muted small">Sem mensagens.</p>
-              ) : (
-                logs.map((line, index) => (
-                  <p
-                    key={`${line.at}-${String(index)}`}
-                    className={`logs__line logs__line--${line.level}`}
-                  >
-                    <span>{clock(line.at)}</span> {line.message}
-                  </p>
-                ))
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </section>
+        </div>
+        <ol className="timeline">
+          {job.steps.map((step, index) => (
+            <TimelineStep key={step.id} step={step} index={index} />
+          ))}
+        </ol>
+      </aside>
     </div>
   );
 }
 
-function StepRow({ step, index }: { step: StepState; index: number }) {
+function AnimatedPercent({ value }: { value: number }) {
+  const spring = useSpring(value * 100, { stiffness: 80, damping: 20 });
+  const text = useTransform(spring, (current) => `${String(Math.round(current))}%`);
+  useEffect(() => {
+    spring.set(value * 100);
+  }, [spring, value]);
+  return <motion.span className="meter__value">{text}</motion.span>;
+}
+
+function TimelineStep({ step, index }: { step: StepState; index: number }) {
   const running = step.status === 'running';
+  const took =
+    step.status === 'done' && step.startedAt !== null && step.finishedAt !== null
+      ? (Date.parse(step.finishedAt) - Date.parse(step.startedAt)) / 1000
+      : null;
   return (
-    <motion.div
-      className={`step step--${step.status}`}
-      initial={{ opacity: 0, x: -10 }}
+    <motion.li
+      className={`tl tl--${step.status}`}
+      initial={{ opacity: 0, x: 10 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ delay: index * 0.05, duration: 0.45, ease: EASE }}
     >
-      <span className="step__icon">
+      <span className="tl__mark">
         {step.status === 'done' ? (
           <motion.span
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 500, damping: 26 }}
+            style={{ display: 'grid' }}
           >
-            <Check size={16} strokeWidth={3} />
+            <span className="tl__ring" />
           </motion.span>
-        ) : step.status === 'running' ? (
-          <span className="spinner" />
-        ) : step.status === 'waiting' ? (
-          <span className="step__wait pulse" />
-        ) : step.status === 'failed' ? (
-          <X size={16} strokeWidth={3} />
-        ) : step.status === 'skipped' ? (
-          <Minus size={16} />
         ) : (
-          <span className="step__number">{index + 1}</span>
+          <span className="tl__ring" />
         )}
       </span>
-      <div className="step__body">
-        <div className="spread">
-          <span className="step__label">{step.label}</span>
-          {running && step.remainingSeconds !== null && (
-            <span className="muted small">{remaining(step.remainingSeconds)}</span>
-          )}
+      <div className="tl__body">
+        <div className="tl__head">
+          <span>{step.label}</span>
+          <span className="tl__meta">
+            {running
+              ? step.fraction !== null && step.fraction > 0
+                ? `${String(Math.round(step.fraction * 100))}%`
+                : ''
+              : took !== null && took >= 1
+                ? duration(took)
+                : step.status === 'pending' && step.estimateSeconds !== null
+                  ? `~${duration(step.estimateSeconds)}`
+                  : ''}
+          </span>
         </div>
-        {(running || step.status === 'waiting' || step.status === 'failed') &&
-          step.message !== '' && <span className="muted small">{step.message}</span>}
+        <AnimatePresence initial={false}>
+          {(running || step.status === 'waiting' || step.status === 'failed') &&
+            step.message !== '' && (
+              <motion.span
+                className="tl__message"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                {step.message}
+                {running && step.remainingSeconds !== null
+                  ? ` · ${remaining(step.remainingSeconds)}`
+                  : ''}
+              </motion.span>
+            )}
+        </AnimatePresence>
         {running && (
           <Progress
             value={step.fraction !== null && step.fraction > 0 ? step.fraction : null}
@@ -311,7 +335,7 @@ function StepRow({ step, index }: { step: StepState; index: number }) {
           />
         )}
       </div>
-    </motion.div>
+    </motion.li>
   );
 }
 
@@ -320,7 +344,6 @@ function AgentPanel({ waiting }: { waiting: Extract<JobView['waiting'], { kind: 
   const name = waiting.agent === 'claude' ? 'Claude Code' : 'Codex';
   return (
     <>
-      <span className="eyebrow">Sua vez</span>
       <h2 className="title-md">Cole este prompt no {name}</h2>
       <ol className="agent-steps">
         <li>
@@ -332,9 +355,9 @@ function AgentPanel({ waiting }: { waiting: Extract<JobView['waiting'], { kind: 
       </ol>
       <div className="code">{waiting.prompt}</div>
       <div className="row">
-        <button
-          type="button"
-          className="button button--dark button--small"
+        <Button
+          size="small"
+          icon={copied ? <Check /> : <Copy />}
           onClick={() => {
             void navigator.clipboard.writeText(waiting.prompt).then(() => {
               setCopied(true);
@@ -344,10 +367,10 @@ function AgentPanel({ waiting }: { waiting: Extract<JobView['waiting'], { kind: 
             });
           }}
         >
-          {copied ? 'Copiado' : 'Copiar prompt'} {copied ? <Check /> : <Copy />}
-        </button>
+          {copied ? 'Copiado' : 'Copiar prompt'}
+        </Button>
         <span className="row muted small" style={{ gap: 8 }}>
-          <span className="step__wait pulse" /> esperando o cuts.json
+          <span className="dot dot--live" /> esperando o {name} terminar
         </span>
       </div>
       {waiting.problems.length > 0 && (

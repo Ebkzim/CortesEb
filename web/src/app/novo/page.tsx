@@ -9,8 +9,9 @@ import {
   Film,
   Gamepad2,
   KeyRound,
-  Link2,
   Mic,
+  Minus,
+  Plus,
   Radio,
   ScanFace,
   Sparkles,
@@ -24,7 +25,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { PresetPreview } from '@/components/preset-preview';
 import { useToast } from '@/components/toast';
-import { Choice, Progress, Segmented, fade } from '@/components/ui';
+import { Button, Choice, EASE, Progress, Segmented, fade } from '@/components/ui';
 import { KeyForm } from '@/components/key-form';
 import { api, post, upload } from '@/lib/api';
 import { duration, parseClock } from '@/lib/format';
@@ -226,13 +227,23 @@ export default function NewCutPage() {
     summary.push({ label: 'Inteligência', value: selectorLabel(selector, keys) });
   }
 
+  const goNext = (): void => {
+    setStep((value) => Math.min(STEPS.length - 1, value + 1));
+  };
+
   return (
     <div className="wizard">
       <div className="wizard__main">
-        <Stepper
+        <Phases
           step={step}
           onJump={(index) => {
             if (index < step) setStep(index);
+          }}
+        />
+        <Summary
+          items={summary}
+          onJump={(index) => {
+            setStep(index);
           }}
         />
         <AnimatePresence mode="wait">
@@ -240,7 +251,6 @@ export default function NewCutPage() {
             {step === 0 && (
               <>
                 <Heading
-                  eyebrow="Etapa 1"
                   title="Que tipo de corte?"
                   text="Passe o mouse para ver como fica cada um."
                 />
@@ -267,9 +277,8 @@ export default function NewCutPage() {
             {step === 1 && (
               <>
                 <Heading
-                  eyebrow="Etapa 2"
                   title="Quantos cortes?"
-                  text="Escolha pela quantidade ou pela duração de cada corte."
+                  text="Pela quantidade ou pela duração de cada corte."
                 />
                 <Segmented
                   id="targets"
@@ -283,48 +292,58 @@ export default function NewCutPage() {
                 <AnimatePresence mode="wait">
                   {mode === 'count' ? (
                     <motion.div key="count" className="panel counter" {...fade}>
-                      <button
-                        type="button"
-                        className="counter__button"
-                        onClick={() => {
-                          setCount((value) => Math.max(1, value - 1));
-                        }}
-                        aria-label="menos"
-                      >
-                        −
-                      </button>
-                      <div className="counter__value">
-                        <motion.span
-                          key={count}
-                          initial={{ y: 12, opacity: 0 }}
-                          animate={{ y: 0, opacity: 1 }}
+                      <div className="counter__row">
+                        <motion.button
+                          whileTap={{ scale: 0.88 }}
+                          type="button"
+                          className="counter__button"
+                          onClick={() => {
+                            setCount((value) => Math.max(1, value - 1));
+                          }}
+                          aria-label="menos"
                         >
-                          {count}
-                        </motion.span>
-                        <span className="muted small">{count === 1 ? 'corte' : 'cortes'}</span>
+                          <Minus size={20} />
+                        </motion.button>
+                        <div className="counter__value">
+                          <AnimatePresence mode="popLayout" initial={false}>
+                            <motion.span
+                              key={count}
+                              className="counter__number"
+                              initial={{ y: 24, opacity: 0, filter: 'blur(4px)' }}
+                              animate={{ y: 0, opacity: 1, filter: 'blur(0px)' }}
+                              exit={{ y: -24, opacity: 0, filter: 'blur(4px)' }}
+                              transition={{ duration: 0.35, ease: EASE }}
+                            >
+                              {count}
+                            </motion.span>
+                          </AnimatePresence>
+                          <span className="counter__unit">{count === 1 ? 'corte' : 'cortes'}</span>
+                        </div>
+                        <motion.button
+                          whileTap={{ scale: 0.88 }}
+                          type="button"
+                          className="counter__button"
+                          onClick={() => {
+                            setCount((value) => Math.min(20, value + 1));
+                          }}
+                          aria-label="mais"
+                        >
+                          <Plus size={20} />
+                        </motion.button>
                       </div>
-                      <button
-                        type="button"
-                        className="counter__button"
-                        onClick={() => {
-                          setCount((value) => Math.min(20, value + 1));
-                        }}
-                        aria-label="mais"
-                      >
-                        +
-                      </button>
                       <input
                         className="counter__range"
                         type="range"
                         min={1}
                         max={20}
                         value={count}
+                        style={{ ['--fill' as string]: `${String(((count - 1) / 19) * 100)}%` }}
                         onChange={(event) => {
                           setCount(Number(event.target.value));
                         }}
                         aria-label="quantidade de cortes"
                       />
-                      <p className="muted small" style={{ gridColumn: '1 / -1' }}>
+                      <p className="muted small">
                         A duração de cada corte se ajusta ao tamanho do vídeo.
                       </p>
                     </motion.div>
@@ -334,7 +353,7 @@ export default function NewCutPage() {
                         <DurationInput label="Mínimo" value={minSeconds} onChange={setMinSeconds} />
                         <DurationInput label="Máximo" value={maxSeconds} onChange={setMaxSeconds} />
                       </div>
-                      <p className={`small ${targets === null ? '' : 'muted'}`}>
+                      <p className="small muted">
                         {targets === null
                           ? 'Cada corte vai de 10 s a 3 min, e o máximo não pode ser menor que o mínimo.'
                           : `Cada corte terá entre ${duration(minSeconds)} e ${duration(maxSeconds)}. A quantidade sai do tamanho do vídeo.`}
@@ -348,24 +367,23 @@ export default function NewCutPage() {
             {step === 2 && (
               <>
                 <Heading
-                  eyebrow="Etapa 3"
                   title="De onde vem o vídeo?"
-                  text="Um arquivo, um link ou uma live que está no ar agora."
+                  text="Um arquivo, um link ou uma live no ar agora."
                 />
                 <div className="grid grid--4">
                   <Choice
                     active={sourceKind === 'file'}
-                    icon={<Upload size={20} />}
+                    icon={<Upload size={18} />}
                     title="Arquivo"
-                    text="Envie um vídeo do computador."
+                    text="Um vídeo do computador."
                     onClick={() => {
                       setSourceKind('file');
                     }}
                   />
                   <Choice
                     active={sourceKind === 'youtube'}
-                    icon={<Video size={20} />}
-                    title="Link do YouTube"
+                    icon={<Video size={18} />}
+                    title="YouTube"
                     text="Um vídeo publicado."
                     onClick={() => {
                       setSourceKind('youtube');
@@ -373,7 +391,7 @@ export default function NewCutPage() {
                   />
                   <Choice
                     active={sourceKind === 'vod'}
-                    icon={<Clapperboard size={20} />}
+                    icon={<Clapperboard size={18} />}
                     title="VOD de live"
                     text="Twitch, Kick ou YouTube."
                     onClick={() => {
@@ -382,7 +400,7 @@ export default function NewCutPage() {
                   />
                   <Choice
                     active={sourceKind === 'live'}
-                    icon={<Radio size={20} />}
+                    icon={<Radio size={18} />}
                     title="Live agora"
                     text="Corta enquanto a live roda."
                     onClick={() => {
@@ -423,21 +441,27 @@ export default function NewCutPage() {
                                 ? `Link do VOD na ${PLATFORM_LABEL[platform]}`
                                 : 'Link do vídeo'}
                           </span>
-                          <div className="row">
-                            <Link2 size={18} className="muted" />
-                            <input
-                              className={`input ${link !== '' && sourceProblem !== null ? 'input--error' : ''}`}
-                              placeholder="https://"
-                              value={link}
-                              onChange={(event) => {
-                                setLink(event.target.value);
-                              }}
-                              autoFocus
-                            />
-                          </div>
-                          {link !== '' && sourceProblem !== null && (
-                            <span className="field__hint">{sourceProblem}</span>
-                          )}
+                          <input
+                            className={`input ${link !== '' && sourceProblem !== null ? 'input--error' : ''}`}
+                            placeholder="https://"
+                            value={link}
+                            onChange={(event) => {
+                              setLink(event.target.value);
+                            }}
+                            autoFocus
+                          />
+                          <AnimatePresence>
+                            {link !== '' && sourceProblem !== null && (
+                              <motion.span
+                                className="field__hint"
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                              >
+                                {sourceProblem}
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
                         </label>
                       )}
                       {sourceKind === 'vod' && (
@@ -465,15 +489,14 @@ export default function NewCutPage() {
                             />
                           </label>
                           <p className="field__hint" style={{ gridColumn: '1 / -1' }}>
-                            Para lives longas, baixar só um trecho é bem mais rápido. Use
-                            horas:minutos:segundos.
+                            Em lives longas, baixar só um trecho é bem mais rápido.
                           </p>
                         </div>
                       )}
                       {sourceKind === 'live' && (
                         <p className="field__hint">
-                          O painel acompanha a live e salva cada momento forte em Meus clipes, até a
-                          live acabar ou você parar.
+                          O painel acompanha a live e salva cada momento forte, até ela acabar ou
+                          você parar.
                         </p>
                       )}
                     </motion.div>
@@ -485,29 +508,28 @@ export default function NewCutPage() {
             {step === 3 && (
               <>
                 <Heading
-                  eyebrow="Etapa 4"
                   title="Quem escolhe os cortes?"
                   text={
                     isLive
-                      ? 'Na live, os momentos são detectados sozinhos. Uma IA pode avaliar cada um antes de salvar.'
+                      ? 'Na live os momentos são detectados sozinhos. Uma IA pode avaliar cada um.'
                       : 'Uma IA lê a transcrição e escolhe os melhores ganchos.'
                   }
                 />
                 <div className="grid grid--3">
                   <Choice
                     active={selectorKind === 'api'}
-                    icon={<KeyRound size={20} />}
+                    icon={<KeyRound size={18} />}
                     title="Chave de API"
-                    text="OpenAI, Claude ou outro serviço compatível."
+                    text="Claude, OpenAI ou compatível."
                     onClick={() => {
                       setSelectorKind('api');
                     }}
                   />
                   <Choice
                     active={selectorKind === 'ollama'}
-                    icon={<Cpu size={20} />}
+                    icon={<Cpu size={18} />}
                     title="IA local"
-                    text="Ollama no seu computador. Grátis."
+                    text="Ollama no seu computador."
                     onClick={() => {
                       setSelectorKind('ollama');
                     }}
@@ -515,9 +537,9 @@ export default function NewCutPage() {
                   {isLive ? (
                     <Choice
                       active={selectorKind === 'rules'}
-                      icon={<Wand2 size={20} />}
+                      icon={<Wand2 size={18} />}
                       title="Só regras"
-                      text="Volume e chat. Sem IA."
+                      text="Volume e chat, sem IA."
                       onClick={() => {
                         setSelectorKind('rules');
                       }}
@@ -525,9 +547,9 @@ export default function NewCutPage() {
                   ) : (
                     <Choice
                       active={selectorKind === 'agent'}
-                      icon={<Bot size={20} />}
+                      icon={<Bot size={18} />}
                       title="Claude ou Codex"
-                      text="Você cola um prompt pronto no terminal."
+                      text="Um prompt pronto no terminal."
                       onClick={() => {
                         setSelectorKind('agent');
                       }}
@@ -538,10 +560,10 @@ export default function NewCutPage() {
                   {selectorKind === 'api' && (
                     <motion.div key="api" className="panel stack" {...fade}>
                       {keys.length > 0 && !addingKey && (
-                        <div className="stack" style={{ gap: 10 }}>
-                          <span className="field__label">Chaves guardadas</span>
+                        <div className="stack" style={{ gap: 8 }}>
                           {keys.map((key) => (
-                            <button
+                            <motion.button
+                              whileTap={{ scale: 0.98 }}
                               key={key.id}
                               type="button"
                               className={`key-row ${keyId === key.id ? 'key-row--active' : ''}`}
@@ -555,7 +577,7 @@ export default function NewCutPage() {
                                 {providerLabel(key.provider)} · {key.model ?? 'modelo padrão'} ·{' '}
                                 {key.hint}
                               </span>
-                            </button>
+                            </motion.button>
                           ))}
                         </div>
                       )}
@@ -572,15 +594,16 @@ export default function NewCutPage() {
                           }}
                         />
                       ) : (
-                        <button
-                          type="button"
-                          className="button button--light button--small"
+                        <Button
+                          variant="light"
+                          size="small"
+                          lead={<Plus />}
                           onClick={() => {
                             setAddingKey(true);
                           }}
                         >
-                          Adicionar uma chave agora
-                        </button>
+                          Adicionar uma chave
+                        </Button>
                       )}
                     </motion.div>
                   )}
@@ -592,26 +615,25 @@ export default function NewCutPage() {
                         </div>
                       ) : !ollama.reachable ? (
                         <div className="stack">
-                          <p>O Ollama não respondeu em 127.0.0.1:11434.</p>
+                          <p>O Ollama não respondeu.</p>
                           <p className="muted small">
-                            Abra o Ollama (ou rode <span className="kbd">ollama serve</span>) e
-                            baixe um modelo, por exemplo{' '}
-                            <span className="kbd">ollama pull qwen2.5:7b</span>.
+                            Abra o Ollama ou rode <span className="kbd">ollama serve</span> num
+                            terminal.
                           </p>
-                          <button
-                            type="button"
-                            className="button button--light button--small"
+                          <Button
+                            variant="light"
+                            size="small"
                             onClick={() => {
                               setOllama(null);
                             }}
                           >
                             Procurar de novo
-                          </button>
+                          </Button>
                         </div>
                       ) : ollama.models.length === 0 ? (
                         <p className="muted">
-                          O Ollama está aberto, mas sem modelos. Rode{' '}
-                          <span className="kbd">ollama pull qwen2.5:7b</span> e procure de novo.
+                          Sem modelos. Rode <span className="kbd">ollama pull qwen2.5:7b</span> e
+                          procure de novo.
                         </p>
                       ) : (
                         <label className="field">
@@ -630,8 +652,7 @@ export default function NewCutPage() {
                             ))}
                           </select>
                           <span className="field__hint">
-                            Modelos maiores escolhem melhor, mas demoram mais em computadores sem
-                            placa de vídeo.
+                            Modelos maiores escolhem melhor e demoram mais sem placa de vídeo.
                           </span>
                         </label>
                       )}
@@ -649,18 +670,17 @@ export default function NewCutPage() {
                         onChange={setAgent}
                       />
                       <p className="muted small" style={{ lineHeight: 1.6 }}>
-                        O painel baixa e transcreve o vídeo. Depois mostra um prompt pronto: você
-                        cola no {agent === 'claude' ? 'Claude Code' : 'Codex'}, ele escolhe os
-                        cortes e o painel continua sozinho até os vídeos ficarem prontos. Usa o
-                        limite da sua assinatura, sem chave de API.
+                        O painel baixa e transcreve o vídeo e mostra um prompt pronto. Você cola no{' '}
+                        {agent === 'claude' ? 'Claude Code' : 'Codex'}, ele escolhe os cortes e o
+                        painel termina sozinho. Usa a sua assinatura, sem chave de API.
                       </p>
                     </motion.div>
                   )}
                   {selectorKind === 'rules' && (
                     <motion.div key="rules" className="panel" {...fade}>
                       <p className="muted small" style={{ lineHeight: 1.6 }}>
-                        Os momentos são escolhidos pelo pico de volume e, na Twitch, pela explosão
-                        do chat. É o mais rápido, mas não avalia o gancho.
+                        Os momentos saem do pico de volume e, na Twitch, da explosão do chat. É o
+                        mais rápido, mas não avalia o gancho.
                       </p>
                     </motion.div>
                   )}
@@ -671,28 +691,10 @@ export default function NewCutPage() {
             {step === 4 && (
               <>
                 <Heading
-                  eyebrow="Etapa 5"
                   title="Tudo certo?"
                   text="Confira e comece. Você acompanha cada etapa ao vivo."
                 />
                 <div className="panel stack">
-                  {summary.map((item, index) => (
-                    <div key={item.label} className="spread review-row">
-                      <span className="muted small">{item.label}</span>
-                      <span className="row">
-                        <strong>{item.value}</strong>
-                        <button
-                          type="button"
-                          className="button button--ghost button--small"
-                          onClick={() => {
-                            setStep(index);
-                          }}
-                        >
-                          alterar
-                        </button>
-                      </span>
-                    </div>
-                  ))}
                   <label className="field">
                     <span className="field__label">Nome (opcional)</span>
                     <input
@@ -707,12 +709,13 @@ export default function NewCutPage() {
                   </label>
                   {accounts.length > 0 && (
                     <div className="field">
-                      <span className="field__label">Marca d’água das contas</span>
+                      <span className="field__label">Marca d’água</span>
                       <div className="row wrap">
                         {accounts.map((account) => {
                           const on = chosenAccounts.includes(account.id);
                           return (
-                            <button
+                            <motion.button
+                              whileTap={{ scale: 0.94 }}
                               key={account.id}
                               type="button"
                               className={`chip ${on ? 'chip--dark' : ''}`}
@@ -725,7 +728,7 @@ export default function NewCutPage() {
                               }}
                             >
                               {account.name ?? account.id}
-                            </button>
+                            </motion.button>
                           );
                         })}
                       </div>
@@ -734,6 +737,11 @@ export default function NewCutPage() {
                       </span>
                     </div>
                   )}
+                  {accounts.length === 0 && (
+                    <p className="muted small">
+                      Os cortes saem sem marca d’água. Cadastre contas na engrenagem se quiser.
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -741,105 +749,110 @@ export default function NewCutPage() {
         </AnimatePresence>
 
         <div className="wizard__nav">
-          <button
-            type="button"
-            className="button button--ghost"
+          <Button
+            variant="ghost"
+            lead={<ArrowLeft />}
             onClick={() => {
               setStep((value) => Math.max(0, value - 1));
             }}
             disabled={step === 0}
           >
-            <ArrowLeft size={18} /> Voltar
-          </button>
+            Voltar
+          </Button>
           {step < STEPS.length - 1 ? (
-            <button
-              type="button"
-              className="button button--dark"
-              disabled={canAdvance !== true}
-              onClick={() => {
-                setStep((value) => value + 1);
-              }}
-            >
-              Próximo <ArrowRight />
-            </button>
+            <Button icon={<ArrowRight />} disabled={canAdvance !== true} onClick={goNext}>
+              Próximo
+            </Button>
           ) : (
-            <button
-              type="button"
-              className="button button--dark"
+            <Button
+              icon={<ArrowRight />}
               disabled={sending}
               onClick={() => {
                 void start();
               }}
             >
-              {sending ? 'Começando…' : 'Começar os cortes'} <ArrowRight />
-            </button>
+              {sending ? 'Começando…' : 'Começar os cortes'}
+            </Button>
           )}
         </div>
       </div>
 
       <aside className="wizard__side">
         <PresetPreview preset={previewPreset} />
-        <div className="side-summary">
-          <AnimatePresence>
-            {summary.map((item) => (
-              <motion.div
-                key={item.label}
-                className="side-summary__item"
-                initial={{ opacity: 0, x: 12 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0 }}
-                layout
-              >
-                <span className="eyebrow">{item.label}</span>
-                <span className="side-summary__value">{item.value}</span>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
       </aside>
     </div>
   );
 }
 
-function Heading({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) {
+function Heading({ title, text }: { title: string; text: string }) {
   return (
-    <header className="stack" style={{ gap: 10 }}>
-      <span className="eyebrow">{eyebrow}</span>
+    <header className="stack" style={{ gap: 8 }}>
       <h1 className="title-lg">{title}</h1>
       <p className="lead">{text}</p>
     </header>
   );
 }
 
-function Stepper({ step, onJump }: { step: number; onJump: (index: number) => void }) {
+function Phases({ step, onJump }: { step: number; onJump: (index: number) => void }) {
   return (
-    <ol className="stepper">
+    <ol className="phases">
       {STEPS.map((label, index) => (
         <li key={label}>
           <button
             type="button"
-            className={`stepper__item ${index === step ? 'is-current' : ''} ${index < step ? 'is-done' : ''}`}
+            className={`phase ${index === step ? 'is-current' : ''} ${index < step ? 'is-done' : ''}`}
             onClick={() => {
               onJump(index);
             }}
             disabled={index >= step}
           >
-            <span className="stepper__dot">{index < step ? '✓' : String(index + 1)}</span>
-            <span className="stepper__label">{label}</span>
-          </button>
-          {index < STEPS.length - 1 && (
-            <span className="stepper__line">
+            <span className="phase__bar">
               <motion.span
-                className="stepper__fill"
+                className="phase__fill"
                 initial={false}
-                animate={{ scaleX: index < step ? 1 : 0 }}
-                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                animate={{ scaleX: index < step ? 1 : index === step ? 0.35 : 0 }}
+                transition={{ duration: 0.7, ease: EASE }}
               />
             </span>
-          )}
+            <span className="phase__label">{label}</span>
+          </button>
         </li>
       ))}
     </ol>
+  );
+}
+
+function Summary({
+  items,
+  onJump,
+}: {
+  items: { label: string; value: string }[];
+  onJump: (index: number) => void;
+}) {
+  return (
+    <motion.div className="summary" layout>
+      <AnimatePresence initial={false}>
+        {items.map((item, index) => (
+          <motion.button
+            key={item.label}
+            type="button"
+            layout
+            className="summary__token"
+            title={`Alterar ${item.label.toLowerCase()}`}
+            onClick={() => {
+              onJump(index);
+            }}
+            initial={{ opacity: 0, y: 8, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.4, ease: EASE }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {item.value}
+          </motion.button>
+        ))}
+      </AnimatePresence>
+    </motion.div>
   );
 }
 
@@ -906,8 +919,9 @@ function Dropzone({
 }) {
   const [over, setOver] = useState(false);
   return (
-    <label
+    <motion.label
       className={`dropzone ${over ? 'dropzone--over' : ''}`}
+      whileTap={{ scale: 0.99 }}
       onDragOver={(event) => {
         event.preventDefault();
         setOver(true);
@@ -931,7 +945,7 @@ function Dropzone({
           if (file !== undefined) onFile(file);
         }}
       />
-      <Upload size={26} />
+      <Upload size={22} />
       {progress !== null ? (
         <div className="stack" style={{ width: '100%', maxWidth: 360, gap: 8 }}>
           <span>Enviando {Math.round(progress * 100)}%</span>
@@ -947,7 +961,7 @@ function Dropzone({
         </span>
       )}
       <span className="muted small">MP4, MOV, MKV ou WEBM, até 8 GB</span>
-    </label>
+    </motion.label>
   );
 }
 

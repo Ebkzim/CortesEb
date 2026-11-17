@@ -4,7 +4,7 @@ import { ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { post } from '@/lib/api';
 import type { ApiKeyView } from '@/lib/types';
-import { Segmented } from './ui';
+import { Button, Segmented } from './ui';
 
 type Provider = ApiKeyView['provider'];
 
@@ -119,20 +119,19 @@ export function KeyForm({
       </label>
       {error !== null && <p className="small">{error}</p>}
       <div className="row">
-        <button
-          type="button"
-          className="button button--dark button--small"
+        <Button
+          size="small"
           disabled={saving || secret.trim().length < 8}
           onClick={() => {
             void save();
           }}
         >
           {saving ? 'Guardando…' : 'Guardar chave'}
-        </button>
+        </Button>
         {onCancel !== undefined && (
-          <button type="button" className="button button--ghost button--small" onClick={onCancel}>
+          <Button variant="ghost" size="small" onClick={onCancel}>
             Cancelar
-          </button>
+          </Button>
         )}
       </div>
     </div>

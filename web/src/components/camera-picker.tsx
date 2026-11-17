@@ -1,6 +1,8 @@
 'use client';
 
+import { Check } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button } from './ui';
 import type { PercentRect } from '@/lib/types';
 
 const TOP_RATIO = 1080 / 960;
@@ -109,7 +111,7 @@ export function CameraPicker({
           </div>
         </div>
         <div className="camera__result">
-          <span className="eyebrow">Como fica no topo</span>
+          <span className="label">Como fica no topo</span>
           <div
             className="camera__crop"
             style={{
@@ -138,15 +140,16 @@ export function CameraPicker({
       <p className="muted small">
         Arraste o retângulo até o rosto e puxe o canto para ajustar o tamanho.
       </p>
-      <button
-        type="button"
-        className="button button--dark"
-        onClick={() => {
-          onConfirm(round(rect));
-        }}
-      >
-        Confirmar enquadramento
-      </button>
+      <div>
+        <Button
+          icon={<Check />}
+          onClick={() => {
+            onConfirm(round(rect));
+          }}
+        >
+          Confirmar enquadramento
+        </Button>
+      </div>
     </div>
   );
 }
