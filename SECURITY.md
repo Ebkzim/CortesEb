@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Do not open a public issue for a security problem. Use GitHub's private vulnerability reporting on this repository (Security tab, "Report a vulnerability"). Include the version or commit, what you did, what happened and what you expected.
+Do not open a public issue for a security problem. While this repository is private, contact the maintainer directly. Once it is public, use GitHub's private vulnerability reporting (Security tab, "Report a vulnerability"), which must be enabled in the repository settings. Include the version or commit, what you did, what happened and what you expected.
 
 You can expect an answer within a few days. Fixes are released as a normal commit on `main`, with the issue described once it is safe to do so.
 
