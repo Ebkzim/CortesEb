@@ -16,6 +16,7 @@ import { JobRunner } from './job-runner.js';
 import { LibraryService } from './library.service.js';
 import { LivePipeline } from './live-pipeline.js';
 import { SelectorClients } from './selector-client.js';
+import { SpeedBook } from './speed-book.js';
 
 @Module({
   imports: [
@@ -31,7 +32,15 @@ import { SelectorClients } from './selector-client.js';
     SelectModule,
     TranscriptionModule,
   ],
-  providers: [JobEvents, JobRunner, LibraryService, CutPipeline, LivePipeline, SelectorClients],
+  providers: [
+    JobEvents,
+    JobRunner,
+    LibraryService,
+    CutPipeline,
+    LivePipeline,
+    SelectorClients,
+    SpeedBook,
+  ],
   exports: [JobEvents, JobRunner, LibraryService],
 })
 export class JobsModule {}

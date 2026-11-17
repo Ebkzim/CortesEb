@@ -48,6 +48,7 @@ export interface DaySummary {
 
 const LOG_LIMIT = 1000;
 const PAGE_LIMIT = 100;
+const EXAMPLE_SCAN = 300;
 
 @Injectable()
 export class JobRepository {
@@ -132,6 +133,17 @@ export class JobRepository {
     const clip = await this.getClip(id);
     await this.prisma.db.clip.delete({ where: { id } });
     return clip;
+  }
+
+  async examples(): Promise<Record<string, string>> {
+    const rows = await this.prisma.db.clip.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: EXAMPLE_SCAN,
+      select: { id: true, job: { select: { preset: true } } },
+    });
+    const found: Record<string, string> = {};
+    for (const row of rows) found[row.job.preset] ??= row.id;
+    return found;
   }
 
   async days(): Promise<DaySummary[]> {

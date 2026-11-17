@@ -7,6 +7,7 @@ import { jobRequestSchema } from '../contracts/job.js';
 import type { JobRepository, NewClip } from '../database/job.repository.js';
 import type { MediaTools } from '../media/media-tools.js';
 import { buildAgentPrompt } from './agent-prompt.js';
+import { SpeedBook } from './speed-book.js';
 import { targetsInput, youtubeLink } from './cut-pipeline.js';
 import { folderName, LibraryService, localDay } from './library.service.js';
 import { layoutFor, PRESETS, presetOf, rectSpec } from './presets.js';
@@ -215,5 +216,23 @@ describe('cut pipeline helpers', () => {
     expect(
       youtubeLink({ type: 'vod', platform: 'twitch', url: 'https://twitch.tv/videos/1' }),
     ).toBeNull();
+  });
+});
+
+describe('SpeedBook', () => {
+  it('learns a rate per key and blends new samples', async () => {
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-speed-'));
+    const paths = { inHome: (name: string) => path.join(home, name) } as unknown as AppPaths;
+    const book = new SpeedBook(paths);
+    expect(await book.estimate('render', 60, 3)).toBe(180);
+    await book.record('render', 120, 60);
+    expect(await book.rate('render', 3)).toBe(2);
+    await book.record('render', 240, 60);
+    expect(await book.rate('render', 3)).toBe(3);
+    await book.record('Select:ollama-Qwen 3B', 100, 2);
+    expect(await new SpeedBook(paths).rate('select:ollama-qwen-3b', 1)).toBe(50);
+    await book.record('render', 0, 10);
+    expect(await book.rate('render', 3)).toBe(3);
+    await fs.rm(home, { recursive: true, force: true });
   });
 });

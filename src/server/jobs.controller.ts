@@ -8,7 +8,7 @@ import { percentRectSchema } from '../contracts/job.js';
 import { JobRepository } from '../database/job.repository.js';
 import { JobRunner } from '../jobs/job-runner.js';
 import { clipView, jobView, type ClipView, type JobView } from '../jobs/job-views.js';
-import { PRESETS } from '../jobs/presets.js';
+import { PRESETS, type Preset } from '../jobs/presets.js';
 
 @Controller('api')
 export class JobsController {
@@ -18,8 +18,9 @@ export class JobsController {
   ) {}
 
   @Get('presets')
-  presets(): typeof PRESETS {
-    return PRESETS;
+  async presets(): Promise<(Preset & { example: string | null })[]> {
+    const examples: Record<string, string> = await this.jobs.examples().catch(() => ({}));
+    return PRESETS.map((preset) => ({ ...preset, example: examples[preset.id] ?? null }));
   }
 
   @Get('jobs')

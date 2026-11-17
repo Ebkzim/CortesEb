@@ -23,6 +23,7 @@ import { assertActive, pause, type Pipeline, type PipelineContext } from './pipe
 import { DEFAULT_CAMERA, layoutFor, type Preset } from './presets.js';
 import { buildGuidance, introSeconds } from '../select/guidance.js';
 import { SelectorClients } from './selector-client.js';
+import { SpeedBook } from './speed-book.js';
 import type { JobStepId } from './step-tracker.js';
 
 const AGENT_POLL_MS = 3000;
@@ -71,6 +72,7 @@ export class CutPipeline implements Pipeline {
     private readonly renderer: RenderService,
     private readonly layouts: LayoutService,
     private readonly niches: NicheRegistry,
+    private readonly speed: SpeedBook,
   ) {}
 
   steps(request: JobRequest, preset: Preset): JobStepId[] {
@@ -88,7 +90,7 @@ export class CutPipeline implements Pipeline {
   async run(context: PipelineContext): Promise<Record<string, unknown>> {
     const { request, preset, workspace, tracker, signal } = context;
     await workspace.ensure();
-    tracker.estimate('download', 60);
+    tracker.estimate('download', await this.speed.rate('download', 60));
     tracker.estimate('organize', 5);
 
     const reused = await this.reuse(request.resume, workspace);
@@ -96,7 +98,9 @@ export class CutPipeline implements Pipeline {
       tracker.finish('download', 'reaproveitado da tentativa anterior');
     } else {
       tracker.start('download', 'buscando o vídeo');
+      const started = Date.now();
       await this.fetchSource(request.source, workspace);
+      await this.speed.record('download', (Date.now() - started) / 1000, 1);
     }
     const meta = await this.media.probe(workspace.video('source'));
     if (!reused.source) tracker.finish('download', `vídeo de ${formatSeconds(meta.duration)}`);
@@ -115,12 +119,24 @@ export class CutPipeline implements Pipeline {
 
     const youtube = youtubeLink(request.source);
     const chunks = Math.max(1, Math.ceil(meta.duration / CHUNK_SECONDS));
-    tracker.estimate('transcribe', youtube === null ? meta.duration * WHISPER_FACTOR : 30);
+    const settings = await this.config.load();
+    const whisperKey = `transcribe:whisper-${settings.whisperModel}`;
+    tracker.estimate(
+      'transcribe',
+      youtube === null
+        ? await this.speed.estimate(whisperKey, meta.duration, WHISPER_FACTOR)
+        : await this.speed.rate('transcribe:captions', 30),
+    );
+    const selectKey = selectSpeedKey(request);
     tracker.estimate(
       'select',
-      request.selector.kind === 'agent'
+      selectKey === null
         ? null
-        : chunks * SECONDS_PER_CHUNK[request.selector.kind === 'ollama' ? 'ollama' : 'api'],
+        : await this.speed.estimate(
+            selectKey,
+            chunks,
+            SECONDS_PER_CHUNK[request.selector.kind === 'ollama' ? 'ollama' : 'api'],
+          ),
     );
 
     let camera = request.camera;
@@ -145,16 +161,27 @@ export class CutPipeline implements Pipeline {
       tracker.finish('transcribe', 'transcrição reaproveitada');
     } else {
       tracker.start('transcribe', 'preparando a transcrição');
-      await this.transcribe(youtube, workspace, context);
+      const started = Date.now();
+      const method = await this.transcribe(youtube, workspace, context);
+      const spent = (Date.now() - started) / 1000;
+      if (method === 'captions') await this.speed.record('transcribe:captions', spent, 1);
+      else await this.speed.record(whisperKey, spent, meta.duration);
       tracker.finish('transcribe');
     }
     assertActive(signal);
 
     const plan = await this.targets.define(workspace, targetsInput(request));
     const averageClip = (plan.minSeconds + plan.maxSeconds) / 2;
-    tracker.estimate('render', plan.count * averageClip * RENDER_FACTOR);
+    tracker.estimate(
+      'render',
+      await this.speed.estimate('render', plan.count * averageClip, RENDER_FACTOR),
+    );
     tracker.start('select', 'lendo a transcrição');
+    const selectStarted = Date.now();
     await this.select(context, plan);
+    if (selectKey !== null) {
+      await this.speed.record(selectKey, (Date.now() - selectStarted) / 1000, chunks);
+    }
     tracker.finish('select');
     assertActive(signal);
 
@@ -167,7 +194,10 @@ export class CutPipeline implements Pipeline {
     }
     const cuts = await readJson(workspace.cuts, cutsSchema);
     tracker.start('render', `${String(cuts.clips.length)} cortes para renderizar`);
+    const renderStarted = Date.now();
     const results = await this.renderer.run(workspace, context.outDir, request.accounts, 'fast');
+    const rendered = results.filter((item) => item.ok).reduce((sum, item) => sum + item.seconds, 0);
+    await this.speed.record('render', (Date.now() - renderStarted) / 1000, rendered);
     const failed = results.filter((result) => !result.ok);
     for (const result of failed) {
       context.log('error', `o corte ${result.id} falhou: ${result.error ?? 'erro no render'}`);
@@ -272,13 +302,13 @@ export class CutPipeline implements Pipeline {
     youtube: string | null,
     workspace: Workspace,
     context: PipelineContext,
-  ): Promise<void> {
+  ): Promise<'captions' | 'whisper'> {
     const settings = await this.config.load();
     if (youtube !== null) {
       const language = settings.language === 'auto' ? 'pt' : settings.language;
       try {
         await this.transcription.fromYoutube(workspace, language, youtube);
-        return;
+        return 'captions';
       } catch (error) {
         context.log(
           'warn',
@@ -287,6 +317,7 @@ export class CutPipeline implements Pipeline {
       }
     }
     await this.transcription.run(workspace, {});
+    return 'whisper';
   }
 
   private async select(
@@ -387,4 +418,11 @@ function formatSeconds(total: number): string {
   const minutes = Math.floor(total / 60);
   const seconds = Math.round(total % 60);
   return minutes > 0 ? `${String(minutes)} min ${String(seconds)} s` : `${String(seconds)} s`;
+}
+
+export function selectSpeedKey(request: JobRequest): string | null {
+  const selector = request.selector;
+  if (selector.kind === 'ollama') return `select:ollama-${selector.model}`;
+  if (selector.kind === 'api') return `select:api-${selector.keyId}`;
+  return null;
 }
