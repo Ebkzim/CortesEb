@@ -5,6 +5,8 @@ import { exists } from '../common/json-file.js';
 import type { Output } from '../common/output.js';
 import { resolveInside } from '../common/safe-path.js';
 import type { ClipFactory, FactoryOptions, PreparedClip } from './clip-factory.js';
+import { ChatCounter } from './chat-counter.js';
+import type { ChatSource } from './twitch-chat.js';
 import { LiveDetector, type LiveOptions, type LiveWindow } from './live-detector.js';
 import type { LiveRecorder, Recording } from './live-recorder.js';
 import type { RmsSample } from './rms-stream.js';
@@ -26,6 +28,7 @@ export interface LiveRequest {
   minWords: number;
   maxQueue: number;
   keepWork: boolean;
+  chat: boolean;
   protocols?: string;
 }
 
@@ -41,6 +44,7 @@ export interface SessionDeps {
   recorder: LiveRecorder;
   factory: ClipFactory;
   output: Output;
+  chat: ChatSource | null;
   fetchBottom: (source: string, workRoot: string) => Promise<string>;
 }
 
@@ -59,6 +63,7 @@ interface Epoch {
 
 export class LiveSession {
   private readonly detector: LiveDetector;
+  private readonly chat = new ChatCounter();
   private readonly recordingDir: string;
   private readonly workRoot: string;
   private readonly epochs: Epoch[] = [];
@@ -101,7 +106,20 @@ export class LiveSession {
         ? null
         : await this.deps.fetchBottom(this.request.bottom, this.workRoot);
     this.signal.addEventListener('abort', () => this.recording?.stop(), { once: true });
-    this.emit({ event: 'start', link: this.request.link, out: this.summary.outDir });
+    this.deps.chat?.start(
+      () => {
+        this.chat.add(this.latest);
+      },
+      (message) => {
+        this.deps.output.info(`> chat da Twitch: ${message}`);
+      },
+    );
+    this.emit({
+      event: 'start',
+      link: this.request.link,
+      out: this.summary.outDir,
+      chat: this.deps.chat !== null,
+    });
     const timer = setInterval(() => {
       this.trim().catch(() => undefined);
     }, HOUSEKEEPING_MS);
@@ -109,6 +127,7 @@ export class LiveSession {
       await this.recordLoop();
     } finally {
       clearInterval(timer);
+      this.deps.chat?.stop();
     }
     for (const window of this.detector.flush()) this.schedule(window);
     await this.chain;
@@ -186,7 +205,8 @@ export class LiveSession {
     this.lastSample = Date.now();
     const time = this.base + sample.time;
     this.latest = time;
-    for (const window of this.detector.push(time, sample.level)) this.schedule(window);
+    for (const window of this.detector.push(time, sample.level, this.chat.boost(time)))
+      this.schedule(window);
   }
 
   private schedule(window: LiveWindow): void {
