@@ -144,19 +144,35 @@ O usuário não escolhe os trechos. Você decide, seguindo `references/ganchos.m
 }
 ```
 
-| Campo                             | Regra                                                                                                                          |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `id`                              | Obrigatório. Minúsculas, números e hífen, até 64 caracteres. Vira o nome do arquivo.                                           |
-| `start`, `end`                    | Obrigatórios, em segundos do vídeo de origem.                                                                                  |
-| `focus`                           | `x` e `y` de 0 a 100. Posiciona o rosto na metade de cima. Padrão `50, 35`.                                                    |
-| `crop`                            | `{x, y, w, h}` em pixels do vídeo de origem. Use quando a câmera de quem fala é pequena no quadro. Proporção perto de 1,125:1. |
-| `pace`                            | `jump` (padrão): jump cut seco a cada ~2,8 s. `steady`: só remove pausas. `flash`: flash e whoosh em todo corte.               |
-| `cutEvery`                        | Intervalo dos jump cuts em segundos.                                                                                           |
-| `turns`                           | Segundos em que o assunto vira. Só nesses pontos entram flash e whoosh. De 3 a 5 por corte.                                    |
-| `images`                          | Até 10. Cada uma com `file` ou `query`, `at` em segundos do vídeo de origem e `dur` opcional.                                  |
-| `bottomStart`                     | Segundo em que o vídeo de baixo começa.                                                                                        |
-| `accounts`                        | Opcional. Ids das contas que recebem este corte. Sem ele, valem as contas do `--account` do render.                            |
-| `topic`, `hook`, `score`, `title` | Texto de apoio para a entrega.                                                                                                 |
+| Campo                             | Regra                                                                                                                                     |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                              | Obrigatório. Minúsculas, números e hífen, até 64 caracteres. Vira o nome do arquivo.                                                      |
+| `start`, `end`                    | Obrigatórios, em segundos do vídeo de origem.                                                                                             |
+| `focus`                           | `x` e `y` de 0 a 100. Posiciona o rosto na metade de cima. Padrão `50, 35`.                                                               |
+| `crop`                            | `{x, y, w, h}` em pixels do vídeo de origem. Use quando a câmera de quem fala é pequena no quadro. Proporção perto de 1,125:1.            |
+| `pace`                            | `jump` (padrão): jump cut seco a cada ~2,8 s. `steady`: só remove pausas. `flash`: flash e whoosh em todo corte.                          |
+| `cutEvery`                        | Intervalo dos jump cuts em segundos.                                                                                                      |
+| `turns`                           | Segundos em que o assunto vira. Só nesses pontos entram flash e whoosh. De 3 a 5 por corte.                                               |
+| `images`                          | Até 10. Cada uma com `file` ou `query`, `at` em segundos do vídeo de origem e `dur` opcional.                                             |
+| `bottom`                          | `video` (padrão): a metade de baixo mostra o `bottom.mp4`. `source`: mostra o próprio vídeo de origem, sincronizado com a fala.           |
+| `bottomCrop`                      | Só com `bottom: source`. `{x, y, w, h}` em pixels do vídeo de origem, com a região que aparece embaixo. Sem ele, o quadro é centralizado. |
+| `bottomStart`                     | Só com `bottom: video`. Segundo em que o vídeo de baixo começa.                                                                           |
+| `accounts`                        | Opcional. Ids das contas que recebem este corte. Sem ele, valem as contas do `--account` do render.                                       |
+| `topic`, `hook`, `score`, `title` | Texto de apoio para a entrega.                                                                                                            |
+
+### React e gameplay com câmera pequena
+
+Quando a origem é a tela do jogo ou de um vídeo com a câmera de quem fala num canto, o que a pessoa comenta precisa aparecer. Use `crop` na câmera para a metade de cima e `bottom: source` com `bottomCrop` na área do jogo para a metade de baixo:
+
+```json
+{
+  "crop": { "x": 12, "y": 30, "w": 340, "h": 302 },
+  "bottom": "source",
+  "bottomCrop": { "x": 360, "y": 0, "w": 1215, "h": 1080 }
+}
+```
+
+Meça os pixels num quadro extraído com `cortes-eb frame`. As duas regiões devem ter proporção perto de 1,125:1. Se todos os cortes usarem `bottom: source`, o vídeo de baixo não é necessário e não precisa ser pedido nem baixado.
 
 Campos desconhecidos são recusados. Detalhes do visual em `references/estilo.md`.
 

@@ -4,7 +4,7 @@ Cortes de lives e vídeos de qualquer jogo.
 
 ## Metade de baixo
 
-Gameplay do mesmo jogo comentado, de preferência sem interface cobrindo a tela. Peça ao usuário. Se a origem já é a tela do jogo com a câmera pequena, use `crop` na câmera para a metade de cima e a própria gameplay embaixo.
+Se a origem já é a tela do jogo com a câmera num canto, use `crop` na câmera e `bottom: source` com `bottomCrop` na área do jogo: a gameplay aparece embaixo, sincronizada com a fala, e nenhum vídeo extra é necessário. Se a origem é só a pessoa falando, peça ao usuário uma gameplay do mesmo jogo, de preferência sem interface cobrindo a tela.
 
 ## O que rende gancho
 

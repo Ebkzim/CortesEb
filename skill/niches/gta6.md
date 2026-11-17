@@ -4,7 +4,7 @@ Cortes de streamers e podcasts falando de GTA 6.
 
 ## Metade de baixo
 
-Trailer oficial da Rockstar (é o padrão do nicho) ou gameplay de GTA. Não use material vazado.
+Trailer oficial da Rockstar (é o padrão do nicho) ou gameplay de GTA. Não use material vazado. Em react de trailer ou de gameplay, com a câmera num canto, use `bottom: source` para mostrar embaixo o que a pessoa está comentando.
 
 ## O que rende gancho
 
