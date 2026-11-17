@@ -19,6 +19,8 @@ const queueOptions = z.object({
   state: z.enum(JOB_STATUSES).optional(),
   once: z.boolean().default(false),
   interval: z.coerce.number().min(5).max(3600).default(30),
+  maxPerDay: z.coerce.number().int().min(1).max(50).default(3),
+  minGap: z.coerce.number().min(0).max(1440).default(30),
 });
 
 @Command({
@@ -80,6 +82,16 @@ export class QueueCommand extends GuardedCommand {
     return value;
   }
 
+  @Option({ flags: '--max-per-day <n>', description: 'no run: posts por dia por conta e rede (3)' })
+  parseMaxPerDay(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '--min-gap <minutos>', description: 'no run: intervalo entre posts (30)' })
+  parseMinGap(value: string): string {
+    return value;
+  }
+
   protected async execute(params: string[], raw: RawOptions): Promise<void> {
     const [action, ...items] = params;
     const parsed = z.enum(ACTIONS).safeParse(action);
@@ -128,7 +140,12 @@ export class QueueCommand extends GuardedCommand {
         process.once('SIGINT', stop);
         process.once('SIGTERM', stop);
         await this.worker.run(
-          { ...WORKER_DEFAULTS, once: options.once, intervalMs: options.interval * 1000 },
+          {
+            ...WORKER_DEFAULTS,
+            once: options.once,
+            intervalMs: options.interval * 1000,
+            limits: { maxPerDay: options.maxPerDay, minGapMs: options.minGap * 60_000 },
+          },
           controller.signal,
         );
       }
