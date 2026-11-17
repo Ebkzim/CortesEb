@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AccountsModule } from '../accounts/accounts.module.js';
+import { AnalysisModule } from '../analysis/analysis.module.js';
 import { CommonModule } from '../common/common.module.js';
 import { ConfigModule } from '../config/config.module.js';
 import { DoctorService } from '../doctor/doctor.service.js';
@@ -18,6 +19,7 @@ import {
   CheckCommand,
   FetchCommand,
   FrameCommand,
+  PeaksCommand,
   PlanCommand,
   RefineCommand,
   RenderCommand,
@@ -29,6 +31,7 @@ import {
 @Module({
   imports: [
     AccountsModule,
+    AnalysisModule,
     CommonModule,
     ConfigModule,
     MediaModule,
@@ -49,6 +52,7 @@ import {
     NichesCommand,
     FetchCommand,
     PlanCommand,
+    PeaksCommand,
     CheckCommand,
     CaptionsCommand,
     RefineCommand,

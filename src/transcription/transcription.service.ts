@@ -5,7 +5,7 @@ import { exists, readJson, writeJson } from '../common/json-file.js';
 import { Output } from '../common/output.js';
 import { UserConfigStore, type UserConfig } from '../config/user-config.js';
 import { cutsSchema } from '../contracts/cuts.js';
-import { captionsSchema, silencesSchema, sourceMetaSchema, type Word } from '../contracts/media.js';
+import { captionsSchema, silencesSchema, sourceMetaSchema } from '../contracts/media.js';
 import { originSchema } from '../contracts/origin.js';
 import { MediaTools } from '../media/media-tools.js';
 import { transcriptLines } from '../timeline/captions.js';
@@ -50,15 +50,15 @@ export class TranscriptionService {
     const language = request.language ?? config.language;
     const meta = await this.media.probe(source);
     if (request.from !== undefined || request.to !== undefined) {
-      const words = await this.redo(
+      await writeJson(workspace.meta, meta);
+      const result = await this.redo(
         workspace,
         request,
         meta.duration,
         config.whisperModel,
         language,
       );
-      const silences = await readJson(workspace.silences, silencesSchema);
-      return this.summary(words.length, silences.length, meta.duration, language, config);
+      return this.summary(result.words, result.silences, meta.duration, language, config);
     }
     await writeJson(workspace.meta, meta);
     await this.media.extractAudio(source, workspace.audio, request.maxSeconds);
@@ -122,7 +122,7 @@ export class TranscriptionService {
           config.whisperModel,
           config.language,
         )
-      ).length;
+      ).words;
     }
     return { ranges, words };
   }
@@ -133,14 +133,20 @@ export class TranscriptionService {
     duration: number,
     model: UserConfig['whisperModel'],
     language: string,
-  ): Promise<Word[]> {
+  ): Promise<{ words: number; silences: number }> {
     const from = Math.max(0, request.from ?? 0);
     const to = Math.min(duration, request.to ?? duration);
     if (to <= from)
       throw new AppError('INVALID_INPUT', 'o trecho precisa ter --to maior que --from');
-    const current = await readJson(workspace.captions, captionsSchema);
+    const current = (await exists(workspace.captions))
+      ? await readJson(workspace.captions, captionsSchema)
+      : [];
+    const currentSilences = (await exists(workspace.silences))
+      ? await readJson(workspace.silences, silencesSchema)
+      : [];
     const range = workspace.file('audio-range.wav');
     await this.media.extractAudio(workspace.video('source'), range, to - from, from);
+    const found = await this.media.detectSilences(range, to - from);
     const fresh = await this.whisper.transcribe(range, model, language, this.progress());
     await fs.rm(range, { force: true });
     const offset = Math.round(from * 1000);
@@ -151,8 +157,13 @@ export class TranscriptionService {
     }));
     const kept = current.filter((word) => word.startMs < offset || word.startMs >= to * 1000);
     const merged = [...kept, ...shifted].sort((a, b) => a.startMs - b.startMs);
+    const silences = [
+      ...currentSilences.filter((item) => item.end <= from || item.start >= to),
+      ...found.map((item) => ({ start: item.start + from, end: item.end + from })),
+    ].sort((a, b) => a.start - b.start);
     await writeJson(workspace.captions, merged);
-    return merged;
+    await writeJson(workspace.silences, silences);
+    return { words: merged.length, silences: silences.length };
   }
 
   private progress(): (fraction: number) => void {

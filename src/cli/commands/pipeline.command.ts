@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AppError } from '../../common/app-error.js';
 import { exists } from '../../common/json-file.js';
 import { Output } from '../../common/output.js';
+import { PeaksService } from '../../analysis/peaks.service.js';
 import { VideoFetcher } from '../../download/video-fetcher.js';
 import { MediaTools } from '../../media/media-tools.js';
 import { TargetsService } from '../../planning/targets.service.js';
@@ -23,7 +24,12 @@ abstract class WorkspaceCommand extends GuardedCommand {
   }
 }
 
-const fetchOptions = z.object({ work: workDir, role: role.default('source') });
+const fetchOptions = z.object({
+  work: workDir,
+  role: role.default('source'),
+  from: z.coerce.number().min(0).max(864_000).optional(),
+  to: z.coerce.number().positive().max(864_000).optional(),
+});
 
 @Command({
   name: 'fetch',
@@ -43,11 +49,33 @@ export class FetchCommand extends WorkspaceCommand {
     return value;
   }
 
+  @Option({ flags: '--from <segundos>', description: 'baixa só a partir deste ponto' })
+  parseFrom(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '--to <segundos>', description: 'baixa só até este ponto' })
+  parseTo(value: string): string {
+    return value;
+  }
+
   protected async execute(params: string[], raw: RawOptions): Promise<void> {
     const options = parseOptions(fetchOptions, raw);
+    const section =
+      options.from === undefined && options.to === undefined
+        ? undefined
+        : { from: options.from ?? 0, to: options.to ?? Number.POSITIVE_INFINITY };
+    if (section !== undefined && !Number.isFinite(section.to)) {
+      throw new AppError('INVALID_INPUT', 'informe --to junto com --from');
+    }
     const [input] = params;
     if (input === undefined) throw new AppError('INVALID_INPUT', 'informe o link ou o arquivo');
-    const file = await this.fetcher.fetch(input, options.role, new Workspace(options.work));
+    const file = await this.fetcher.fetch(
+      input,
+      options.role,
+      new Workspace(options.work),
+      section,
+    );
     this.output.json({ role: options.role, file });
   }
 }
@@ -180,6 +208,59 @@ export class CheckCommand extends WorkspaceCommand {
     const check = await this.targets.check(new Workspace(options.work));
     this.output.json(check);
     if (!check.ok) process.exitCode = 1;
+  }
+}
+
+const peaksOptions = z.object({
+  work: workDir,
+  top: z.coerce.number().int().min(1).max(50).default(10),
+  threshold: z.coerce.number().min(1).max(30).optional(),
+  minSeconds: z.coerce.number().min(5).max(180).optional(),
+  maxSeconds: z.coerce.number().min(10).max(300).optional(),
+});
+
+@Command({
+  name: 'peaks',
+  description: 'acha momentos de pico de volume (gritos, risadas) sem transcrever nada',
+})
+export class PeaksCommand extends WorkspaceCommand {
+  constructor(
+    private readonly peaks: PeaksService,
+    private readonly output: Output,
+  ) {
+    super();
+  }
+
+  @Option({ flags: '--top <n>', description: 'quantos momentos listar (padrão 10)' })
+  parseTop(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '--threshold <db>', description: 'quanto acima do volume normal (padrão 6 dB)' })
+  parseThreshold(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '--min-seconds <n>', description: 'duração mínima de cada momento' })
+  parseMinSeconds(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '--max-seconds <n>', description: 'duração máxima de cada momento' })
+  parseMaxSeconds(value: string): string {
+    return value;
+  }
+
+  protected async execute(_params: string[], raw: RawOptions): Promise<void> {
+    const options = parseOptions(peaksOptions, raw);
+    this.output.json(
+      await this.peaks.scan(new Workspace(options.work), {
+        top: options.top,
+        ...(options.threshold === undefined ? {} : { threshold: options.threshold }),
+        ...(options.minSeconds === undefined ? {} : { minSeconds: options.minSeconds }),
+        ...(options.maxSeconds === undefined ? {} : { maxSeconds: options.maxSeconds }),
+      }),
+    );
   }
 }
 
