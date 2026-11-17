@@ -199,6 +199,16 @@ Como funciona: a live é gravada em pedaços de 3 s sem recodificar, o volume do
 | `--queue`        | Cortes esperando render; se encher, descarta o de menor nota. |
 | `--offline-wait` | Quanto esperar a live voltar se cair (padrão 120 s).          |
 
+### Plataformas verificadas
+
+| Plataforma | Estado                                                                                             |
+| ---------- | -------------------------------------------------------------------------------------------------- |
+| Twitch     | Testada ao vivo: resolve, grava, mede o áudio, lê o chat, gera cortes e ignora anúncios.           |
+| YouTube    | Testada ao vivo: resolve e grava (vídeo e áudio vêm separados). Sem chat e sem filtro de anúncios. |
+| Kick       | Não testada. Pode falhar por causa da proteção anti-robô do site.                                  |
+
+Se um link falhar, o comando avisa `a live não está disponível` antes de gravar qualquer coisa.
+
 ### Câmera do streamer
 
 Por padrão o topo do corte é o centro da live. Para mostrar o rosto do streamer, descubra onde a câmera fica:
