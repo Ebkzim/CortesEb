@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DownloadTracker, downloadPercent } from '../download/yt-dlp.js';
 import { renderedSeconds } from '../render/ffmpeg/ffmpeg-engine.js';
 import type { Output } from './output.js';
+import { withCancellation } from './cancellation.js';
 import { ProcessRunner } from './process-runner.js';
 import {
   Progress,
@@ -118,5 +119,28 @@ describe('ProcessRunner lines', () => {
     expect(result.code).toBe(0);
     expect(lines.sort()).toEqual(['a', 'b', 'c', 'd']);
     expect(result.stdout).toBe('a\nb\rd');
+  });
+});
+
+describe('cancellation', () => {
+  it('kills a running process when the job is canceled', async () => {
+    const controller = new AbortController();
+    const started = Date.now();
+    const run = withCancellation(controller.signal, () =>
+      new ProcessRunner().run(process.execPath, ['-e', 'setTimeout(() => {}, 20000)']),
+    );
+    setTimeout(() => {
+      controller.abort();
+    }, 150);
+    await expect(run).rejects.toThrow(/cancelada/);
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
+
+  it('refuses to start a process after the job was canceled', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      withCancellation(controller.signal, () => new ProcessRunner().run(process.execPath, ['-v'])),
+    ).rejects.toThrow(/cancelada/);
   });
 });

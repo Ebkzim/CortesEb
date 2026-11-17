@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { AppError } from './app-error.js';
+import { currentSignal } from './cancellation.js';
 
 export interface RunOptions {
   cwd?: string;
@@ -27,8 +28,13 @@ const MAX_LINE_CHARS = 8192;
 @Injectable()
 export class ProcessRunner {
   run(bin: string, args: readonly string[], options: RunOptions = {}): Promise<RunResult> {
+    const signal = currentSignal();
+    if (signal?.aborted === true) {
+      return Promise.reject(new AppError('PROCESS_FAILED', 'tarefa cancelada'));
+    }
     return new Promise((resolve, reject) => {
       const child = spawn(bin, [...args], {
+        ...(signal === undefined ? {} : { signal }),
         cwd: options.cwd,
         shell: false,
         windowsHide: true,
@@ -52,6 +58,10 @@ export class ProcessRunner {
       });
       child.stdin?.end();
       child.on('error', () => {
+        if (signal?.aborted === true) {
+          reject(new AppError('PROCESS_FAILED', 'tarefa cancelada'));
+          return;
+        }
         reject(new AppError('MISSING_DEPENDENCY', `não consegui executar ${bin}`));
       });
       child.on('close', (code) => {
