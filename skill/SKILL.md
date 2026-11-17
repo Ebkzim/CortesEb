@@ -170,6 +170,33 @@ Funciona numa pasta nova e acumula as janelas já transcritas. Leia com `cortes-
 
 Links da Twitch e da Kick (VODs e clipes) são aceitos, mas não foram testados. Esses sites não têm legenda automática, então não use `captions`. VODs só para inscritos e lives em andamento não funcionam.
 
+## Live em andamento
+
+Para acompanhar uma live ao vivo e gerar cortes enquanto ela acontece:
+
+```bash
+cortes-eb live "LINK_DA_LIVE" --account all --model base
+```
+
+O comando fica rodando até a live acabar ou até o usuário parar (Ctrl+C). Rode em segundo plano e acompanhe a saída: cada linha é um JSON com `event` igual a `start`, `clip`, `skip`, `error` ou `end`. Um evento `clip` traz `files` (os vídeos prontos), `hook` e `afterPeakSeconds` (atraso entre o pico e o arquivo pronto).
+
+Como funciona: a live é gravada em pedaços de 3 s sem recodificar, o volume do áudio é medido em tempo real e, quando a empolgação passa do normal, o corte é montado a partir dos pedaços, transcrito, ajustado para começar e terminar em pausas de fala e renderizado. Cortes com pouca fala (só música ou barulho do jogo) são descartados com `skip`.
+
+| Opção            | Efeito                                                        |
+| ---------------- | ------------------------------------------------------------- |
+| `--account`      | Contas que recebem os cortes (como no `render`).              |
+| `--bottom`       | Vídeo da metade de baixo, ou `none` para usar a própria live. |
+| `--model`        | Modelo do whisper. `tiny` e `base` são bem mais rápidos.      |
+| `--threshold`    | Quanto acima do volume normal conta como pico (padrão 6 dB).  |
+| `--max-per-hour` | Teto de cortes por hora (padrão 12).                          |
+| `--max-clips`    | Para depois de n cortes (0 = sem limite).                     |
+| `--queue`        | Cortes esperando render; se encher, descarta o de menor nota. |
+| `--offline-wait` | Quanto esperar a live voltar se cair (padrão 120 s).          |
+
+O atraso depende do computador, porque a transcrição é a parte mais lenta. Num processador fraco, `--model tiny` ou `base` leva alguns minutos por corte. Num desktop mais forte, o `small` já fica na casa de dezenas de segundos. Avise o usuário disso antes de começar.
+
+A escolha do momento é automática (volume e quantidade de fala), então a qualidade é menor que a de um corte escolhido lendo a transcrição. Os cortes ficam em `--out` (padrão `cortes/live-<data>`), uma subpasta por conta.
+
 ## 7. Escolher os cortes
 
 O usuário não escolhe os trechos. Você decide, seguindo `references/ganchos.md` e o guia do nicho.
