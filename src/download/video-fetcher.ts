@@ -12,6 +12,24 @@ import { YtDlp } from './yt-dlp.js';
 const MAX_HEIGHT: Record<VideoRole, number> = { source: 1080, bottom: 720 };
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.mkv', '.webm', '.m4v', '.avi']);
 
+export interface Section {
+  from: number;
+  to: number;
+}
+
+const MAX_SECTION_SECONDS = 6 * 3600;
+
+export function sectionArgs(section: Section | undefined): string[] {
+  if (section === undefined) return [];
+  if (!(section.from >= 0) || !(section.to > section.from)) {
+    throw new AppError('INVALID_INPUT', 'o trecho precisa ter --to maior que --from');
+  }
+  if (section.to - section.from > MAX_SECTION_SECONDS) {
+    throw new AppError('INVALID_INPUT', 'o trecho passa de 6 horas');
+  }
+  return ['--download-sections', `*${Math.floor(section.from)}-${Math.ceil(section.to)}`];
+}
+
 @Injectable()
 export class VideoFetcher {
   constructor(
@@ -20,19 +38,32 @@ export class VideoFetcher {
     private readonly ytDlp: YtDlp,
   ) {}
 
-  async fetch(input: string, role: VideoRole, workspace: Workspace): Promise<string> {
+  async fetch(
+    input: string,
+    role: VideoRole,
+    workspace: Workspace,
+    section?: Section,
+  ): Promise<string> {
     await workspace.ensure();
     const target = workspace.video(role);
     if (/^[a-z][a-z0-9+.-]*:\/\//i.test(input)) {
-      await this.download(input, role, workspace);
+      await this.download(input, role, workspace, section);
     } else {
+      if (section !== undefined) {
+        throw new AppError('INVALID_INPUT', 'trecho (--from/--to) só vale para links');
+      }
       await this.importFile(input, target);
     }
     await this.media.probe(target);
     return target;
   }
 
-  private async download(raw: string, role: VideoRole, workspace: Workspace): Promise<void> {
+  private async download(
+    raw: string,
+    role: VideoRole,
+    workspace: Workspace,
+    section?: Section,
+  ): Promise<void> {
     const url = parsePublicUrl(raw);
     const base = await this.ytDlp.baseArgs();
     await fs.rm(workspace.video(role), { force: true });
@@ -40,6 +71,7 @@ export class VideoFetcher {
       'yt-dlp',
       [
         ...base,
+        ...sectionArgs(section),
         '-S',
         `res:${MAX_HEIGHT[role]}`,
         '-f',
@@ -53,7 +85,9 @@ export class VideoFetcher {
       ],
       { stream: true },
     );
-    if (role === 'source') await writeJson(workspace.origin, { url: url.toString() });
+    if (role === 'source') {
+      await writeJson(workspace.origin, { url: url.toString(), offset: section?.from ?? 0 });
+    }
   }
 
   private async importFile(input: string, target: string): Promise<void> {
