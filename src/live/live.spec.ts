@@ -4,6 +4,8 @@ import type { Word } from '../contracts/media.js';
 import type { NewJob, QueueStore } from '../publish/queue-store.js';
 import { enqueueClip } from './enqueue.js';
 import { AdWatcher, playlistHasAd } from './ad-watcher.js';
+import type { LlmClient } from '../llm/llm-client.js';
+import { ClipJudge, transcriptOf } from './clip-judge.js';
 import { cameraCrop, parseCamera } from './camera.js';
 import { ChatCounter } from './chat-counter.js';
 import { buildLiveClip } from './clip-cut.js';
@@ -426,5 +428,56 @@ describe('enqueueClip', () => {
     });
     expect(added[0]?.title).toBe('live-0002-9');
     expect(added[1]?.title).toHaveLength(100);
+  });
+});
+
+describe('ClipJudge', () => {
+  const scripted = (answers: string[]): { client: LlmClient; prompts: string[] } => {
+    const prompts: string[] = [];
+    return {
+      prompts,
+      client: {
+        label: 'fake',
+        complete: (request) => {
+          prompts.push(request.user);
+          const next = answers.shift();
+          return next === undefined ? Promise.reject(new Error('sem')) : Promise.resolve(next);
+        },
+      },
+    };
+  };
+
+  it('returns the score and a title', async () => {
+    const { client } = scripted(['{"score": 8.5, "title": "Que jogada"}']);
+    expect(await new ClipJudge(client, 5, 'GTA').judge('texto')).toEqual({
+      score: 8.5,
+      title: 'Que jogada',
+    });
+  });
+
+  it('retries once after an invalid answer and then gives up', async () => {
+    const retry = scripted(['quebrado', '{"score":"7","title":"ok"}']);
+    expect((await new ClipJudge(retry.client, 5, 'GTA').judge('t')).score).toBe(7);
+    expect(retry.prompts[1]).toContain('not valid');
+    const fail = scripted(['x', 'y']);
+    await expect(new ClipJudge(fail.client, 5, 'GTA').judge('t')).rejects.toThrow();
+  });
+
+  it('rejects scores out of range and limits the text sent', async () => {
+    const wild = scripted(['{"score":42,"title":"a"}', '{"score":42,"title":"a"}']);
+    await expect(new ClipJudge(wild.client, 5, 'GTA').judge('t')).rejects.toThrow();
+    const long = scripted(['{"score":5,"title":"a"}']);
+    await new ClipJudge(long.client, 5, 'GTA').judge('x'.repeat(20000));
+    expect((long.prompts[0] ?? '').length).toBeLessThan(6100);
+  });
+
+  it('builds the transcript of a time range', () => {
+    const words = [
+      { text: 'a', startMs: 1000 },
+      { text: 'b', startMs: 5000 },
+      { text: 'c', startMs: 9000 },
+    ];
+    expect(transcriptOf(words, 2, 8)).toBe('b');
+    expect(transcriptOf(words, 0, 10)).toBe('a b c');
   });
 });

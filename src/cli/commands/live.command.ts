@@ -33,6 +33,8 @@ const liveOptions = z.object({
   camera: z.string().min(1).max(100).optional(),
   credit: z.string().trim().min(1).max(80).optional(),
   enqueue: z.string().min(1).max(100).optional(),
+  judge: z.boolean().default(false),
+  judgeMin: z.coerce.number().min(0).max(10).default(5),
   cameraSize: z.coerce.number().min(10).max(100).default(40),
 });
 
@@ -163,6 +165,19 @@ export class LiveCommand extends GuardedCommand {
     return value;
   }
 
+  @Option({
+    flags: '--judge',
+    description: 'o modelo configurado (config --llm) avalia cada corte antes de renderizar',
+  })
+  parseJudge(): boolean {
+    return true;
+  }
+
+  @Option({ flags: '--judge-min <nota>', description: 'nota mínima do modelo (padrão 5)' })
+  parseJudgeMin(value: string): string {
+    return value;
+  }
+
   @Option({ flags: '--no-chat', description: 'não usa o chat da Twitch como sinal' })
   parseNoChat(): boolean {
     return false;
@@ -216,6 +231,9 @@ export class LiveCommand extends GuardedCommand {
         chat: options.chat,
         credit: creditText(options.credit, link),
         enqueue: platformsOf(options.enqueue),
+        judge: options.judge
+          ? { minScore: options.judgeMin, niche: `${niche.label}: ${niche.summary}` }
+          : null,
         camera:
           options.camera === undefined ? null : parseCamera(options.camera, options.cameraSize),
       },
