@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { LANGUAGE_PATTERN } from '../config/user-config.js';
 import type { Word } from '../contracts/media.js';
+import type { NewJob, QueueStore } from '../publish/queue-store.js';
+import { enqueueClip } from './enqueue.js';
 import { AdWatcher, playlistHasAd } from './ad-watcher.js';
 import { cameraCrop, parseCamera } from './camera.js';
 import { ChatCounter } from './chat-counter.js';
@@ -379,5 +381,50 @@ describe('ad detection', () => {
     );
     await watcher.poll();
     expect(seen).toEqual([]);
+  });
+});
+
+describe('enqueueClip', () => {
+  it('adds one job per account file and platform, skipping clips without account', async () => {
+    const added: NewJob[] = [];
+    const queue = {
+      add: (job: NewJob) => Promise.resolve(added.push(job)),
+    } as unknown as QueueStore;
+    const count = await enqueueClip(queue, ['youtube', 'tiktok'], {
+      id: 'live-0001-41',
+      hook: 'olha isso',
+      files: [
+        { account: 'main', file: '/o/main/live-0001-41.mp4' },
+        { account: 'segunda', file: '/o/segunda/live-0001-41.mp4' },
+        { account: null, file: '/o/live-0001-41.mp4' },
+      ],
+    });
+    expect(count).toBe(4);
+    expect(added.map((job) => `${job.account}:${job.platform}`)).toEqual([
+      'main:youtube',
+      'main:tiktok',
+      'segunda:youtube',
+      'segunda:tiktok',
+    ]);
+    expect(added[0]?.title).toBe('olha isso');
+  });
+
+  it('falls back to the clip id and trims long titles', async () => {
+    const added: NewJob[] = [];
+    const queue = {
+      add: (job: NewJob) => Promise.resolve(added.push(job)),
+    } as unknown as QueueStore;
+    await enqueueClip(queue, ['youtube'], {
+      id: 'live-0002-9',
+      hook: null,
+      files: [{ account: 'main', file: '/o/a.mp4' }],
+    });
+    await enqueueClip(queue, ['youtube'], {
+      id: 'x',
+      hook: 'a'.repeat(300),
+      files: [{ account: 'main', file: '/o/a.mp4' }],
+    });
+    expect(added[0]?.title).toBe('live-0002-9');
+    expect(added[1]?.title).toHaveLength(100);
   });
 });

@@ -4,6 +4,8 @@ import { AppError } from '../common/app-error.js';
 import { Output } from '../common/output.js';
 import { VideoFetcher } from '../download/video-fetcher.js';
 import { Workspace } from '../workspace/workspace.js';
+import { QueueStore } from '../publish/queue-store.js';
+import { enqueueClip } from './enqueue.js';
 import { ClipFactory } from './clip-factory.js';
 import { LiveRecorder } from './live-recorder.js';
 import { TwitchChat, twitchChannel } from './twitch-chat.js';
@@ -16,6 +18,7 @@ export class LiveService {
     private readonly factory: ClipFactory,
     private readonly fetcher: VideoFetcher,
     private readonly output: Output,
+    private readonly queue: QueueStore,
   ) {}
 
   async snapshot(link: string, output: string, maxHeight: number): Promise<string> {
@@ -34,6 +37,7 @@ export class LiveService {
         factory: this.factory,
         output: this.output,
         chat: channel === null ? null : new TwitchChat(channel),
+        enqueue: (clip) => enqueueClip(this.queue, request.enqueue ?? [], clip),
         watchAds: twitchChannel(request.link) !== null,
         fetchBottom: async (source, workRoot) => {
           this.output.info('> preparando o vídeo de baixo');
