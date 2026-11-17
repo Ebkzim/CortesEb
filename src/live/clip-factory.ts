@@ -11,6 +11,7 @@ import { RenderService, type ClipResult } from '../render/render.service.js';
 import { TranscriptionService } from '../transcription/transcription.service.js';
 import { Workspace } from '../workspace/workspace.js';
 import { buildLiveClip } from './clip-cut.js';
+import { transcriptOf, type ClipJudge } from './clip-judge.js';
 import { cameraCrop, type CameraSpec } from './camera.js';
 import type { LiveWindow } from './live-detector.js';
 import type { Segment } from './segment-log.js';
@@ -34,10 +35,18 @@ export interface FactoryOptions {
   keepWork: boolean;
   camera: CameraSpec | null;
   credit: string | null;
+  judge: ClipJudge | null;
 }
 
 export type Produced =
-  | { ok: true; id: string; results: ClipResult[]; hook: string | null; afterPeakSeconds: number }
+  | {
+      ok: true;
+      id: string;
+      results: ClipResult[];
+      hook: string | null;
+      afterPeakSeconds: number;
+      judgeScore: number | null;
+    }
   | { ok: false; id: string; reason: string };
 
 const PAD_SECONDS = 1;
@@ -119,7 +128,23 @@ export class ClipFactory {
       await this.discard(job, options);
       return { ok: false, id: job.id, reason: outcome.reason };
     }
-    await writeJson(workspace.cuts, { clips: [outcome.clip] });
+    let clip = outcome.clip;
+    let judgeScore: number | null = null;
+    if (options.judge !== null) {
+      const words = await readJson(workspace.captions, captionsSchema);
+      const verdict = await options.judge
+        .judge(transcriptOf(words, clip.start, clip.end))
+        .catch(() => null);
+      if (verdict !== null) {
+        judgeScore = verdict.score;
+        if (verdict.score < options.judge.minScore) {
+          await this.discard(job, options);
+          return { ok: false, id: job.id, reason: `nota ${verdict.score} do modelo` };
+        }
+        clip = { ...clip, score: Math.round(verdict.score), title: verdict.title };
+      }
+    }
+    await writeJson(workspace.cuts, { clips: [clip] });
     const results = await this.renderer.run(workspace, options.outDir, options.accounts, 'fast');
     const afterPeak = job.emittedStream - job.window.peakAt + (Date.now() - job.emittedAt) / 1000;
     await this.discard(job, options);
@@ -127,8 +152,9 @@ export class ClipFactory {
       ok: true,
       id: job.id,
       results,
-      hook: outcome.clip.hook ?? null,
+      hook: clip.hook ?? null,
       afterPeakSeconds: Number(afterPeak.toFixed(1)),
+      judgeScore,
     };
   }
 

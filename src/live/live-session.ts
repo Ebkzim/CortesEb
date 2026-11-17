@@ -8,6 +8,7 @@ import type { Platform } from '../contracts/publish.js';
 import type { CameraSpec } from './camera.js';
 import type { ClipFactory, FactoryOptions, PreparedClip } from './clip-factory.js';
 import { AdWatcher } from './ad-watcher.js';
+import type { ClipJudge } from './clip-judge.js';
 import { ChatCounter } from './chat-counter.js';
 import type { ChatSource } from './twitch-chat.js';
 import { LiveDetector, type LiveOptions, type LiveWindow } from './live-detector.js';
@@ -32,6 +33,7 @@ export interface LiveRequest {
   maxQueue: number;
   keepWork: boolean;
   chat: boolean;
+  judge: { minScore: number; niche: string } | null;
   enqueue: Platform[] | null;
   camera: CameraSpec | null;
   credit: string | null;
@@ -57,6 +59,7 @@ export interface SessionDeps {
   factory: ClipFactory;
   output: Output;
   chat: ChatSource | null;
+  judge: ClipJudge | null;
   enqueue: (clip: ProducedClip) => Promise<number>;
   watchAds: boolean;
   fetchBottom: (source: string, workRoot: string) => Promise<string>;
@@ -326,6 +329,7 @@ export class LiveSession {
           at: clock(job.window.peakAt),
           hook: done.hook,
           afterPeakSeconds: done.afterPeakSeconds,
+          judgeScore: done.judgeScore,
           files: done.results.filter((result) => result.ok).map((result) => result.file),
           queued,
         });
@@ -364,6 +368,7 @@ export class LiveSession {
       keepWork: this.request.keepWork,
       camera: this.request.camera,
       credit: this.request.credit,
+      judge: this.deps.judge,
     };
   }
 

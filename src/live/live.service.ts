@@ -5,6 +5,8 @@ import { Output } from '../common/output.js';
 import { VideoFetcher } from '../download/video-fetcher.js';
 import { Workspace } from '../workspace/workspace.js';
 import { QueueStore } from '../publish/queue-store.js';
+import { LlmService } from '../llm/llm.service.js';
+import { ClipJudge } from './clip-judge.js';
 import { enqueueClip } from './enqueue.js';
 import { ClipFactory } from './clip-factory.js';
 import { LiveRecorder } from './live-recorder.js';
@@ -19,6 +21,7 @@ export class LiveService {
     private readonly fetcher: VideoFetcher,
     private readonly output: Output,
     private readonly queue: QueueStore,
+    private readonly llm: LlmService,
   ) {}
 
   async snapshot(link: string, output: string, maxHeight: number): Promise<string> {
@@ -28,7 +31,11 @@ export class LiveService {
     return path.resolve(output);
   }
 
-  run(request: LiveRequest, signal: AbortSignal): Promise<LiveSummary> {
+  async run(request: LiveRequest, signal: AbortSignal): Promise<LiveSummary> {
+    const judge =
+      request.judge === null
+        ? null
+        : new ClipJudge(await this.llm.client(), request.judge.minScore, request.judge.niche);
     const channel = request.chat ? twitchChannel(request.link) : null;
     const session = new LiveSession(
       request,
@@ -37,6 +44,7 @@ export class LiveService {
         factory: this.factory,
         output: this.output,
         chat: channel === null ? null : new TwitchChat(channel),
+        judge,
         enqueue: (clip) => enqueueClip(this.queue, request.enqueue ?? [], clip),
         watchAds: twitchChannel(request.link) !== null,
         fetchBottom: async (source, workRoot) => {
