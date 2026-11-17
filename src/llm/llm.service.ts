@@ -10,6 +10,13 @@ import { OpenAiCompatibleClient } from './openai-client.js';
 
 export type LlmSettings = UserConfig['llm'];
 
+export interface ClientSpec {
+  provider: 'ollama' | 'openai' | 'anthropic' | 'compatible';
+  model: string | null;
+  baseUrl: string | null;
+  apiKey: string | null;
+}
+
 export interface LlmStatus {
   provider: LlmSettings['provider'];
   model: string | null;
@@ -68,6 +75,31 @@ export class LlmService {
     }
   }
 
+  fromSpec(spec: ClientSpec, request?: FetchLike): LlmClient {
+    switch (spec.provider) {
+      case 'ollama':
+        return new OllamaClient(
+          llmBaseUrl(spec.baseUrl ?? OLLAMA_URL),
+          requireText(spec.model, 'modelo'),
+          request,
+        );
+      case 'anthropic':
+        return new AnthropicClient(
+          spec.model ?? ANTHROPIC_MODEL,
+          requireText(spec.apiKey, 'chave'),
+          request,
+        );
+      case 'openai':
+      case 'compatible':
+        return new OpenAiCompatibleClient(
+          llmBaseUrl(spec.baseUrl ?? OPENAI_URL),
+          requireText(spec.model, 'modelo'),
+          spec.apiKey,
+          request,
+        );
+    }
+  }
+
   async status(override: Partial<LlmSettings> = {}, request?: FetchLike): Promise<LlmStatus> {
     const settings = await this.settings(override);
     const base: LlmStatus = {
@@ -117,4 +149,11 @@ export class LlmService {
 
 function definedOnly(settings: Partial<LlmSettings>): Partial<LlmSettings> {
   return Object.fromEntries(Object.entries(settings).filter(([, value]) => value !== undefined));
+}
+
+function requireText(value: string | null, what: string): string {
+  if (value === null || value.trim() === '') {
+    throw new AppError('NOT_CONFIGURED', `falta o ${what} do provedor`);
+  }
+  return value;
 }

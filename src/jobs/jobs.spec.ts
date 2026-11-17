@@ -6,6 +6,8 @@ import type { AppPaths } from '../config/app-paths.js';
 import { jobRequestSchema } from '../contracts/job.js';
 import type { JobRepository, NewClip } from '../database/job.repository.js';
 import type { MediaTools } from '../media/media-tools.js';
+import { buildAgentPrompt } from './agent-prompt.js';
+import { targetsInput, youtubeLink } from './cut-pipeline.js';
 import { folderName, LibraryService, localDay } from './library.service.js';
 import { layoutFor, PRESETS, presetOf, rectSpec } from './presets.js';
 
@@ -163,5 +165,54 @@ describe('LibraryService', () => {
   it('formats local days and folder names', () => {
     expect(localDay(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05');
     expect(folderName('Ação!!', 'abcdef1234')).toBe('acao-abcdef12');
+  });
+});
+
+describe('agent prompt', () => {
+  it('gives the work dir, the plan and the commands, and forbids rendering', () => {
+    const prompt = buildAgentPrompt({
+      agent: 'claude',
+      workDir: '/home/x/.cortes-eb/jobs/1/work',
+      targets: { count: 3, minSeconds: 20, maxSeconds: 60 },
+      preset: 'React GTA 6',
+      niche: 'GTA 6',
+    });
+    expect(prompt).toContain('skill cortes-eb');
+    expect(prompt).toContain('cortes-eb transcript --work "/home/x/.cortes-eb/jobs/1/work"');
+    expect(prompt).toContain('cortes-eb check --work');
+    expect(prompt).toContain('3 cortes, cada um entre 20 e 60 segundos');
+    expect(prompt).toContain('não renderize');
+    const codex = buildAgentPrompt({
+      agent: 'codex',
+      workDir: '/w',
+      targets: { count: 1, minSeconds: 10, maxSeconds: 30 },
+      preset: 'Podcast',
+      niche: 'Podcast',
+    });
+    expect(codex).not.toContain('skill');
+  });
+});
+
+describe('cut pipeline helpers', () => {
+  it('maps the request targets to the planner input', () => {
+    expect(targetsInput({ ...jobRequestSchema.parse(base) })).toEqual({ count: 3 });
+    const ranged = jobRequestSchema.parse({
+      ...base,
+      targets: { mode: 'duration', minSeconds: 20, maxSeconds: 50 },
+    });
+    expect(targetsInput(ranged)).toEqual({ minSeconds: 20, maxSeconds: 50 });
+  });
+
+  it('uses youtube captions only for whole youtube videos', () => {
+    expect(youtubeLink({ type: 'youtube', url: 'https://youtu.be/a' })).toBe('https://youtu.be/a');
+    expect(youtubeLink({ type: 'vod', platform: 'youtube', url: 'https://youtu.be/a' })).toBe(
+      'https://youtu.be/a',
+    );
+    expect(
+      youtubeLink({ type: 'vod', platform: 'youtube', url: 'https://youtu.be/a', from: 1, to: 9 }),
+    ).toBeNull();
+    expect(
+      youtubeLink({ type: 'vod', platform: 'twitch', url: 'https://twitch.tv/videos/1' }),
+    ).toBeNull();
   });
 });
