@@ -14,6 +14,7 @@ const previewProps: SplitCutProps = {
   segments: [{ from: 0, to: 5, turn: false }],
   sourceFile: 'source.mp4',
   bottomFile: 'bottom.mp4',
+  bottomSource: null,
   bottomStart: 0,
   bottomDuration: 0,
   focus: { x: 50, y: 35 },
