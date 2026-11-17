@@ -8,6 +8,7 @@ import type { AppPaths } from '../config/app-paths.js';
 import type { Job } from '../contracts/publish.js';
 import { advance, canTransition, isFinal } from './job-state.js';
 import { OutboxPublisher } from './outbox-publisher.js';
+import { CredentialVault } from './credential-vault.js';
 import { evaluatePolicy } from './publish-policy.js';
 import { PublishWorker } from './publish-worker.js';
 import { PublishError } from './publisher.js';
@@ -370,5 +371,76 @@ describe('PublishWorker policy', () => {
     expect(waiting?.attempts).toBe(0);
     expect(new Date(waiting?.scheduledAt ?? 0).getTime()).toBeGreaterThan(Date.now());
     await fs.rm(dir, { recursive: true, force: true });
+  });
+});
+
+describe('CredentialVault', () => {
+  let dir = '';
+  let vault: CredentialVault;
+
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-vault-'));
+    vault = new CredentialVault({
+      credentialsFile: path.join(dir, 'credentials.json'),
+    } as AppPaths);
+  });
+
+  afterEach(async () => {
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  const youtube = {
+    clientId: 'client-id-123',
+    clientSecret: 'secret-value-456',
+    refreshToken: 'refresh-token-789',
+  };
+
+  it('stores credentials privately and lists only field names', async () => {
+    await vault.save('youtube', 'main', youtube);
+    const mode = (await fs.stat(path.join(dir, 'credentials.json'))).mode & 0o777;
+    expect(mode).toBe(0o600);
+    const listed = await vault.list();
+    expect(listed).toEqual([
+      {
+        platform: 'youtube',
+        account: 'main',
+        fields: ['clientId', 'clientSecret', 'refreshToken'],
+      },
+    ]);
+    expect(JSON.stringify(listed)).not.toContain('secret-value');
+    expect((await vault.load('youtube', 'main')).refreshToken).toBe('refresh-token-789');
+  });
+
+  it('rejects wrong shapes, extra fields and bad account ids', async () => {
+    await expect(vault.save('youtube', 'main', { clientId: 'x' })).rejects.toThrow();
+    await expect(
+      vault.save('youtube', 'main', { ...youtube, extra: 'campo-extra-1' }),
+    ).rejects.toThrow();
+    await expect(vault.save('youtube', '../etc', youtube)).rejects.toThrow();
+  });
+
+  it('keeps accounts and platforms apart and removes entries', async () => {
+    await vault.save('youtube', 'main', youtube);
+    await vault.save('youtube', 'outra', youtube);
+    await vault.save('tiktok', 'main', { accessToken: 'token-12345678', openId: 'open-id-12345' });
+    expect(await vault.list()).toHaveLength(3);
+    expect(await vault.remove('youtube', 'outra')).toBe(true);
+    expect(await vault.remove('youtube', 'outra')).toBe(false);
+    await expect(vault.load('youtube', 'outra')).rejects.toThrow();
+    expect(await vault.list()).toHaveLength(2);
+  });
+
+  it('does not leak secrets in validation errors', async () => {
+    let message = '';
+    try {
+      await vault.save('youtube', 'main', {
+        clientId: 'client-id-123',
+        clientSecret: 'super-secret-xyz',
+      });
+    } catch (caught) {
+      message = caught instanceof Error ? caught.message : '';
+    }
+    expect(message).not.toBe('');
+    expect(message).not.toContain('super-secret-xyz');
   });
 });

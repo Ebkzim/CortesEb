@@ -16,6 +16,7 @@ import { SfxModule } from '../sfx/sfx.module.js';
 import { TranscriptionModule } from '../transcription/transcription.module.js';
 import { AccountCommand, ConfigCommand, NichesCommand } from './commands/config.command.js';
 import { DoctorCommand, SetupCommand } from './commands/doctor.command.js';
+import { CredentialsCommand } from './commands/credentials.command.js';
 import { QueueCommand } from './commands/queue.command.js';
 import { LiveCommand, LiveFrameCommand } from './commands/live.command.js';
 import {
@@ -70,6 +71,7 @@ import {
     LiveCommand,
     LiveFrameCommand,
     QueueCommand,
+    CredentialsCommand,
   ],
 })
 export class CliModule {}
