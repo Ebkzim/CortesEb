@@ -1,0 +1,6 @@
+Os exemplos de prévia usam trechos de filmes abertos da Blender Foundation, sob a licença Creative Commons Attribution 3.0 (CC BY 3.0).
+
+Tears of Steel (2012), (CC) Blender Foundation, mango.blender.org
+Sintel (2010), (CC) Blender Foundation, durian.blender.org
+
+Licença: https://creativecommons.org/licenses/by/3.0/

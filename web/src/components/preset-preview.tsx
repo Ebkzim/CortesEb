@@ -1,18 +1,25 @@
 'use client';
 
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Preset } from '@/lib/types';
 import { EASE } from './ui';
 
-const WORDS = ['ISSO', 'MUDA', 'TUDO'];
+const SAMPLE: Record<string, string> = {
+  'gameplay-camera': 'gameplay',
+  'gta6-gameplay': 'gameplay',
+};
+
+function sampleOf(preset: Preset): string {
+  return preset.frame === 'fit' ? 'cena' : (SAMPLE[preset.id] ?? 'react');
+}
 
 export function PresetPreview({ preset }: { preset: Preset | null }) {
   return (
     <div className="preview">
       <AnimatePresence mode="wait">
         <motion.div
-          key={`${preset?.id ?? 'vazio'}-${preset?.example ?? 'esquema'}`}
+          key={preset === null ? 'vazio' : (preset.example ?? sampleOf(preset))}
           className="preview__frame"
           initial={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
           animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
@@ -21,10 +28,14 @@ export function PresetPreview({ preset }: { preset: Preset | null }) {
         >
           {preset === null ? (
             <div className="preview__empty">Escolha um tipo para ver como fica</div>
-          ) : preset.example !== null ? (
-            <Example clipId={preset.example} />
           ) : (
-            <Schema top={preset.top} below={preset.below} />
+            <Example
+              src={
+                preset.example !== null
+                  ? `/api/clips/${preset.example}/video`
+                  : `/examples/${sampleOf(preset)}.mp4`
+              }
+            />
           )}
         </motion.div>
       </AnimatePresence>
@@ -41,67 +52,38 @@ export function PresetPreview({ preset }: { preset: Preset | null }) {
             ? ''
             : preset.example !== null
               ? 'Um corte real seu neste formato'
-              : `${preset.top} em cima, ${preset.below} embaixo`}
+              : preset.frame === 'fit'
+                ? 'A cena inteira, título em cima e legenda embaixo'
+                : `${preset.top} em cima, ${preset.below} embaixo`}
         </motion.p>
       </AnimatePresence>
     </div>
   );
 }
 
-function Example({ clipId }: { clipId: string }) {
+function Example({ src }: { src: string }) {
   const video = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const element = video.current;
     if (element === null) return;
     const start = (): void => {
-      element.currentTime = Math.min(4, element.duration / 3);
       void element.play().catch(() => undefined);
     };
-    element.addEventListener('loadedmetadata', start, { once: true });
+    element.addEventListener('loadeddata', start, { once: true });
     return () => {
-      element.removeEventListener('loadedmetadata', start);
+      element.removeEventListener('loadeddata', start);
     };
-  }, [clipId]);
+  }, [src]);
   return (
     <video
       ref={video}
       className="preview__video"
-      src={`/api/clips/${clipId}/video`}
+      src={src}
       muted
       loop
+      autoPlay
       playsInline
-      preload="metadata"
+      preload="auto"
     />
-  );
-}
-
-function Schema({ top, below }: { top: string; below: string }) {
-  const [word, setWord] = useState(0);
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setWord((current) => (current + 1) % WORDS.length);
-    }, 600);
-    return () => {
-      clearInterval(timer);
-    };
-  }, []);
-  return (
-    <div className="schema">
-      <div className="schema__half">
-        <span className="schema__shape schema__shape--face" />
-        <span className="schema__name">{top}</span>
-      </div>
-      <div className="schema__caption">
-        {WORDS.map((text, index) => (
-          <span key={text} className={index === word ? 'is-on' : ''}>
-            {text}
-          </span>
-        ))}
-      </div>
-      <div className="schema__half schema__half--below">
-        <span className="schema__shape schema__shape--scene" />
-        <span className="schema__name">{below}</span>
-      </div>
-    </div>
   );
 }

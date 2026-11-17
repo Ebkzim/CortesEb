@@ -47,7 +47,7 @@ import type {
 
 const STEPS = ['Tipo', 'Quantidade', 'Origem', 'Inteligência', 'Revisão'] as const;
 
-const PRESET_ICON: Record<PresetId, ReactNode> = {
+const PRESET_ICON: Partial<Record<PresetId, ReactNode>> = {
   'gameplay-camera': <ScanFace size={20} />,
   'gta6-gameplay': <Gamepad2 size={20} />,
   'gta6-react': <Sparkles size={20} />,
@@ -88,6 +88,7 @@ export default function NewCutPage() {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [preset, setPreset] = useState<PresetId | null>(null);
   const [hovered, setHovered] = useState<PresetId | null>(null);
+  const [openGroup, setOpenGroup] = useState<'filmes' | 'series' | null>(null);
   const [mode, setMode] = useState<'count' | 'duration'>('count');
   const [count, setCount] = useState(3);
   const [minSeconds, setMinSeconds] = useState(30);
@@ -145,6 +146,22 @@ export default function NewCutPage() {
   }, [selectorKind, ollama]);
 
   const isLive = sourceKind === 'live';
+  const entries = useMemo(() => {
+    const list: (
+      | { kind: 'preset'; preset: Preset }
+      | { kind: 'group'; group: 'filmes' | 'series'; variants: Preset[] }
+    )[] = [];
+    for (const item of presets) {
+      if (item.group === null) {
+        list.push({ kind: 'preset', preset: item });
+        continue;
+      }
+      const existing = list.find((entry) => entry.kind === 'group' && entry.group === item.group);
+      if (existing?.kind === 'group') existing.variants.push(item);
+      else list.push({ kind: 'group', group: item.group, variants: [item] });
+    }
+    return list;
+  }, [presets]);
   const chosenPreset = presets.find((item) => item.id === preset) ?? null;
   const previewPreset =
     presets.find((item) => item.id === (step === 0 ? (hovered ?? preset) : preset)) ?? null;
@@ -325,22 +342,90 @@ export default function NewCutPage() {
                   text="Passe o mouse para ver como fica cada um."
                 />
                 <div className="grid grid--3">
-                  {presets.map((item) => (
-                    <Choice
-                      key={item.id}
-                      active={preset === item.id}
-                      icon={PRESET_ICON[item.id]}
-                      title={item.label}
-                      text={item.description}
-                      onClick={() => {
-                        setPreset(item.id);
-                      }}
-                      onHover={(inside) => {
-                        setHovered(inside ? item.id : null);
-                      }}
-                    />
-                  ))}
+                  {entries.map((entry) =>
+                    entry.kind === 'preset' ? (
+                      <Choice
+                        key={entry.preset.id}
+                        active={preset === entry.preset.id}
+                        icon={PRESET_ICON[entry.preset.id]}
+                        title={entry.preset.label}
+                        text={entry.preset.description}
+                        onClick={() => {
+                          setPreset(entry.preset.id);
+                          setOpenGroup(null);
+                        }}
+                        onHover={(inside) => {
+                          setHovered(inside ? entry.preset.id : null);
+                        }}
+                      />
+                    ) : (
+                      <Choice
+                        key={entry.group}
+                        active={chosenPreset?.group === entry.group || openGroup === entry.group}
+                        icon={entry.group === 'filmes' ? <Film size={20} /> : <Tv size={20} />}
+                        title={entry.group === 'filmes' ? 'Filmes' : 'Séries'}
+                        text="React ou só a cena. Clique para escolher."
+                        onClick={() => {
+                          setOpenGroup(entry.group);
+                          if (chosenPreset?.group !== entry.group)
+                            setPreset(entry.variants[0]?.id ?? null);
+                        }}
+                        onHover={(inside) => {
+                          setHovered(inside ? (entry.variants[0]?.id ?? null) : null);
+                        }}
+                      />
+                    ),
+                  )}
                 </div>
+                <AnimatePresence>
+                  {openGroup !== null && (
+                    <motion.div
+                      key={openGroup}
+                      className="variants"
+                      initial={{ opacity: 0, height: 0, y: -8 }}
+                      animate={{ opacity: 1, height: 'auto', y: 0 }}
+                      exit={{ opacity: 0, height: 0, y: -8 }}
+                      transition={{ duration: 0.45, ease: EASE }}
+                    >
+                      <span className="field__label">
+                        {openGroup === 'filmes'
+                          ? 'Que tipo de corte de filme?'
+                          : 'Que tipo de corte de série?'}
+                      </span>
+                      <div className="grid grid--2">
+                        {presets
+                          .filter((item) => item.group === openGroup)
+                          .map((item, index) => (
+                            <motion.div
+                              key={item.id}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: 0.08 + index * 0.06, duration: 0.4, ease: EASE }}
+                            >
+                              <Choice
+                                active={preset === item.id}
+                                icon={
+                                  item.variant === 'cena' ? (
+                                    <Clapperboard size={18} />
+                                  ) : (
+                                    <ScanFace size={18} />
+                                  )
+                                }
+                                title={item.variant === 'cena' ? 'Só a cena' : 'React'}
+                                text={item.description}
+                                onClick={() => {
+                                  setPreset(item.id);
+                                }}
+                                onHover={(inside) => {
+                                  setHovered(inside ? item.id : null);
+                                }}
+                              />
+                            </motion.div>
+                          ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </>
             )}
 
@@ -557,7 +642,7 @@ export default function NewCutPage() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-                {sourceKind !== null && chosenPreset !== null && (
+                {sourceKind !== null && chosenPreset !== null && chosenPreset.frame !== 'fit' && (
                   <motion.div className="panel stack" {...fade}>
                     <span className="field__label">O que vai embaixo?</span>
                     <Segmented

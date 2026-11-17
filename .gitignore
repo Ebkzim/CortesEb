@@ -17,6 +17,7 @@ secrets*.json
 /cortes/
 work/
 *.mp4
+!web/public/examples/*.mp4
 *.mov
 *.mkv
 *.webm

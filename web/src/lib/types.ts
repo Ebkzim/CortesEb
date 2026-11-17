@@ -11,6 +11,9 @@ export interface Preset {
   camera: 'ask' | 'none' | 'fixed';
   bottom: 'source' | 'niche';
   sources: ('file' | 'youtube' | 'vod' | 'live')[];
+  group: 'filmes' | 'series' | null;
+  variant: 'react' | 'cena' | null;
+  frame: 'split' | 'fit';
   top: string;
   below: string;
   example: string | null;
