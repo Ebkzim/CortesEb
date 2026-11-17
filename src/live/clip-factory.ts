@@ -11,6 +11,7 @@ import { RenderService, type ClipResult } from '../render/render.service.js';
 import { TranscriptionService } from '../transcription/transcription.service.js';
 import { Workspace } from '../workspace/workspace.js';
 import { buildLiveClip } from './clip-cut.js';
+import { cameraCrop, type CameraSpec } from './camera.js';
 import type { LiveWindow } from './live-detector.js';
 import type { Segment } from './segment-log.js';
 
@@ -31,6 +32,7 @@ export interface FactoryOptions {
   hasBottom: boolean;
   minWords: number;
   keepWork: boolean;
+  camera: CameraSpec | null;
 }
 
 export type Produced =
@@ -100,11 +102,13 @@ export class ClipFactory {
       ...(options.language === undefined ? {} : { language: options.language }),
       ...(options.model === undefined ? {} : { model: options.model }),
     });
+    const meta = await readJson(workspace.meta, sourceMetaSchema);
     const outcome = buildLiveClip({
       id: job.id,
       window: job.window,
       offset: job.offset,
-      duration: (await readJson(workspace.meta, sourceMetaSchema)).duration,
+      duration: meta.duration,
+      crop: options.camera === null ? null : cameraCrop(options.camera, meta.width, meta.height),
       words: await readJson(workspace.captions, captionsSchema),
       bottom: options.hasBottom ? 'video' : 'source',
       minWords: options.minWords,

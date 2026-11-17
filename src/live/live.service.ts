@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { Injectable } from '@nestjs/common';
+import { AppError } from '../common/app-error.js';
 import { Output } from '../common/output.js';
 import { VideoFetcher } from '../download/video-fetcher.js';
 import { Workspace } from '../workspace/workspace.js';
@@ -15,6 +17,13 @@ export class LiveService {
     private readonly fetcher: VideoFetcher,
     private readonly output: Output,
   ) {}
+
+  async snapshot(link: string, output: string, maxHeight: number): Promise<string> {
+    const stream = await this.recorder.resolve(link, maxHeight);
+    if (!stream.live) throw new AppError('INVALID_INPUT', 'esse link não está ao vivo agora');
+    await this.recorder.snapshot(stream.url, output);
+    return path.resolve(output);
+  }
 
   run(request: LiveRequest, signal: AbortSignal): Promise<LiveSummary> {
     const channel = request.chat ? twitchChannel(request.link) : null;

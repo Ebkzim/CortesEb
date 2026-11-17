@@ -123,6 +123,28 @@ export class LiveRecorder {
     return { live: flag === 'True', url: stream.toString() };
   }
 
+  async snapshot(input: string, output: string, protocols = STREAM_PROTOCOLS): Promise<void> {
+    await this.runner.exec(
+      'ffmpeg',
+      [
+        '-y',
+        '-v',
+        'error',
+        '-nostdin',
+        '-protocol_whitelist',
+        protocols,
+        '-i',
+        input,
+        '-frames:v',
+        '1',
+        '-q:v',
+        '2',
+        path.resolve(output),
+      ],
+      { timeoutMs: RESOLVE_TIMEOUT_MS },
+    );
+  }
+
   start(request: RecordingRequest, onSample: (sample: RmsSample) => void): Recording {
     const child = this.runner.start('ffmpeg', recorderArgs(request));
     const parser = new RmsStreamParser();

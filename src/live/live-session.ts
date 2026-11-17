@@ -4,6 +4,7 @@ import { AppError } from '../common/app-error.js';
 import { exists } from '../common/json-file.js';
 import type { Output } from '../common/output.js';
 import { resolveInside } from '../common/safe-path.js';
+import type { CameraSpec } from './camera.js';
 import type { ClipFactory, FactoryOptions, PreparedClip } from './clip-factory.js';
 import { ChatCounter } from './chat-counter.js';
 import type { ChatSource } from './twitch-chat.js';
@@ -29,6 +30,7 @@ export interface LiveRequest {
   maxQueue: number;
   keepWork: boolean;
   chat: boolean;
+  camera: CameraSpec | null;
   protocols?: string;
 }
 
@@ -318,6 +320,7 @@ export class LiveSession {
       hasBottom: this.bottomFile !== null,
       minWords: this.request.minWords,
       keepWork: this.request.keepWork,
+      camera: this.request.camera,
     };
   }
 
