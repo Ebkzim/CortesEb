@@ -2,14 +2,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
+import { writeJson } from '../common/json-file.js';
 import { ProcessRunner } from '../common/process-runner.js';
 import { parsePublicUrl } from '../common/safe-url.js';
 import { MediaTools } from '../media/media-tools.js';
 import type { VideoRole, Workspace } from '../workspace/workspace.js';
+import { YtDlp } from './yt-dlp.js';
 
 const MAX_HEIGHT: Record<VideoRole, number> = { source: 1080, bottom: 720 };
-const JS_RUNTIMES_FLAG = '--js-runtimes';
-const HELP_TIMEOUT_MS = 30_000;
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.mkv', '.webm', '.m4v', '.avi']);
 
 @Injectable()
@@ -17,6 +17,7 @@ export class VideoFetcher {
   constructor(
     private readonly runner: ProcessRunner,
     private readonly media: MediaTools,
+    private readonly ytDlp: YtDlp,
   ) {}
 
   async fetch(input: string, role: VideoRole, workspace: Workspace): Promise<string> {
@@ -33,20 +34,12 @@ export class VideoFetcher {
 
   private async download(raw: string, role: VideoRole, workspace: Workspace): Promise<void> {
     const url = parsePublicUrl(raw);
-    if (!(await this.runner.has('yt-dlp'))) {
-      throw new AppError('MISSING_DEPENDENCY', 'yt-dlp não está instalado: envie um arquivo');
-    }
+    const base = await this.ytDlp.baseArgs();
     await fs.rm(workspace.video(role), { force: true });
     await this.runner.exec(
       'yt-dlp',
       [
-        ...(await this.runtimeArgs()),
-        '--ignore-config',
-        '--no-playlist',
-        '--no-progress',
-        '--no-exec',
-        '--no-cookies-from-browser',
-        '--restrict-filenames',
+        ...base,
         '-S',
         `res:${MAX_HEIGHT[role]}`,
         '-f',
@@ -60,13 +53,7 @@ export class VideoFetcher {
       ],
       { stream: true },
     );
-  }
-
-  private async runtimeArgs(): Promise<string[]> {
-    const help = await this.runner.run('yt-dlp', ['--help'], { timeoutMs: HELP_TIMEOUT_MS });
-    return help.stdout.includes(JS_RUNTIMES_FLAG)
-      ? [JS_RUNTIMES_FLAG, `node:${process.execPath}`]
-      : [];
+    if (role === 'source') await writeJson(workspace.origin, { url: url.toString() });
   }
 
   private async importFile(input: string, target: string): Promise<void> {

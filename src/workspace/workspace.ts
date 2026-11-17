@@ -27,6 +27,10 @@ export class Workspace {
     return this.file('meta.json');
   }
 
+  get origin(): string {
+    return this.file('origin.json');
+  }
+
   get cuts(): string {
     return this.file('cuts.json');
   }
