@@ -54,9 +54,29 @@ describe('TargetsService.fitDurations', () => {
     expect(result.check.ok).toBe(true);
   });
 
-  it('does not hide a wrong clip count', async () => {
-    const workspace = await setup(70, { ...plan, count: 2 });
+  it('accepts fewer clips than planned', async () => {
+    const workspace = await setup(70, { ...plan, count: 4 });
     const result = await service.fitDurations(workspace);
+    expect(result.widened).toBe(true);
+    expect(result.check.ok).toBe(true);
+    expect(result.check.targets?.count).toBe(1);
+  });
+
+  it('never hides overlapping clips', async () => {
+    await fs.writeFile(
+      path.join(dir, 'cuts.json'),
+      JSON.stringify({
+        clips: [
+          { id: 'um', start: 0, end: 60, pace: 'steady' },
+          { id: 'dois', start: 50, end: 95, pace: 'steady' },
+        ],
+      }),
+    );
+    await fs.writeFile(
+      path.join(dir, 'targets.json'),
+      JSON.stringify({ ...plan, count: 2, minSeconds: 20 }),
+    );
+    const result = await service.fitDurations(new Workspace(dir));
     expect(result.widened).toBe(false);
     expect(result.check.ok).toBe(false);
   });
