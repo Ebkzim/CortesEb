@@ -34,6 +34,7 @@ import { SpeedBook } from './speed-book.js';
 import type { JobStepId } from './step-tracker.js';
 
 const AGENT_POLL_MS = 3000;
+const ATTENTION_PRESETS = new Set(['gameplay-camera', 'gta6-react', 'filmes', 'series']);
 const REUSABLE = [
   'source.mp4',
   'bottom.mp4',
@@ -372,6 +373,7 @@ export class CutPipeline implements Pipeline {
       guidance: await buildGuidance(preset.id, niche.guide),
       avoidStartSeconds: introSeconds(preset.id, plan.sourceSeconds),
       judge: true,
+      attention: ATTENTION_PRESETS.has(preset.id),
     });
     for (const warning of result.warnings) context.log('warn', warning);
   }

@@ -7,6 +7,7 @@ import { clipSchema, cutsSchema, type Clip } from '../contracts/cuts.js';
 import type { Word } from '../contracts/media.js';
 import type { LlmClient } from '../llm/llm-client.js';
 import type { LlmService } from '../llm/llm.service.js';
+import type { MediaTools } from '../media/media-tools.js';
 import type { TargetsService } from '../planning/targets.service.js';
 import { Workspace } from '../workspace/workspace.js';
 import { pickBest, separate, slug, snap, toClip, usable } from './candidates.js';
@@ -233,7 +234,8 @@ describe('SelectorService', () => {
         }),
     } as unknown as TargetsService;
     const progress = { step: () => undefined } as unknown as Progress;
-    return { service: new SelectorService(llm, targets, progress), prompts };
+    const media = { rmsLevels: () => Promise.resolve([]) } as unknown as MediaTools;
+    return { service: new SelectorService(llm, targets, progress, media), prompts };
   }
 
   const request = {

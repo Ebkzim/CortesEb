@@ -12,6 +12,8 @@ import { dropMarkers } from '../transcription/tokens.js';
 import type { Workspace } from '../workspace/workspace.js';
 import { ClipJudge } from '../live/clip-judge.js';
 import type { Word } from '../contracts/media.js';
+import { MediaTools } from '../media/media-tools.js';
+import { attentionMoments } from './attention.js';
 import { filterCandidates, speechWindows, textOf } from './filters.js';
 import { pickBest, separate, snap, toClip, usable, type Limits } from './candidates.js';
 import {
@@ -35,6 +37,7 @@ export interface SelectRequest {
   guidance?: string;
   avoidStartSeconds?: number;
   judge?: boolean;
+  attention?: boolean;
 }
 
 export interface SelectResult {
@@ -60,6 +63,7 @@ export class SelectorService {
     private readonly llm: LlmService,
     private readonly targets: TargetsService,
     private readonly progress: Progress,
+    private readonly media: MediaTools,
   ) {}
 
   async run(workspace: Workspace, request: SelectRequest): Promise<SelectResult> {
@@ -129,10 +133,27 @@ export class SelectorService {
         candidates = [...candidates, ...usableExtra];
       }
     }
-    const pool =
+    const judged =
       request.judge === true
         ? await this.rejudge(client, candidates, words, request, plan.count)
         : candidates;
+    const moments =
+      request.attention === true ? await this.attention(workspace, words, avoid, plan) : [];
+    if (moments.length > 0) {
+      warnings.push(
+        `${String(moments.length)} momento(s) de atenção (conteúdo forte sem fala, seguido de reação)`,
+      );
+    }
+    const pool = [
+      ...judged,
+      ...moments.filter(
+        (moment) =>
+          !judged.some(
+            (item) =>
+              moment.start < item.end && item.start < moment.end && item.score >= moment.score,
+          ),
+      ),
+    ];
     let best = pickBest(pool, plan.count, request.minScore);
     if (best.length === 0 && request.fallback === true && pool.length > 0) {
       best = pickBest(pool, plan.count, 0);
@@ -232,6 +253,21 @@ export class SelectorService {
       );
     }
     return judged;
+  }
+
+  private async attention(
+    workspace: Workspace,
+    words: readonly Word[],
+    from: number,
+    plan: { minSeconds: number; maxSeconds: number },
+  ): Promise<Candidate[]> {
+    this.progress.step('select', null, 'procurando momentos de atenção no áudio');
+    const levels = await this.media.rmsLevels(workspace.video('source')).catch(() => []);
+    return attentionMoments(words, levels, {
+      from,
+      minSeconds: plan.minSeconds,
+      maxSeconds: plan.maxSeconds,
+    });
   }
 
   private async peaks(workspace: Workspace): Promise<number[]> {

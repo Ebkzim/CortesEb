@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Word } from '../contracts/media.js';
+import { attentionMoments } from './attention.js';
 import { filterCandidates, promoHits, speechWindows } from './filters.js';
 import { buildGuidance, extractGuide, introSeconds, PRESET_HINTS } from './guidance.js';
 
@@ -116,5 +117,44 @@ describe('speechWindows', () => {
         expect(window.start < other.end && other.start < window.end).toBe(false);
       }
     }
+  });
+});
+
+describe('attentionMoments', () => {
+  const word = (text: string, second: number): Word => ({
+    text,
+    startMs: second * 1000,
+    endMs: second * 1000 + 400,
+  });
+
+  function talk(from: number, to: number): Word[] {
+    return Array.from({ length: to - from }, (_, index) =>
+      word(`w${String(from + index)}`, from + index),
+    );
+  }
+
+  it('finds a loud silent stretch followed by a reaction', () => {
+    const levels = Array.from({ length: 200 }, (_, second) =>
+      second >= 100 && second < 130 ? -14 : -30,
+    );
+    const words = [...talk(0, 100), ...talk(130, 160)];
+    const [moment] = attentionMoments(words, levels, { minSeconds: 20, maxSeconds: 60 });
+    expect(moment).toBeDefined();
+    expect(moment?.start).toBeCloseTo(98.5);
+    expect(moment?.end).toBeGreaterThan(130);
+    expect(moment?.end).toBeLessThanOrEqual(158.5);
+    expect(moment?.hook.startsWith('w130')).toBe(true);
+  });
+
+  it('ignores quiet pauses, pauses without a reaction and the opening', () => {
+    const quiet = Array.from({ length: 200 }, (_, second) =>
+      second >= 100 && second < 130 ? -45 : -30,
+    );
+    expect(attentionMoments([...talk(0, 100), ...talk(130, 160)], quiet)).toEqual([]);
+    const loud = Array.from({ length: 200 }, (_, second) =>
+      second >= 100 && second < 130 ? -14 : -30,
+    );
+    expect(attentionMoments([...talk(0, 100), word('ok', 135)], loud)).toEqual([]);
+    expect(attentionMoments([...talk(0, 100), ...talk(130, 160)], loud, { from: 140 })).toEqual([]);
   });
 });
