@@ -3,13 +3,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Progress } from '../common/progress.js';
-import { cutsSchema } from '../contracts/cuts.js';
+import { clipSchema, cutsSchema, type Clip } from '../contracts/cuts.js';
 import type { Word } from '../contracts/media.js';
 import type { LlmClient } from '../llm/llm-client.js';
 import type { LlmService } from '../llm/llm.service.js';
 import type { TargetsService } from '../planning/targets.service.js';
 import { Workspace } from '../workspace/workspace.js';
-import { pickBest, slug, snap, toClip, usable } from './candidates.js';
+import { pickBest, separate, slug, snap, toClip, usable } from './candidates.js';
 import { answerJsonSchema, buildSystemPrompt, buildUserPrompt } from './prompt.js';
 import { parseAnswer, SelectorService } from './selector.service.js';
 import { chunkTranscript } from './transcript-chunks.js';
@@ -167,6 +167,33 @@ describe('candidate selection', () => {
     expect(slug('Ação é isso, né?!')).toBe('acao-e-isso-ne');
     expect(slug('???')).toBe('corte');
     expect(slug('a'.repeat(100))).toHaveLength(40);
+  });
+});
+
+describe('separate', () => {
+  const clip = (id: string, start: number, end: number, score: number): Clip =>
+    clipSchema.parse({ id, start, end, score });
+
+  it('trims a clip that runs into the next one by a fraction of a second', () => {
+    const result = separate([clip('01-a', 11.37, 28.15, 8), clip('02-b', 27.85, 54.15, 9)]);
+    expect(result.map((item) => [item.id, item.start, item.end])).toEqual([
+      ['01-a', 11.37, 27.85],
+      ['02-b', 27.85, 54.15],
+    ]);
+  });
+
+  it('keeps the better clip when two almost coincide and renumbers the ids', () => {
+    const result = separate([
+      clip('01-a', 10, 40, 6),
+      clip('02-b', 12, 42, 9),
+      clip('03-c', 60, 90, 7),
+    ]);
+    expect(result.map((item) => item.id)).toEqual(['01-b', '02-c']);
+  });
+
+  it('leaves separate clips alone', () => {
+    const input = [clip('01-a', 0, 20, 7), clip('02-b', 20, 40, 7)];
+    expect(separate(input)).toEqual(input);
   });
 });
 

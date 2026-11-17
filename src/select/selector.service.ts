@@ -10,7 +10,7 @@ import { peaksFileSchema } from '../analysis/peaks.service.js';
 import { TargetsService, type TargetsInput } from '../planning/targets.service.js';
 import { dropMarkers } from '../transcription/tokens.js';
 import type { Workspace } from '../workspace/workspace.js';
-import { pickBest, snap, toClip, usable, type Limits } from './candidates.js';
+import { pickBest, separate, snap, toClip, usable, type Limits } from './candidates.js';
 import {
   answerJsonSchema,
   answerSchema,
@@ -109,8 +109,10 @@ export class SelectorService {
         'o modelo não achou cortes com nota suficiente (tente outro modelo ou --min-score menor)',
       );
     }
-    const clips: Clip[] = best.map((candidate, index) =>
-      toClip(snap(candidate, words, limits), index, plan.sourceSeconds),
+    const clips: Clip[] = separate(
+      best.map((candidate, index) =>
+        toClip(snap(candidate, words, limits), index, plan.sourceSeconds),
+      ),
     );
     const cuts = cutsSchema.parse({ clips });
     await writeJson(workspace.cuts, cuts);

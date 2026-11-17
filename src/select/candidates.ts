@@ -86,3 +86,28 @@ export function slug(text: string): string {
     .replace(/-+$/g, '');
   return base === '' ? 'corte' : base;
 }
+
+const MIN_KEPT_SECONDS = 5;
+
+export function separate(clips: readonly Clip[]): Clip[] {
+  const ordered = [...clips].sort((a, b) => a.start - b.start);
+  const kept: Clip[] = [];
+  for (const clip of ordered) {
+    const previous = kept[kept.length - 1];
+    if (previous === undefined || previous.end <= clip.start) {
+      kept.push({ ...clip });
+      continue;
+    }
+    const trimmed = Number(clip.start.toFixed(2));
+    if (trimmed - previous.start >= MIN_KEPT_SECONDS) {
+      previous.end = trimmed;
+      kept.push({ ...clip });
+      continue;
+    }
+    if ((clip.score ?? 0) > (previous.score ?? 0)) kept[kept.length - 1] = { ...clip };
+  }
+  return kept.map((clip, index) => ({
+    ...clip,
+    id: clip.id.replace(/^\d{2}-/, `${String(index + 1).padStart(2, '0')}-`),
+  }));
+}
