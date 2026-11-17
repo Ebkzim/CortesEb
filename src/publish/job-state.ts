@@ -25,6 +25,6 @@ export function advance(job: Job, to: JobStatus, now: Date, patch: JobPatch = {}
     throw new AppError('INVALID_INPUT', `o item ${job.id} não pode ir de ${job.status} para ${to}`);
   }
   const next: Job = { ...job, ...patch, status: to, updatedAt: now.toISOString() };
-  if (to === 'approved' || to === 'published') delete next.error;
+  if ((to === 'approved' || to === 'published') && patch.error === undefined) delete next.error;
   return next;
 }

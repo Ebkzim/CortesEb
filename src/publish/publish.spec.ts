@@ -2,9 +2,13 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { Output } from '../common/output.js';
 import type { AccountService } from '../accounts/account.service.js';
 import type { AppPaths } from '../config/app-paths.js';
 import { advance, canTransition, isFinal } from './job-state.js';
+import { OutboxPublisher } from './outbox-publisher.js';
+import { PublishWorker } from './publish-worker.js';
+import { PublishError } from './publisher.js';
 import { QueueService, type EnqueueRequest } from './queue.service.js';
 import { QueueStore, type NewJob } from './queue-store.js';
 
@@ -194,5 +198,88 @@ describe('QueueService', () => {
       resolve: () => Promise.resolve([]),
     } as unknown as AccountService);
     await expect(empty.enqueue(request())).rejects.toThrow();
+  });
+});
+
+describe('PublishWorker', () => {
+  let dir = '';
+  let video = '';
+  let store: QueueStore;
+  const lines: string[] = [];
+  const output = { line: (text: string) => lines.push(text) } as unknown as Output;
+
+  beforeEach(async () => {
+    lines.length = 0;
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-worker-'));
+    video = path.join(dir, 'c.mp4');
+    await fs.writeFile(video, 'x');
+    store = new QueueStore({ queueFile: path.join(dir, 'queue.json') } as AppPaths);
+  });
+
+  afterEach(async () => {
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  async function approved(): Promise<string> {
+    const job = await store.add({ file: video, account: 'main', platform: 'youtube', title: 'T' });
+    await store.transition(job.id, 'approved');
+    return job.id;
+  }
+
+  const options = { once: true, intervalMs: 5, maxAttempts: 3, baseBackoffMs: 1000 };
+
+  it('publishes approved jobs to the outbox and records the url', async () => {
+    const paths = { outboxDir: path.join(dir, 'outbox') } as AppPaths;
+    const worker = new PublishWorker(store, new OutboxPublisher(paths), output);
+    const id = await approved();
+    const summary = await worker.run(options, new AbortController().signal);
+    expect(summary.published).toBe(1);
+    const job = await store.get(id);
+    expect(job.status).toBe('published');
+    expect(job.publishedUrl).toMatch(/^file:\/\//);
+    const meta = JSON.parse(
+      await fs.readFile(path.join(dir, 'outbox', 'youtube', 'main', `${id}.json`), 'utf8'),
+    ) as { title: string };
+    expect(meta.title).toBe('T');
+  });
+
+  it('never touches jobs that were not approved', async () => {
+    const paths = { outboxDir: path.join(dir, 'outbox') } as AppPaths;
+    const worker = new PublishWorker(store, new OutboxPublisher(paths), output);
+    const job = await store.add({ file: video, account: 'main', platform: 'youtube', title: 'T' });
+    const summary = await worker.run(options, new AbortController().signal);
+    expect(summary.published).toBe(0);
+    expect((await store.get(job.id)).status).toBe('pending');
+  });
+
+  it('retries with backoff and then fails after the attempt limit', async () => {
+    const worker = new PublishWorker(store, {} as OutboxPublisher, output);
+    worker.publisherFor = () => ({
+      platform: 'youtube',
+      publish: () => Promise.reject(new PublishError('instável', true)),
+    });
+    const id = await approved();
+    await worker.run(options, new AbortController().signal);
+    const first = await store.get(id);
+    expect(first.status).toBe('approved');
+    expect(first.error).toBe('instável');
+    expect(new Date(first.scheduledAt ?? 0).getTime()).toBeGreaterThan(Date.now());
+
+    await store.transition(id, 'publishing').catch(() => undefined);
+    const limited = { ...options, maxAttempts: 1 };
+    await store.transition(id, 'approved', { scheduledAt: '2020-01-01T00:00:00.000Z' });
+    await worker.run(limited, new AbortController().signal);
+    expect((await store.get(id)).status).toBe('failed');
+  });
+
+  it('fails right away on a non retryable error', async () => {
+    const worker = new PublishWorker(store, {} as OutboxPublisher, output);
+    worker.publisherFor = () => ({
+      platform: 'youtube',
+      publish: () => Promise.reject(new PublishError('arquivo inválido', false)),
+    });
+    const id = await approved();
+    await worker.run(options, new AbortController().signal);
+    expect((await store.get(id)).status).toBe('failed');
   });
 });
