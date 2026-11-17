@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { AppError } from '../common/app-error.js';
 import { ProcessRunner } from '../common/process-runner.js';
 import type { Silence, SourceMeta } from '../contracts/media.js';
+import { parseRmsLevels } from '../analysis/loudness.js';
 import { parseSilences } from './silence-parser.js';
 
 export interface SilenceDetection {
@@ -116,6 +117,27 @@ export class MediaTools {
       '-',
     ]);
     return parseSilences(stderr, totalDuration);
+  }
+
+  async rmsLevels(file: string): Promise<number[]> {
+    const { stdout } = await this.runner.exec('ffmpeg', [
+      '-v',
+      'error',
+      '-nostdin',
+      '-i',
+      path.resolve(file),
+      '-vn',
+      '-ac',
+      '1',
+      '-ar',
+      '16000',
+      '-af',
+      'aresample=16000,asetnsamples=n=16000:p=0,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-',
+      '-f',
+      'null',
+      '-',
+    ]);
+    return parseRmsLevels(stdout);
   }
 
   async frame(video: string, atSeconds: number, output: string): Promise<void> {
