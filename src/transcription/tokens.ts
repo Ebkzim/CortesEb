@@ -14,7 +14,7 @@ const SHORT_REPEATS = 6;
 const MAX_PHRASE = 16;
 
 const MAX_MARKER_WORDS = 6;
-const DASH_ONLY = /^[-–—]+$/;
+const DASH_ONLY = /^([-–—]+|>+)$/;
 
 export function dropMarkers(words: readonly Word[]): Word[] {
   const result: Word[] = [];

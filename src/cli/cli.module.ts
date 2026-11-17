@@ -14,10 +14,12 @@ import { TranscriptionModule } from '../transcription/transcription.module.js';
 import { AccountCommand, ConfigCommand, NichesCommand } from './commands/config.command.js';
 import { DoctorCommand, SetupCommand } from './commands/doctor.command.js';
 import {
+  CaptionsCommand,
   CheckCommand,
   FetchCommand,
   FrameCommand,
   PlanCommand,
+  RefineCommand,
   RenderCommand,
   SfxCommand,
   TranscribeCommand,
@@ -48,6 +50,8 @@ import {
     FetchCommand,
     PlanCommand,
     CheckCommand,
+    CaptionsCommand,
+    RefineCommand,
     TranscribeCommand,
     TranscriptCommand,
     FrameCommand,

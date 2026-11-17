@@ -3,6 +3,7 @@ import { sniffImage } from '../images/image-sniffer.js';
 import { planSounds } from '../render/sound-plan.js';
 import { placeShots } from '../timeline/spans.js';
 import { dropLoops, dropMarkers, mergeTokens } from '../transcription/tokens.js';
+import { parseJson3 } from '../transcription/youtube-captions.js';
 import { parseSilences } from './silence-parser.js';
 
 describe('parseSilences', () => {
@@ -70,6 +71,7 @@ describe('dropMarkers', () => {
       '-',
       'tá',
       '—',
+      '>>',
       'bom',
     ].map(word);
     expect(texts(dropMarkers(input))).toEqual(['Olha', 'isso', 'tá', 'bom']);
@@ -148,5 +150,47 @@ describe('planSounds', () => {
   it('skips sounds that are not staged', () => {
     expect(planSounds(placed, [3], {}, 1)).toEqual([]);
     expect(planSounds(placed, [3], { pop: 'p' }, 1)).toHaveLength(1);
+  });
+});
+
+describe('parseJson3', () => {
+  it('turns auto-caption segments into timed words', () => {
+    const words = parseJson3({
+      events: [
+        {
+          tStartMs: 1000,
+          dDurationMs: 2000,
+          segs: [
+            { utf8: 'mano' },
+            { utf8: ' o', tOffsetMs: 400 },
+            { utf8: ' gráfico', tOffsetMs: 800 },
+          ],
+        },
+        { tStartMs: 3000, dDurationMs: 500, segs: [{ utf8: '\n' }] },
+        { tStartMs: 4000, dDurationMs: 1000 },
+      ],
+    });
+    expect(words).toEqual([
+      { text: 'mano', startMs: 1000, endMs: 1400 },
+      { text: 'o', startMs: 1400, endMs: 1800 },
+      { text: 'gráfico', startMs: 1800, endMs: 3000 },
+    ]);
+  });
+
+  it('splits a multi-word segment evenly and keeps the order', () => {
+    const words = parseJson3({
+      events: [
+        { tStartMs: 5000, dDurationMs: 1000, segs: [{ utf8: 'um dois' }] },
+        { tStartMs: 2000, dDurationMs: 1000, segs: [{ utf8: 'antes' }] },
+      ],
+    });
+    expect(words.map((word) => word.text)).toEqual(['antes', 'um', 'dois']);
+    expect(words[1]).toMatchObject({ startMs: 5000, endMs: 5500 });
+    expect(words[2]).toMatchObject({ startMs: 5500, endMs: 6000 });
+  });
+
+  it('rejects an unexpected shape', () => {
+    expect(() => parseJson3({ events: 'x' })).toThrow();
+    expect(parseJson3({})).toEqual([]);
   });
 });

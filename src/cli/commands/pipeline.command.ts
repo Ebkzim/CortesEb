@@ -6,6 +6,7 @@ import { Output } from '../../common/output.js';
 import { VideoFetcher } from '../../download/video-fetcher.js';
 import { MediaTools } from '../../media/media-tools.js';
 import { TargetsService } from '../../planning/targets.service.js';
+import { ENGINE_NAMES } from '../../render/render-engine.js';
 import { RenderService } from '../../render/render.service.js';
 import { SfxGenerator } from '../../sfx/sfx-generator.js';
 import { TranscriptionService } from '../../transcription/transcription.service.js';
@@ -182,6 +183,76 @@ export class CheckCommand extends WorkspaceCommand {
   }
 }
 
+const captionsOptions = z.object({
+  work: workDir,
+  lang: z
+    .string()
+    .regex(/^[a-z]{2,3}$/)
+    .optional(),
+  url: z.string().min(1).max(2048).optional(),
+});
+
+@Command({
+  name: 'captions',
+  description: 'usa a legenda automática do YouTube como transcrição rápida',
+})
+export class CaptionsCommand extends WorkspaceCommand {
+  constructor(
+    private readonly transcription: TranscriptionService,
+    private readonly output: Output,
+  ) {
+    super();
+  }
+
+  @Option({ flags: '--lang <idioma>', description: 'idioma da legenda, ex.: pt' })
+  parseLang(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '--url <link>', description: 'link do vídeo, se não veio do fetch' })
+  parseUrl(value: string): string {
+    return value;
+  }
+
+  protected async execute(_params: string[], raw: RawOptions): Promise<void> {
+    const options = parseOptions(captionsOptions, raw);
+    this.output.json(
+      await this.transcription.fromYoutube(new Workspace(options.work), options.lang, options.url),
+    );
+  }
+}
+
+const refineOptions = z.object({
+  work: workDir,
+  pad: z.coerce.number().min(0).max(30).default(2),
+});
+
+@Command({
+  name: 'refine',
+  description: 'retranscreve com o whisper só os trechos dos cortes do cuts.json',
+})
+export class RefineCommand extends WorkspaceCommand {
+  constructor(
+    private readonly transcription: TranscriptionService,
+    private readonly output: Output,
+  ) {
+    super();
+  }
+
+  @Option({
+    flags: '--pad <segundos>',
+    description: 'folga antes e depois de cada corte (padrão 2)',
+  })
+  parsePad(value: string): string {
+    return value;
+  }
+
+  protected async execute(_params: string[], raw: RawOptions): Promise<void> {
+    const options = parseOptions(refineOptions, raw);
+    this.output.json(await this.transcription.refine(new Workspace(options.work), options.pad));
+  }
+}
+
 const frameOptions = z.object({
   work: workDir,
   at: z.coerce.number().min(0).max(86_400).default(5),
@@ -225,6 +296,7 @@ const renderOptions = z.object({
   work: workDir,
   out: z.string().min(1).max(1024),
   account: z.string().min(1).max(700).optional(),
+  engine: z.enum(ENGINE_NAMES).default('fast'),
 });
 
 @Command({ name: 'render', description: 'renderiza os cortes do cuts.json' })
@@ -241,6 +313,11 @@ export class RenderCommand extends WorkspaceCommand {
     return value;
   }
 
+  @Option({ flags: '-e, --engine <motor>', description: 'fast (padrão) ou remotion' })
+  parseEngine(value: string): string {
+    return value;
+  }
+
   @Option({ flags: '-a, --account <ids>', description: 'contas separadas por vírgula, ou all' })
   parseAccount(value: string): string {
     return value;
@@ -252,6 +329,7 @@ export class RenderCommand extends WorkspaceCommand {
       new Workspace(options.work),
       options.out,
       options.account?.split(','),
+      options.engine,
     );
     this.output.json(results);
     if (results.some((result) => !result.ok)) process.exitCode = 1;

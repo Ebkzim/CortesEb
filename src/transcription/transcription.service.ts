@@ -4,12 +4,15 @@ import { AppError } from '../common/app-error.js';
 import { exists, readJson, writeJson } from '../common/json-file.js';
 import { Output } from '../common/output.js';
 import { UserConfigStore, type UserConfig } from '../config/user-config.js';
-import { captionsSchema, silencesSchema, type Word } from '../contracts/media.js';
+import { cutsSchema } from '../contracts/cuts.js';
+import { captionsSchema, silencesSchema, sourceMetaSchema, type Word } from '../contracts/media.js';
+import { originSchema } from '../contracts/origin.js';
 import { MediaTools } from '../media/media-tools.js';
 import { transcriptLines } from '../timeline/captions.js';
 import type { Workspace } from '../workspace/workspace.js';
-import { dropMarkers } from './tokens.js';
+import { dropLoops, dropMarkers } from './tokens.js';
 import { Whisper } from './whisper.js';
+import { YoutubeCaptions } from './youtube-captions.js';
 
 export interface TranscriptionSummary {
   words: number;
@@ -35,6 +38,7 @@ export class TranscriptionService {
     private readonly whisper: Whisper,
     private readonly config: UserConfigStore,
     private readonly output: Output,
+    private readonly youtube: YoutubeCaptions,
   ) {}
 
   async run(workspace: Workspace, request: TranscriptionRequest): Promise<TranscriptionSummary> {
@@ -69,6 +73,58 @@ export class TranscriptionService {
     );
     await writeJson(workspace.captions, words);
     return this.summary(words.length, silences.length, meta.duration, language, config);
+  }
+
+  async fromYoutube(
+    workspace: Workspace,
+    language: string | undefined,
+    url: string | undefined,
+  ): Promise<TranscriptionSummary> {
+    const source = workspace.video('source');
+    if (!(await exists(source))) {
+      throw new AppError('MISSING_FILE', 'falta o source.mp4 na pasta de trabalho');
+    }
+    const config = await this.config.load();
+    const lang = language ?? config.language;
+    const link = url ?? (await readJson(workspace.origin, originSchema).catch(() => null))?.url;
+    if (link === undefined) {
+      throw new AppError('INVALID_INPUT', 'sem link de origem: use --url ou baixe com fetch');
+    }
+    const words = dropLoops(dropMarkers(await this.youtube.fetch(link, lang, workspace)));
+    const meta = await this.media.probe(source);
+    await writeJson(workspace.meta, meta);
+    await this.media.extractAudio(source, workspace.audio);
+    const silences = await this.media.detectSilences(workspace.audio, meta.duration);
+    await writeJson(workspace.silences, silences);
+    await writeJson(workspace.captions, words);
+    return this.summary(words.length, silences.length, meta.duration, lang, config);
+  }
+
+  async refine(workspace: Workspace, pad: number): Promise<{ ranges: number[][]; words: number }> {
+    const cuts = await readJson(workspace.cuts, cutsSchema);
+    const meta = await readJson(workspace.meta, sourceMetaSchema);
+    const config = await this.config.load();
+    const ranges = mergeRanges(
+      cuts.clips.map((clip) => [
+        Math.max(0, clip.start - pad),
+        Math.min(meta.duration, clip.end + pad),
+      ]),
+    );
+    let words = 0;
+    for (const [from, to] of ranges) {
+      if (from === undefined || to === undefined) continue;
+      this.output.info(`> refinando ${from.toFixed(0)}s a ${to.toFixed(0)}s`);
+      words = (
+        await this.redo(
+          workspace,
+          { from, to },
+          meta.duration,
+          config.whisperModel,
+          config.language,
+        )
+      ).length;
+    }
+    return { ranges, words };
   }
 
   private async redo(
@@ -121,4 +177,20 @@ export class TranscriptionService {
   async lines(workspace: Workspace): Promise<string[]> {
     return transcriptLines(dropMarkers(await readJson(workspace.captions, captionsSchema)));
   }
+}
+
+function mergeRanges(ranges: number[][]): number[][] {
+  const ordered = [...ranges].sort((a, b) => (a[0] ?? 0) - (b[0] ?? 0));
+  const merged: number[][] = [];
+  for (const range of ordered) {
+    const last = merged[merged.length - 1];
+    const [from, to] = range;
+    if (from === undefined || to === undefined) continue;
+    if (last !== undefined && from <= (last[1] ?? 0)) {
+      last[1] = Math.max(last[1] ?? 0, to);
+    } else {
+      merged.push([from, to]);
+    }
+  }
+  return merged;
 }
