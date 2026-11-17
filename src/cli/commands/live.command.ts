@@ -16,7 +16,7 @@ const liveOptions = z.object({
     .optional(),
   model: z.enum(WHISPER_MODELS).optional(),
   threshold: z.coerce.number().min(1).max(30).default(6),
-  lead: z.coerce.number().min(2).max(40).default(10),
+  lead: z.coerce.number().min(2).max(40).default(15),
   tail: z.coerce.number().min(3).max(40).default(8),
   minSeconds: z.coerce.number().min(8).max(120).default(20),
   maxSeconds: z.coerce.number().min(15).max(180).default(60),
@@ -28,6 +28,7 @@ const liveOptions = z.object({
   minWords: z.coerce.number().int().min(0).max(200).default(12),
   queue: z.coerce.number().int().min(1).max(20).default(3),
   keepWork: z.boolean().default(false),
+  chat: z.boolean().default(true),
 });
 
 @Command({
@@ -75,7 +76,7 @@ export class LiveCommand extends GuardedCommand {
     return value;
   }
 
-  @Option({ flags: '--lead <s>', description: 'segundos antes do pico (padrão 10)' })
+  @Option({ flags: '--lead <s>', description: 'segundos antes do pico (padrão 15)' })
   parseLead(value: string): string {
     return value;
   }
@@ -130,6 +131,11 @@ export class LiveCommand extends GuardedCommand {
     return value;
   }
 
+  @Option({ flags: '--no-chat', description: 'não usa o chat da Twitch como sinal' })
+  parseNoChat(): boolean {
+    return false;
+  }
+
   @Option({ flags: '--keep-work', description: 'mantém as pastas de trabalho dos cortes' })
   parseKeepWork(): boolean {
     return true;
@@ -175,6 +181,7 @@ export class LiveCommand extends GuardedCommand {
         minWords: options.minWords,
         maxQueue: options.queue,
         keepWork: options.keepWork,
+        chat: options.chat,
       },
       controller.signal,
     );
