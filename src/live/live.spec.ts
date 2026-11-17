@@ -134,6 +134,21 @@ describe('recorderArgs', () => {
   });
 });
 
+describe('recorderArgs with separate audio', () => {
+  it('reads audio from the second input', () => {
+    const args = recorderArgs({
+      input: 'https://cdn.example/v.m3u8',
+      audioInput: 'https://cdn.example/a.m3u8',
+      dir: '/tmp/rec',
+      epoch: 0,
+    });
+    const inputs = args.flatMap((arg, index) => (arg === '-i' ? [args[index + 1]] : []));
+    expect(inputs).toEqual(['https://cdn.example/v.m3u8', 'https://cdn.example/a.m3u8']);
+    const maps = args.flatMap((arg, index) => (arg === '-map' ? [args[index + 1]] : []));
+    expect(maps).toEqual(['0:v:0', '1:a:0', '1:a:0']);
+  });
+});
+
 describe('buildLiveClip', () => {
   const word = (text: string, start: number, end: number): Word => ({
     text,
