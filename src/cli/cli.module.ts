@@ -5,6 +5,7 @@ import { CommonModule } from '../common/common.module.js';
 import { ConfigModule } from '../config/config.module.js';
 import { DoctorService } from '../doctor/doctor.service.js';
 import { DownloadModule } from '../download/download.module.js';
+import { PublishModule } from '../publish/publish.module.js';
 import { LiveModule } from '../live/live.module.js';
 import { ImagesModule } from '../images/images.module.js';
 import { MediaModule } from '../media/media.module.js';
@@ -15,6 +16,7 @@ import { SfxModule } from '../sfx/sfx.module.js';
 import { TranscriptionModule } from '../transcription/transcription.module.js';
 import { AccountCommand, ConfigCommand, NichesCommand } from './commands/config.command.js';
 import { DoctorCommand, SetupCommand } from './commands/doctor.command.js';
+import { QueueCommand } from './commands/queue.command.js';
 import { LiveCommand, LiveFrameCommand } from './commands/live.command.js';
 import {
   CaptionsCommand,
@@ -44,6 +46,7 @@ import {
     RenderModule,
     PlanningModule,
     LiveModule,
+    PublishModule,
   ],
   providers: [
     DoctorService,
@@ -66,6 +69,7 @@ import {
     SfxCommand,
     LiveCommand,
     LiveFrameCommand,
+    QueueCommand,
   ],
 })
 export class CliModule {}
