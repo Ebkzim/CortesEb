@@ -1,5 +1,6 @@
 import type { Clip, Crop } from '../contracts/cuts.js';
 import type { Word } from '../contracts/media.js';
+import { nearest, sentenceEnds, sentenceStarts } from '../timeline/boundaries.js';
 import type { LiveWindow } from './live-detector.js';
 
 export interface CutRequest {
@@ -16,7 +17,6 @@ export interface CutRequest {
 
 export type CutOutcome = { ok: true; clip: Clip } | { ok: false; reason: string };
 
-const BREAK_SECONDS = 0.35;
 const START_REACH = 4;
 const END_BEFORE = 3;
 const END_AFTER = 5;
@@ -73,40 +73,4 @@ export function buildLiveClip(request: CutRequest): CutOutcome {
     ...(hook === '' ? {} : { hook: hook.slice(0, 500), title: hook.slice(0, 200) }),
   };
   return { ok: true, clip };
-}
-
-function sentenceStarts(words: readonly Word[]): number[] {
-  const found: number[] = [];
-  words.forEach((word, index) => {
-    const before = words[index - 1];
-    if (before === undefined || word.startMs - before.endMs >= BREAK_SECONDS * 1000) {
-      found.push(word.startMs / 1000);
-    }
-  });
-  return found;
-}
-
-function sentenceEnds(words: readonly Word[]): number[] {
-  const found: number[] = [];
-  words.forEach((word, index) => {
-    const after = words[index + 1];
-    if (after === undefined || after.startMs - word.endMs >= BREAK_SECONDS * 1000) {
-      found.push(word.endMs / 1000);
-    }
-  });
-  return found;
-}
-
-function nearest(
-  values: readonly number[],
-  target: number,
-  before: number,
-  after: number,
-): number | null {
-  let best: number | null = null;
-  for (const value of values) {
-    if (value < target - before || value > target + after) continue;
-    if (best === null || Math.abs(value - target) < Math.abs(best - target)) best = value;
-  }
-  return best;
 }
