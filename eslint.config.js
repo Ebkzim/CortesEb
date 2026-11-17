@@ -2,7 +2,16 @@ import security from 'eslint-plugin-security';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'coverage/**', 'node_modules/**', '*.config.js'] },
+  {
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      'node_modules/**',
+      '*.config.js',
+      'src/generated/**',
+      'web/**',
+    ],
+  },
   ...tseslint.configs.strictTypeChecked,
   security.configs.recommended,
   {
