@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Word } from '../contracts/media.js';
+import { cameraCrop, parseCamera } from './camera.js';
 import { ChatCounter } from './chat-counter.js';
 import { buildLiveClip } from './clip-cut.js';
 import { LiveDetector, type LiveWindow } from './live-detector.js';
@@ -267,5 +268,53 @@ describe('LiveDetector with chat boost', () => {
       found.push(...detector.push(second, -30, boost));
     }
     expect(found).toHaveLength(1);
+  });
+});
+
+describe('camera crop', () => {
+  it('builds a corner crop with the top-half ratio', () => {
+    const crop = cameraCrop(parseCamera('bottom-left', 40), 1920, 1080);
+    expect(crop).toEqual({ x: 0, y: 648, w: 486, h: 432 });
+    expect(crop.w / crop.h).toBeCloseTo(1.125, 2);
+  });
+
+  it('anchors the right corners to the right edge', () => {
+    const crop = cameraCrop(parseCamera('top-right', 30), 1920, 1080);
+    expect(crop.x + crop.w).toBe(1920);
+    expect(crop.y).toBe(0);
+  });
+
+  it('converts a percent rectangle to pixels', () => {
+    expect(cameraCrop(parseCamera('0,60,25,40', 40), 1920, 1080)).toEqual({
+      x: 0,
+      y: 648,
+      w: 480,
+      h: 432,
+    });
+  });
+
+  it('rejects invalid camera specs', () => {
+    expect(() => parseCamera('meio', 40)).toThrow();
+    expect(() => parseCamera('90,0,20,20', 40)).toThrow();
+    expect(() => parseCamera('1,2,3', 40)).toThrow();
+  });
+
+  it('puts the crop on the clip', () => {
+    const words = Array.from({ length: 14 }, (_, index) => ({
+      text: `p${index}`,
+      startMs: 8000 + index * 500,
+      endMs: 8300 + index * 500,
+    }));
+    const outcome = buildLiveClip({
+      id: 'live-0001-14',
+      window: { start: 8, end: 20, peakAt: 12, score: 7 },
+      offset: 0,
+      duration: 30,
+      words,
+      bottom: 'source',
+      minWords: 8,
+      crop: { x: 0, y: 648, w: 486, h: 432 },
+    });
+    expect(outcome.ok && outcome.clip.crop).toEqual({ x: 0, y: 648, w: 486, h: 432 });
   });
 });
