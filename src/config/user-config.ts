@@ -20,6 +20,14 @@ export const accountSchema = z.strictObject({
     .optional(),
 });
 
+export const LLM_PROVIDERS = ['agent', 'ollama', 'openai', 'anthropic'] as const;
+
+export const llmSettingsSchema = z.strictObject({
+  provider: z.enum(LLM_PROVIDERS).default('agent'),
+  model: z.string().trim().min(1).max(100).optional(),
+  baseUrl: z.string().max(300).optional(),
+});
+
 export const userConfigSchema = z.strictObject({
   accounts: z.record(accountId, accountSchema).default({}),
   defaultAccount: accountId.optional(),
@@ -30,6 +38,7 @@ export const userConfigSchema = z.strictObject({
     .string()
     .regex(/^[a-z0-9-]{1,32}$/)
     .default('gta6'),
+  llm: llmSettingsSchema.default({ provider: 'agent' }),
 });
 
 export type Account = z.infer<typeof accountSchema>;

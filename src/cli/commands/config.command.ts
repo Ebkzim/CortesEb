@@ -5,10 +5,12 @@ import { AppError } from '../../common/app-error.js';
 import { Output } from '../../common/output.js';
 import {
   LANGUAGE_PATTERN,
+  LLM_PROVIDERS,
   UserConfigStore,
   WHISPER_MODELS,
   type UserConfig,
 } from '../../config/user-config.js';
+import { llmBaseUrl } from '../../llm/llm-url.js';
 import { NicheRegistry } from '../../niches/niche-registry.js';
 import { GuardedCommand, parseOptions, type RawOptions } from '../guarded-command.js';
 
@@ -93,6 +95,9 @@ const settingsOptions = z.object({
   language: z.string().regex(LANGUAGE_PATTERN).optional(),
   sfxGain: z.coerce.number().min(0).max(2).optional(),
   niche: z.string().optional(),
+  llm: z.enum(LLM_PROVIDERS).optional(),
+  llmModel: z.string().trim().min(1).max(100).optional(),
+  llmUrl: z.string().max(300).optional(),
 });
 
 @Command({ name: 'config', description: 'mostra ou altera modelo, idioma, volume e nicho' })
@@ -125,6 +130,24 @@ export class ConfigCommand extends GuardedCommand {
     return value;
   }
 
+  @Option({
+    flags: '--llm <provedor>',
+    description: `quem escolhe os cortes: ${LLM_PROVIDERS.join(', ')}`,
+  })
+  parseLlm(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '--llm-model <modelo>', description: 'modelo do provedor, ex.: qwen2.5:7b' })
+  parseLlmModel(value: string): string {
+    return value;
+  }
+
+  @Option({ flags: '--llm-url <endereço>', description: 'endereço do servidor (Ollama, etc.)' })
+  parseLlmUrl(value: string): string {
+    return value;
+  }
+
   protected async execute(_params: string[], raw: RawOptions): Promise<void> {
     const options = parseOptions(settingsOptions, raw);
     const patch: Partial<UserConfig> = {};
@@ -132,6 +155,19 @@ export class ConfigCommand extends GuardedCommand {
     if (options.language !== undefined) patch.language = options.language;
     if (options.sfxGain !== undefined) patch.sfxGain = options.sfxGain;
     if (options.niche !== undefined) patch.niche = this.niches.get(options.niche).id;
+    if (
+      options.llm !== undefined ||
+      options.llmModel !== undefined ||
+      options.llmUrl !== undefined
+    ) {
+      const current = (await this.config.load()).llm;
+      patch.llm = {
+        ...current,
+        ...(options.llm === undefined ? {} : { provider: options.llm }),
+        ...(options.llmModel === undefined ? {} : { model: options.llmModel }),
+        ...(options.llmUrl === undefined ? {} : { baseUrl: llmBaseUrl(options.llmUrl) }),
+      };
+    }
     this.output.json(await this.config.update(patch));
   }
 }

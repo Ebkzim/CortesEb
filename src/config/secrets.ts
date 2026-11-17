@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
 
-export type SecretName = 'ELEVENLABS_API_KEY' | 'GOOGLE_API_KEY' | 'GOOGLE_CSE_ID';
+export type SecretName =
+  | 'ELEVENLABS_API_KEY'
+  | 'GOOGLE_API_KEY'
+  | 'GOOGLE_CSE_ID'
+  | 'ANTHROPIC_API_KEY'
+  | 'CORTES_EB_LLM_API_KEY';
 
 @Injectable()
 export class Secrets {
