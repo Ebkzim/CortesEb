@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
 import { exists, readJson, writeJson } from '../common/json-file.js';
-import { Output } from '../common/output.js';
+import { Progress } from '../common/progress.js';
 import { cutsSchema, type Clip } from '../contracts/cuts.js';
 import { captionsSchema } from '../contracts/media.js';
 import { LlmService, type LlmSettings } from '../llm/llm.service.js';
@@ -47,7 +47,7 @@ export class SelectorService {
   constructor(
     private readonly llm: LlmService,
     private readonly targets: TargetsService,
-    private readonly output: Output,
+    private readonly progress: Progress,
   ) {}
 
   async run(workspace: Workspace, request: SelectRequest): Promise<SelectResult> {
@@ -71,7 +71,11 @@ export class SelectorService {
     const warnings: string[] = [];
     const found: Candidate[] = [];
     for (const [index, chunk] of chunks.entries()) {
-      this.output.info(`> lendo o trecho ${index + 1} de ${chunks.length} com ${client.label}`);
+      this.progress.step(
+        'select',
+        index / chunks.length,
+        `lendo o trecho ${index + 1} de ${chunks.length} com ${client.label}`,
+      );
       const answer = await this.ask(client, chunk, {
         ...context,
         peaks: peaks.filter((second) => second >= chunk.from && second < chunk.to),

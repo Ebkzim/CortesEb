@@ -34,7 +34,12 @@ export class RemotionEngine implements RenderEngine {
     };
   }
 
-  async render(session: RenderSession, props: SplitCutProps, output: string): Promise<void> {
+  async render(
+    session: RenderSession,
+    props: SplitCutProps,
+    output: string,
+    onProgress?: (fraction: number) => void,
+  ): Promise<void> {
     const composition = await selectComposition({
       serveUrl: session.serveUrl,
       id: SPLIT_CUT_COMPOSITION,
@@ -49,6 +54,9 @@ export class RemotionEngine implements RenderEngine {
       outputLocation: output,
       inputProps: props,
       logLevel: 'error',
+      onProgress: ({ progress }) => {
+        onProgress?.(progress);
+      },
     });
   }
 }

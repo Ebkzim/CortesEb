@@ -4,12 +4,41 @@ import { ProcessRunner } from '../common/process-runner.js';
 
 const JS_RUNTIMES_FLAG = '--js-runtimes';
 const HELP_TIMEOUT_MS = 30_000;
+const PROGRESS_ARGS = [
+  '--newline',
+  '--progress-template',
+  'download:[cortes] %(progress._percent_str)s',
+];
+const PERCENT = /\[cortes\]\s*([0-9.]+)%/;
+
+export function downloadPercent(line: string): number | null {
+  const match = PERCENT.exec(line);
+  if (match?.[1] === undefined) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : null;
+}
+
+export class DownloadTracker {
+  private phase = 0;
+  private last = 0;
+  private best = 0;
+
+  constructor(private readonly phases: number) {}
+
+  update(percent: number): number {
+    if (percent + 20 < this.last) this.phase = Math.min(this.phases - 1, this.phase + 1);
+    this.last = percent;
+    const overall = (this.phase + percent / 100) / this.phases;
+    this.best = Math.max(this.best, Math.min(1, overall));
+    return this.best;
+  }
+}
 
 @Injectable()
 export class YtDlp {
   constructor(private readonly runner: ProcessRunner) {}
 
-  async baseArgs(): Promise<string[]> {
+  async baseArgs(progress = false): Promise<string[]> {
     if (!(await this.runner.has('yt-dlp'))) {
       throw new AppError('MISSING_DEPENDENCY', 'yt-dlp não está instalado: envie um arquivo');
     }
@@ -23,7 +52,7 @@ export class YtDlp {
       '--no-playlist',
       '--no-exec',
       '--no-cookies-from-browser',
-      '--no-progress',
+      ...(progress ? PROGRESS_ARGS : ['--no-progress']),
       '--restrict-filenames',
     ];
   }

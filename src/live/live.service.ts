@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
-import { Output } from '../common/output.js';
+import { Progress } from '../common/progress.js';
 import { VideoFetcher } from '../download/video-fetcher.js';
 import { Workspace } from '../workspace/workspace.js';
 import { QueueStore } from '../publish/queue-store.js';
@@ -19,7 +19,7 @@ export class LiveService {
     private readonly recorder: LiveRecorder,
     private readonly factory: ClipFactory,
     private readonly fetcher: VideoFetcher,
-    private readonly output: Output,
+    private readonly progress: Progress,
     private readonly queue: QueueStore,
     private readonly llm: LlmService,
   ) {}
@@ -42,13 +42,13 @@ export class LiveService {
       {
         recorder: this.recorder,
         factory: this.factory,
-        output: this.output,
+        progress: this.progress,
         chat: channel === null ? null : new TwitchChat(channel),
         judge,
         enqueue: (clip) => enqueueClip(this.queue, request.enqueue ?? [], clip),
         watchAds: twitchChannel(request.link) !== null,
         fetchBottom: async (source, workRoot) => {
-          this.output.info('> preparando o vídeo de baixo');
+          this.progress.step('bottom', null, 'preparando o vídeo de baixo');
           return this.fetcher.fetch(source, 'bottom', new Workspace(workRoot));
         },
       },

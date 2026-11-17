@@ -10,5 +10,10 @@ export interface RenderSession {
 
 export interface RenderEngine {
   open(publicDir: string): Promise<RenderSession>;
-  render(session: RenderSession, props: SplitCutProps, output: string): Promise<void>;
+  render(
+    session: RenderSession,
+    props: SplitCutProps,
+    output: string,
+    onProgress?: (fraction: number) => void,
+  ): Promise<void>;
 }

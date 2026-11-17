@@ -37,7 +37,12 @@ export class FfmpegEngine implements RenderEngine {
     return Promise.resolve({ serveUrl: publicDir, dispose: () => Promise.resolve() });
   }
 
-  async render(session: RenderSession, props: SplitCutProps, output: string): Promise<void> {
+  async render(
+    session: RenderSession,
+    props: SplitCutProps,
+    output: string,
+    onProgress?: (fraction: number) => void,
+  ): Promise<void> {
     const root = session.serveUrl;
     const tag = createHash('sha1').update(output).digest('hex').slice(0, 10);
     const fontFile = path.join(this.paths.fontsDir, FONT_FILE);
@@ -66,6 +71,9 @@ export class FfmpegEngine implements RenderEngine {
           '-v',
           'error',
           '-nostdin',
+          '-nostats',
+          '-progress',
+          'pipe:1',
           ...plan.inputs,
           '-filter_complex_script',
           scriptFile,
@@ -93,7 +101,15 @@ export class FfmpegEngine implements RenderEngine {
           props.totalSeconds.toFixed(3),
           path.resolve(output),
         ],
-        { cwd: root },
+        {
+          cwd: root,
+          onLine: (line) => {
+            const done = renderedSeconds(line);
+            if (done !== null && onProgress !== undefined && props.totalSeconds > 0) {
+              onProgress(done / props.totalSeconds);
+            }
+          },
+        },
       );
     } finally {
       await Promise.all(
@@ -185,4 +201,10 @@ export class FfmpegEngine implements RenderEngine {
     );
     return result.stdout.trim() !== '';
   }
+}
+
+export function renderedSeconds(line: string): number | null {
+  const match = /^out_time_us=(\d+)$/.exec(line.trim());
+  if (match?.[1] === undefined) return null;
+  return Number(match[1]) / 1_000_000;
 }
