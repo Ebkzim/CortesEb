@@ -7,7 +7,13 @@ import { RENDER_FPS } from '../contracts/render.js';
 import { MediaTools } from '../media/media-tools.js';
 import { planClip } from '../timeline/plan.js';
 import type { Workspace } from '../workspace/workspace.js';
-import { deriveTargets, targetsSchema, type ClipTargets } from './clip-targets.js';
+import {
+  deriveTargets,
+  MAX_CLIP_SECONDS,
+  MIN_CLIP_SECONDS,
+  targetsSchema,
+  type ClipTargets,
+} from './clip-targets.js';
 
 export interface ClipCheck {
   id: string;
@@ -75,6 +81,26 @@ export class TargetsService {
       problems,
       clips,
     };
+  }
+
+  async fitDurations(workspace: Workspace): Promise<{ widened: boolean; check: CutsCheck }> {
+    const check = await this.check(workspace);
+    const targets = check.targets;
+    if (check.ok || targets === null || check.problems.length > 0) return { widened: false, check };
+    const seconds = check.clips.map((clip) => clip.seconds);
+    const widened = targetsSchema.parse({
+      ...targets,
+      minSeconds: Math.max(
+        MIN_CLIP_SECONDS,
+        Math.min(targets.minSeconds, Math.floor(Math.min(...seconds))),
+      ),
+      maxSeconds: Math.min(
+        MAX_CLIP_SECONDS,
+        Math.max(targets.maxSeconds, Math.ceil(Math.max(...seconds))),
+      ),
+    });
+    await writeJson(workspace.file(TARGETS_FILE), widened);
+    return { widened: true, check: await this.check(workspace) };
   }
 
   async assert(workspace: Workspace): Promise<void> {

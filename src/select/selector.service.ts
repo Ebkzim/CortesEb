@@ -28,6 +28,7 @@ export interface SelectRequest {
   niche: string;
   minScore: number;
   chunk: Partial<ChunkOptions>;
+  fallback?: boolean;
 }
 
 export interface SelectResult {
@@ -89,7 +90,19 @@ export class SelectorService {
         if (fitted !== null) found.push(fitted);
       }
     }
-    const best = pickBest(found, plan.count, request.minScore);
+    let best = pickBest(found, plan.count, request.minScore);
+    if (best.length === 0 && request.fallback === true && found.length > 0) {
+      best = pickBest(found, plan.count, 0);
+      warnings.push(
+        `nenhum trecho chegou à nota ${String(request.minScore)}; usei os de maior nota que o modelo achou`,
+      );
+    }
+    if (best.length === 0 && found.length === 0) {
+      throw new AppError(
+        'REMOTE_FAILED',
+        'o modelo não devolveu nenhum trecho válido (tente outro modelo ou uma transcrição melhor)',
+      );
+    }
     if (best.length === 0) {
       throw new AppError(
         'INVALID_INPUT',

@@ -245,7 +245,7 @@ describe('SelectorService', () => {
 
   it('warns about a chunk that keeps failing and fails when nothing is selected', async () => {
     const { service } = build(['ruim', 'ruim']);
-    await expect(service.run(new Workspace(dir), request)).rejects.toThrow(/não achou cortes/);
+    await expect(service.run(new Workspace(dir), request)).rejects.toThrow(/nenhum trecho válido/);
   });
 
   it('refuses clips below the minimum score', async () => {
@@ -254,6 +254,23 @@ describe('SelectorService', () => {
     });
     const { service } = build([weak]);
     await expect(service.run(new Workspace(dir), request)).rejects.toThrow(/nota/);
+  });
+
+  it('falls back to the best weak clips when asked, with a warning', async () => {
+    const weak = JSON.stringify({
+      clips: [{ start: 40, end: 80, score: 4, hook: 'h', title: 'Fraco' }],
+    });
+    const { service } = build([weak]);
+    const result = await service.run(new Workspace(dir), { ...request, fallback: true });
+    expect(result.clips).toHaveLength(1);
+    expect(result.warnings.join(' ')).toContain('maior nota');
+  });
+
+  it('explains when the model returns no usable clip at all', async () => {
+    const { service } = build([JSON.stringify({ clips: [] })]);
+    await expect(service.run(new Workspace(dir), { ...request, fallback: true })).rejects.toThrow(
+      /nenhum trecho válido/,
+    );
   });
 
   it('warns when fewer clips than planned pass the score', async () => {

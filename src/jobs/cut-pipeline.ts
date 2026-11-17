@@ -132,6 +132,13 @@ export class CutPipeline implements Pipeline {
     tracker.finish('select');
     assertActive(signal);
 
+    const fitted = await this.targets.fitDurations(workspace);
+    if (fitted.widened) {
+      context.log(
+        'warn',
+        'a duração de algum corte ficou fora da faixa depois de tirar as pausas; a faixa foi ajustada',
+      );
+    }
     const cuts = await readJson(workspace.cuts, cutsSchema);
     tracker.start('render', `${String(cuts.clips.length)} cortes para renderizar`);
     const results = await this.renderer.run(workspace, context.outDir, request.accounts, 'fast');
@@ -257,6 +264,7 @@ export class CutPipeline implements Pipeline {
       niche: `${niche.label}: ${niche.summary}`,
       minScore: MIN_SCORE,
       chunk: {},
+      fallback: true,
     });
     for (const warning of result.warnings) context.log('warn', warning);
   }
