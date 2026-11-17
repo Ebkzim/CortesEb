@@ -140,6 +140,36 @@ cortes-eb refine --work cortes/<slug>/work
 
 Leva alguns minutos, e não a transcrição inteira.
 
+## Vídeos longos (lives, VODs da Twitch e da Kick)
+
+Uma live de horas não pode ser transcrita inteira: o whisper leva de 1 a 6 minutos por minuto de fala. Para vídeos acima de uns 40 minutos, não baixe nem transcreva tudo.
+
+1. Baixe só um trecho de cada vez, com o ponto de início e de fim em segundos. O trecho vira o `source.mp4`, e o tempo dentro dele começa em zero. O início fica registrado em `origin.json` (campo `offset`):
+
+```bash
+cortes-eb fetch "LINK" --work cortes/<slug>/work --from 3600 --to 5400
+```
+
+2. Se o usuário não souber onde estão os bons momentos, varra o trecho baixado atrás de picos de volume (gritos, risadas, reações), sem transcrever nada. Leva cerca de 30 segundos para meia hora de vídeo:
+
+```bash
+cortes-eb peaks --work cortes/<slug>/work --top 10
+```
+
+A saída lista janelas com início, fim, ponto do pico e nota. **Os picos são só uma pista.** Eles pegam som alto de qualquer origem, inclusive o do jogo, e perdem comentários calmos mas interessantes. Em vídeos de react, metade dos picos pode ser áudio do jogo.
+
+3. Transcreva com o whisper só as janelas que parecerem promissoras:
+
+```bash
+cortes-eb transcribe --work cortes/<slug>/work --lang pt --from 562 --to 595
+```
+
+Funciona numa pasta nova e acumula as janelas já transcritas. Leia com `cortes-eb transcript`.
+
+4. Escolha os cortes sobre essas janelas, como no passo 7.
+
+Links da Twitch e da Kick (VODs e clipes) são aceitos, mas não foram testados. Esses sites não têm legenda automática, então não use `captions`. VODs só para inscritos e lives em andamento não funcionam.
+
 ## 7. Escolher os cortes
 
 O usuário não escolhe os trechos. Você decide, seguindo `references/ganchos.md` e o guia do nicho.
