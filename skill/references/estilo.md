@@ -1,6 +1,6 @@
 # Estilo dos cortes
 
-O visual vem dos componentes em `remotion/` e dos valores em `remotion/theme.ts`.
+O visual de referência vem dos componentes em `remotion/` e dos valores em `remotion/theme.ts`. O motor rápido (`--engine fast`) reproduz o mesmo layout direto no ffmpeg: a legenda é desenhada em ASS com a mesma fonte e tamanho, e a marca d'água e o degradê viram imagens sobrepostas. Diferenças conhecidas: o espaço entre as linhas da legenda é um pouco maior, e a imagem pop não tem cantos arredondados nem animação de escala (só o fade).
 
 ## Quadro (1080×1920, 30 fps)
 

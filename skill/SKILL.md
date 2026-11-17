@@ -106,12 +106,39 @@ Pergunte a duração ou a quantidade junto com o pedido dos vídeos, numa única
 
 ## 6. Transcrever
 
+Para escolher os cortes você precisa de uma transcrição com tempo. Há dois caminhos, e o primeiro é muito mais rápido:
+
+**Vídeo de link com legenda automática (padrão para links).** Leva cerca de 1 minuto, contra uns 30 minutos do whisper para um vídeo de meia hora:
+
+```bash
+cortes-eb captions --work cortes/<slug>/work --lang pt
+```
+
+Se o vídeo não tiver legenda no idioma, o comando avisa. Aí use o whisper.
+
+**Whisper (arquivo, ou link sem legenda).** Transcreve tudo localmente e é lento:
+
 ```bash
 cortes-eb transcribe --work cortes/<slug>/work --lang pt
+```
+
+`--max-seconds N` transcreve só o começo. Para refazer só um trecho: `--from N --to M`.
+
+Depois, leia a transcrição:
+
+```bash
 cortes-eb transcript --work cortes/<slug>/work
 ```
 
-`--max-seconds N` transcreve só o começo, para testar rápido. `transcript` imprime linhas `[mm:ss] frase`. Leia em blocos.
+Ela imprime linhas `[mm:ss] frase`. Leia em blocos.
+
+A legenda do YouTube serve para **escolher** os cortes. Ela é menos precisa que o whisper nas palavras. Por isso, depois de gravar o `cuts.json` (passo 7), rode o `refine`, que retranscreve com o whisper só os trechos escolhidos:
+
+```bash
+cortes-eb refine --work cortes/<slug>/work
+```
+
+Leva alguns minutos, e não a transcrição inteira.
 
 ## 7. Escolher os cortes
 
@@ -123,7 +150,7 @@ O usuário não escolhe os trechos. Você decide, seguindo `references/ganchos.m
 4. Dê nota de 0 a 10 a cada gancho. Se não houver `count` ganchos com nota 6 ou mais, diga ao usuário quantos bons existem e pergunte se ele prefere menos cortes ou aceitar os mais fracos. Para reduzir, rode `plan` de novo com `--count`.
 5. Confira o enquadramento com `cortes-eb frame --work cortes/<slug>/work --at 5`, olhe a imagem gerada e ajuste `focus`.
 6. Grave `work/cuts.json`.
-7. Rode `cortes-eb check --work cortes/<slug>/work`. Ele mostra a duração final de cada corte e o que está fora do plano, sem renderizar. Ajuste `start` e `end` até `ok` ser `true`. Como as pausas saem, o corte pronto fica mais curto que `end - start`.
+7. Rode `cortes-eb refine --work cortes/<slug>/work` se a transcrição veio da legenda do YouTube, e depois `cortes-eb check --work cortes/<slug>/work`. O `check` mostra a duração final de cada corte e o que está fora do plano, sem renderizar. Ajuste `start` e `end` até `ok` ser `true`. Como as pausas saem, o corte pronto fica mais curto que `end - start`.
 
 ```json
 {
@@ -197,6 +224,8 @@ Nunca peça nem escreva uma chave de API no chat.
 ```bash
 cortes-eb render --work cortes/<slug>/work --out cortes/<slug> --account gta,filmes
 ```
+
+`--engine fast` (padrão) monta o vídeo direto no ffmpeg e leva uns 2 minutos para um corte de 70 s. `--engine remotion` usa o navegador do Remotion, com o visual de referência, e leva uns 13 minutos para o mesmo corte. Use o rápido sempre, a menos que o usuário peça o outro.
 
 `--account` aceita ids separados por vírgula ou `all`. Sem ele, vale a conta padrão. Um corte com `accounts` no `cuts.json` ignora o `--account`. Cada conta recebe os arquivos em `cortes/<slug>/<conta>/`. Sem nenhuma conta cadastrada, os arquivos saem em `cortes/<slug>/`, sem marca d'água. Um corte enviado a duas contas é renderizado duas vezes, uma com cada marca d'água.
 
