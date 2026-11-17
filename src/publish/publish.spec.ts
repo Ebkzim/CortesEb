@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Output } from '../common/output.js';
 import type { AccountService } from '../accounts/account.service.js';
 import type { AppPaths } from '../config/app-paths.js';
+import type { Job } from '../contracts/publish.js';
 import { advance, canTransition, isFinal } from './job-state.js';
 import { OutboxPublisher } from './outbox-publisher.js';
+import { evaluatePolicy } from './publish-policy.js';
 import { PublishWorker } from './publish-worker.js';
 import { PublishError } from './publisher.js';
 import { QueueService, type EnqueueRequest } from './queue.service.js';
@@ -281,5 +283,92 @@ describe('PublishWorker', () => {
     const id = await approved();
     await worker.run(options, new AbortController().signal);
     expect((await store.get(id)).status).toBe('failed');
+  });
+});
+
+describe('evaluatePolicy', () => {
+  const make = (updatedAt: string, patch: Partial<Job> = {}): Job => ({
+    id: 'j-aaaaaaaaaaaa',
+    file: '/x/a.mp4',
+    account: 'main',
+    platform: 'youtube',
+    title: 't',
+    description: '',
+    tags: [],
+    status: 'published',
+    attempts: 1,
+    createdAt: updatedAt,
+    updatedAt,
+    ...patch,
+  });
+  const now = new Date('2026-11-17T12:00:00.000Z');
+  const limits = { maxPerDay: 2, minGapMs: 30 * 60 * 1000 };
+
+  it('allows posting when nothing was posted recently', () => {
+    expect(evaluatePolicy(make('2026-11-16T09:00:00.000Z'), [], now, limits)).toEqual({ ok: true });
+  });
+
+  it('waits for the minimum gap after the last post', () => {
+    const decision = evaluatePolicy(
+      make(now.toISOString()),
+      [make('2026-11-17T11:50:00.000Z')],
+      now,
+      limits,
+    );
+    expect(decision.ok).toBe(false);
+    if (!decision.ok) expect(decision.retryAt.toISOString()).toBe('2026-11-17T12:20:00.000Z');
+  });
+
+  it('blocks after the daily limit until the oldest post leaves the window', () => {
+    const decision = evaluatePolicy(
+      make(now.toISOString()),
+      [make('2026-11-17T01:00:00.000Z'), make('2026-11-17T03:00:00.000Z')],
+      now,
+      limits,
+    );
+    expect(decision.ok).toBe(false);
+    if (!decision.ok) expect(decision.retryAt.toISOString()).toBe('2026-11-18T01:00:00.000Z');
+  });
+
+  it('counts each account and platform separately', () => {
+    const others = [
+      make('2026-11-17T11:55:00.000Z', { account: 'outra' }),
+      make('2026-11-17T11:55:00.000Z', { platform: 'tiktok' }),
+    ];
+    expect(evaluatePolicy(make(now.toISOString()), others, now, limits)).toEqual({ ok: true });
+  });
+});
+
+describe('PublishWorker policy', () => {
+  it('delays a job instead of publishing when the gap is not met', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-policy-'));
+    const video = path.join(dir, 'c.mp4');
+    await fs.writeFile(video, 'x');
+    const store = new QueueStore({ queueFile: path.join(dir, 'queue.json') } as AppPaths);
+    const paths = { outboxDir: path.join(dir, 'outbox') } as AppPaths;
+    const worker = new PublishWorker(store, new OutboxPublisher(paths), {
+      line: () => undefined,
+    } as unknown as Output);
+    const ids: string[] = [];
+    for (let index = 0; index < 2; index += 1) {
+      const job = await store.add({
+        file: video,
+        account: 'main',
+        platform: 'youtube',
+        title: 'T',
+      });
+      await store.transition(job.id, 'approved');
+      ids.push(job.id);
+    }
+    const summary = await worker.run(
+      { once: true, intervalMs: 5, maxAttempts: 3, baseBackoffMs: 1000 },
+      new AbortController().signal,
+    );
+    expect(summary.published).toBe(1);
+    expect(summary.delayed).toBe(1);
+    const waiting = (await store.list('approved'))[0];
+    expect(waiting?.attempts).toBe(0);
+    expect(new Date(waiting?.scheduledAt ?? 0).getTime()).toBeGreaterThan(Date.now());
+    await fs.rm(dir, { recursive: true, force: true });
   });
 });

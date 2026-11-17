@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Output } from '../common/output.js';
 import type { Job } from '../contracts/publish.js';
 import { OutboxPublisher } from './outbox-publisher.js';
+import { evaluatePolicy, POLICY_DEFAULTS, type PolicyLimits } from './publish-policy.js';
 import { PublishError, type Publisher } from './publisher.js';
 import { QueueStore } from './queue-store.js';
 
@@ -10,12 +11,14 @@ export interface WorkerOptions {
   intervalMs: number;
   maxAttempts: number;
   baseBackoffMs: number;
+  limits?: PolicyLimits;
 }
 
 export interface WorkerSummary {
   published: number;
   retried: number;
   failed: number;
+  delayed: number;
 }
 
 export const WORKER_DEFAULTS: WorkerOptions = {
@@ -40,7 +43,7 @@ export class PublishWorker {
   }
 
   async run(options: WorkerOptions, signal: AbortSignal): Promise<WorkerSummary> {
-    const summary: WorkerSummary = { published: 0, retried: 0, failed: 0 };
+    const summary: WorkerSummary = { published: 0, retried: 0, failed: 0, delayed: 0 };
     const recovered = await this.store.recoverStale();
     if (recovered > 0) this.event({ event: 'recovered', jobs: recovered });
     while (!signal.aborted) {
@@ -57,6 +60,26 @@ export class PublishWorker {
   }
 
   private async handle(job: Job, options: WorkerOptions, summary: WorkerSummary): Promise<void> {
+    const decision = evaluatePolicy(
+      job,
+      await this.store.list('published'),
+      new Date(),
+      options.limits ?? POLICY_DEFAULTS,
+    );
+    if (!decision.ok) {
+      await this.store.transition(job.id, 'approved', {
+        scheduledAt: decision.retryAt.toISOString(),
+        attempts: job.attempts - 1,
+      });
+      summary.delayed += 1;
+      this.event({
+        event: 'delayed',
+        id: job.id,
+        until: decision.retryAt.toISOString(),
+        reason: decision.reason,
+      });
+      return;
+    }
     try {
       const result = await this.publisherFor(job.platform).publish(job);
       await this.store.transition(job.id, 'published', { publishedUrl: result.url });
