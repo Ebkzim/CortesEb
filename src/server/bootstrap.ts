@@ -61,12 +61,12 @@ export async function startServer(port: number, webDir: string): Promise<Running
     return payload;
   });
   if (fs.existsSync(path.join(webDir, 'index.html'))) {
-    await app.register(fastifyStatic, { root: webDir, prefix: '/', wildcard: false });
-    fastify.setNotFoundHandler(async (request, reply) => {
-      if (request.method === 'GET' && !request.url.startsWith('/api/')) {
-        return reply.type('text/html').sendFile('index.html');
-      }
-      return reply.status(404).send({ error: 'não encontrado' });
+    await app.register(fastifyStatic, {
+      root: webDir,
+      prefix: '/',
+      index: 'index.html',
+      redirect: true,
+      dotfiles: 'deny',
     });
   }
   app.useGlobalFilters(new HttpErrors());

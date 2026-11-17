@@ -11,6 +11,8 @@ command -v npm >/dev/null || { echo "erro: npm não encontrado" >&2; exit 1; }
 cd "$ROOT"
 npm ci
 npm run build
+npm ci --prefix web
+npm run build --prefix web
 npm link
 
 mkdir -p "$SKILLS_DIR"

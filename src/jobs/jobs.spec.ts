@@ -190,6 +190,7 @@ describe('agent prompt', () => {
       niche: 'Podcast',
     });
     expect(codex).not.toContain('skill');
+    expect(codex).toContain('1 corte, cada um');
   });
 });
 
