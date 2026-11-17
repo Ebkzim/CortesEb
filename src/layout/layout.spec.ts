@@ -37,6 +37,18 @@ describe('applyLayout', () => {
     expect(result.crop).toEqual({ x: 1, y: 2, w: 300, h: 266 });
   });
 
+  it('crops the bottom half to an area only when it shows the source', () => {
+    const podcast = applyLayout(
+      clip(),
+      { camera: '0,0,63.3,100', bottom: 'source', bottomArea: '36.7,0,63.3,100' },
+      frame,
+    );
+    expect(podcast.crop).toEqual({ x: 0, y: 0, w: 1215, h: 1080 });
+    expect(podcast.bottomCrop).toEqual({ x: 705, y: 0, w: 1215, h: 1080 });
+    const trailer = applyLayout(clip(), { bottom: 'video', bottomArea: '36.7,0,63.3,100' }, frame);
+    expect(trailer.bottomCrop).toBeUndefined();
+  });
+
   it('lets none turn the camera crop off', () => {
     expect(applyLayout(clip(), { camera: 'none' }, frame).crop).toBeUndefined();
   });

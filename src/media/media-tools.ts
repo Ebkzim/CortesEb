@@ -140,7 +140,7 @@ export class MediaTools {
     return parseRmsLevels(stdout);
   }
 
-  async frame(video: string, atSeconds: number, output: string): Promise<void> {
+  async frame(video: string, atSeconds: number, output: string, width?: number): Promise<void> {
     await this.runner.exec('ffmpeg', [
       '-y',
       '-v',
@@ -151,6 +151,7 @@ export class MediaTools {
       path.resolve(video),
       '-frames:v',
       '1',
+      ...(width === undefined ? [] : ['-vf', `scale=${Math.round(width)}:-2`]),
       path.resolve(output),
     ]);
   }

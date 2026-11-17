@@ -17,11 +17,16 @@ export function mergeLayouts(workspace: Layout | null, saved: Layout): Layout {
 
 export function applyLayout(clip: Clip, layout: Layout, frame: SourceMeta): ResolvedClip {
   const bottom = clip.bottom ?? layout.bottom ?? 'video';
-  if (clip.crop !== undefined || layout.camera === undefined || layout.camera === NO_CAMERA) {
-    return { ...clip, bottom };
+  const resolved: ResolvedClip = { ...clip, bottom };
+  if (clip.crop === undefined && layout.camera !== undefined && layout.camera !== NO_CAMERA) {
+    const camera = parseCamera(layout.camera, layout.cameraSize ?? DEFAULT_CAMERA_SIZE);
+    resolved.crop = cameraCrop(camera, frame.width, frame.height);
   }
-  const camera = parseCamera(layout.camera, layout.cameraSize ?? DEFAULT_CAMERA_SIZE);
-  return { ...clip, bottom, crop: cameraCrop(camera, frame.width, frame.height) };
+  if (bottom === 'source' && clip.bottomCrop === undefined && layout.bottomArea !== undefined) {
+    const area = parseCamera(layout.bottomArea, DEFAULT_CAMERA_SIZE);
+    resolved.bottomCrop = cameraCrop(area, frame.width, frame.height);
+  }
+  return resolved;
 }
 
 function definedOnly(layout: Layout): Layout {
