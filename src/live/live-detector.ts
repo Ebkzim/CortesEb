@@ -52,12 +52,12 @@ export class LiveDetector {
     this.config = { ...LIVE_DEFAULTS, ...options };
   }
 
-  push(time: number, level: number): LiveWindow[] {
+  push(time: number, level: number, boost = 0): LiveWindow[] {
     this.latest = time;
     const clamped = Math.max(FLOOR_DB, level);
     this.levels.push(clamped);
     if (this.levels.length > this.config.baselineSeconds) this.levels.shift();
-    this.excess.push(clamped - median(this.levels));
+    this.excess.push(clamped - median(this.levels) + boost);
     if (this.excess.length > SMOOTH_SAMPLES) this.excess.shift();
     this.seen += 1;
     if (this.seen <= this.config.warmup) return [];

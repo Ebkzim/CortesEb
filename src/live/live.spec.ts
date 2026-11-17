@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Word } from '../contracts/media.js';
+import { ChatCounter } from './chat-counter.js';
 import { buildLiveClip } from './clip-cut.js';
 import { LiveDetector, type LiveWindow } from './live-detector.js';
 import { recorderArgs } from './live-recorder.js';
 import { RmsStreamParser } from './rms-stream.js';
+import { certNamesAreTwitchEdge, parseIrcLine, twitchChannel } from './twitch-chat.js';
 import { coveredUntil, parseSegmentList, segmentsCovering } from './segment-log.js';
 
 function feed(detector: LiveDetector, from: number, to: number, level: number): LiveWindow[] {
@@ -190,5 +192,80 @@ describe('buildLiveClip', () => {
     });
     expect(outcome.ok).toBe(true);
     if (outcome.ok) expect(outcome.clip.turns).toEqual([14]);
+  });
+});
+
+describe('ChatCounter', () => {
+  function fill(counter: ChatCounter, from: number, to: number, perSecond: number): void {
+    for (let second = from; second < to; second += 1) {
+      for (let message = 0; message < perSecond; message += 1) counter.add(second + message / 10);
+    }
+  }
+
+  it('stays at zero on a steady chat', () => {
+    const counter = new ChatCounter();
+    fill(counter, 0, 400, 1);
+    expect(counter.boost(399)).toBe(0);
+  });
+
+  it('boosts when the chat explodes against its own average', () => {
+    const counter = new ChatCounter();
+    fill(counter, 0, 400, 1);
+    fill(counter, 400, 410, 6);
+    expect(counter.boost(409)).toBeGreaterThan(6);
+    expect(counter.boost(409)).toBeLessThanOrEqual(12);
+  });
+
+  it('ignores bursts that are too small to mean anything', () => {
+    const counter = new ChatCounter();
+    fill(counter, 400, 405, 1);
+    expect(counter.boost(404)).toBe(0);
+  });
+});
+
+describe('twitch chat helpers', () => {
+  it('extracts a channel only from twitch links', () => {
+    expect(twitchChannel('https://www.twitch.tv/MaxyLobes')).toBe('maxylobes');
+    expect(twitchChannel('https://twitch.tv/videos/123')).toBeNull();
+    expect(twitchChannel('https://evil.com/maxylobes')).toBeNull();
+    expect(twitchChannel('https://www.twitch.tv/a b')).toBeNull();
+    expect(twitchChannel('nada')).toBeNull();
+  });
+
+  it('accepts only the real twitch edge certificate names', () => {
+    expect(
+      certNamesAreTwitchEdge(
+        'DNS:raw-1.us-west-2.prod.twitchircedge.twitch.a2z.com, DNS:*.raw-1.us-west-2.prod.twitchircedge.twitch.a2z.com',
+      ),
+    ).toBe(true);
+    expect(certNamesAreTwitchEdge('DNS:evil.com')).toBe(false);
+    expect(certNamesAreTwitchEdge('DNS:a.twitchircedge.twitch.a2z.com, DNS:evil.com')).toBe(false);
+    expect(certNamesAreTwitchEdge(undefined)).toBe(false);
+  });
+
+  it('recognizes pings and chat messages', () => {
+    expect(parseIrcLine('PING :tmi.twitch.tv')).toEqual({
+      kind: 'ping',
+      payload: ':tmi.twitch.tv',
+    });
+    expect(parseIrcLine(':user!user@user.tmi.twitch.tv PRIVMSG #canal :oi')).toEqual({
+      kind: 'message',
+    });
+    expect(parseIrcLine('@badges=;id=1 :u!u@u.tmi.twitch.tv PRIVMSG #canal :kkk')).toEqual({
+      kind: 'message',
+    });
+    expect(parseIrcLine(':tmi.twitch.tv 001 justinfan1 :Welcome')).toBeNull();
+  });
+});
+
+describe('LiveDetector with chat boost', () => {
+  it('opens a window on a chat spike without any audio change', () => {
+    const detector = new LiveDetector();
+    const found: LiveWindow[] = [];
+    for (let second = 0; second < 200; second += 1) {
+      const boost = second >= 100 && second < 106 ? 8 : 0;
+      found.push(...detector.push(second, -30, boost));
+    }
+    expect(found).toHaveLength(1);
   });
 });
