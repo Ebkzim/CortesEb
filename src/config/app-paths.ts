@@ -5,7 +5,7 @@ import { Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
 import { assertPlainName, resolveInside } from '../common/safe-path.js';
 
-const HOME_ENV = 'CORTES_EB_HOME';
+export const HOME_ENV = 'CORTES_EB_HOME';
 const HOME_FOLDER = '.cortes-eb';
 
 @Injectable()
@@ -67,7 +67,7 @@ export class AppPaths {
   }
 }
 
-function resolveHome(override: string | undefined): string {
+export function resolveHome(override: string | undefined): string {
   if (override === undefined || override === '') return path.join(os.homedir(), HOME_FOLDER);
   if (!path.isAbsolute(override)) {
     throw new AppError('INVALID_INPUT', `${HOME_ENV} precisa ser um caminho absoluto`);

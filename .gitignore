@@ -32,3 +32,7 @@ Thumbs.db
 *.swp
 
 README.md
+.dev-db/
+src/generated/
+web/.next/
+web/out/

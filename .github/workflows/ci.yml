@@ -29,6 +29,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      - run: npx prisma generate
       - run: npm audit --audit-level=high
       - run: npm run format:check
       - run: npm run lint
