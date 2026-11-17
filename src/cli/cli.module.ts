@@ -12,7 +12,7 @@ import { LayoutModule } from '../layout/layout.module.js';
 import { LiveModule } from '../live/live.module.js';
 import { ImagesModule } from '../images/images.module.js';
 import { MediaModule } from '../media/media.module.js';
-import { NicheRegistry } from '../niches/niche-registry.js';
+import { NichesModule } from '../niches/niches.module.js';
 import { PlanningModule } from '../planning/planning.module.js';
 import { RenderModule } from '../render/render.module.js';
 import { SfxModule } from '../sfx/sfx.module.js';
@@ -42,6 +42,7 @@ import {
 
 @Module({
   imports: [
+    NichesModule,
     AccountsModule,
     AnalysisModule,
     CommonModule,
@@ -61,7 +62,6 @@ import {
   ],
   providers: [
     DoctorService,
-    NicheRegistry,
     DoctorCommand,
     SetupCommand,
     AccountCommand,

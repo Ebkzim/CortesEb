@@ -23,6 +23,7 @@ import { chunkTranscript, type ChunkOptions, type TranscriptChunk } from './tran
 
 export interface SelectRequest {
   llm: Partial<LlmSettings>;
+  client?: LlmClient;
   targets: TargetsInput;
   niche: string;
   minScore: number;
@@ -52,7 +53,7 @@ export class SelectorService {
 
   async run(workspace: Workspace, request: SelectRequest): Promise<SelectResult> {
     const started = Date.now();
-    const client = await this.llm.client(request.llm);
+    const client = request.client ?? (await this.llm.client(request.llm));
     const words = dropMarkers(await readJson(workspace.captions, captionsSchema));
     const plan = await this.targets.define(workspace, request.targets);
     const limits: Limits = {

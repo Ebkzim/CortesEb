@@ -35,7 +35,11 @@ export class LiveService {
     const judge =
       request.judge === null
         ? null
-        : new ClipJudge(await this.llm.client(), request.judge.minScore, request.judge.niche);
+        : new ClipJudge(
+            request.judge.client ?? (await this.llm.client()),
+            request.judge.minScore,
+            request.judge.niche,
+          );
     const channel = request.chat ? twitchChannel(request.link) : null;
     const session = new LiveSession(
       request,

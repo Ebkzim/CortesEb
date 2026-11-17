@@ -8,6 +8,7 @@ export type ClipRow = Clip;
 export type LogRow = JobLog;
 
 export interface NewJob {
+  id?: string;
   kind: 'cut' | 'live';
   title: string;
   preset: string;

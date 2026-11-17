@@ -8,6 +8,7 @@ import type { Platform } from '../contracts/publish.js';
 import type { CameraSpec } from '../layout/camera.js';
 import type { ClipFactory, FactoryOptions, PreparedClip } from './clip-factory.js';
 import { AdWatcher } from './ad-watcher.js';
+import type { LlmClient } from '../llm/llm-client.js';
 import type { ClipJudge } from './clip-judge.js';
 import { ChatCounter } from './chat-counter.js';
 import type { ChatSource } from './twitch-chat.js';
@@ -33,7 +34,7 @@ export interface LiveRequest {
   maxQueue: number;
   keepWork: boolean;
   chat: boolean;
-  judge: { minScore: number; niche: string } | null;
+  judge: { minScore: number; niche: string; client?: LlmClient } | null;
   enqueue: Platform[] | null;
   camera: CameraSpec | null;
   credit: string | null;
