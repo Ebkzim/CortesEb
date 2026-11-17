@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LANGUAGE_PATTERN } from '../config/user-config.js';
 import type { Word } from '../contracts/media.js';
 import { cameraCrop, parseCamera } from './camera.js';
 import { ChatCounter } from './chat-counter.js';
@@ -316,5 +317,16 @@ describe('camera crop', () => {
       crop: { x: 0, y: 648, w: 486, h: 432 },
     });
     expect(outcome.ok && outcome.clip.crop).toEqual({ x: 0, y: 648, w: 486, h: 432 });
+  });
+});
+
+describe('language pattern', () => {
+  it('accepts codes and auto but nothing else', () => {
+    expect(LANGUAGE_PATTERN.test('pt')).toBe(true);
+    expect(LANGUAGE_PATTERN.test('auto')).toBe(true);
+    expect(LANGUAGE_PATTERN.test('por')).toBe(true);
+    expect(LANGUAGE_PATTERN.test('autos')).toBe(false);
+    expect(LANGUAGE_PATTERN.test('p')).toBe(false);
+    expect(LANGUAGE_PATTERN.test('pt-BR')).toBe(false);
   });
 });

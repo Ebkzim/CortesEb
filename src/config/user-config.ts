@@ -8,6 +8,8 @@ export const WHISPER_MODELS = ['tiny', 'base', 'small', 'medium', 'large-v3'] as
 export const ACCOUNT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 export const MAX_ACCOUNTS = 20;
 
+export const LANGUAGE_PATTERN = /^([a-z]{2,3}|auto)$/;
+
 const accountId = z.string().regex(ACCOUNT_ID_PATTERN);
 
 export const accountSchema = z.strictObject({
@@ -22,10 +24,7 @@ export const userConfigSchema = z.strictObject({
   accounts: z.record(accountId, accountSchema).default({}),
   defaultAccount: accountId.optional(),
   whisperModel: z.enum(WHISPER_MODELS).default('small'),
-  language: z
-    .string()
-    .regex(/^[a-z]{2,3}$/)
-    .default('pt'),
+  language: z.string().regex(LANGUAGE_PATTERN).default('pt'),
   sfxGain: z.number().min(0).max(2).default(0.6),
   niche: z
     .string()

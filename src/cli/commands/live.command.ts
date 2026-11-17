@@ -1,7 +1,7 @@
 import { Command, Option } from 'nest-commander';
 import { z } from 'zod';
 import { Output } from '../../common/output.js';
-import { UserConfigStore, WHISPER_MODELS } from '../../config/user-config.js';
+import { LANGUAGE_PATTERN, UserConfigStore, WHISPER_MODELS } from '../../config/user-config.js';
 import { parseCamera } from '../../live/camera.js';
 import { LiveService } from '../../live/live.service.js';
 import { NicheRegistry } from '../../niches/niche-registry.js';
@@ -11,10 +11,7 @@ const liveOptions = z.object({
   out: z.string().min(1).max(1024).optional(),
   account: z.string().min(1).max(700).optional(),
   bottom: z.string().min(1).max(2048).optional(),
-  lang: z
-    .string()
-    .regex(/^[a-z]{2,3}$/)
-    .optional(),
+  lang: z.string().regex(LANGUAGE_PATTERN).optional(),
   model: z.enum(WHISPER_MODELS).optional(),
   threshold: z.coerce.number().min(1).max(30).default(6),
   lead: z.coerce.number().min(2).max(40).default(15),
@@ -64,7 +61,7 @@ export class LiveCommand extends GuardedCommand {
     return value;
   }
 
-  @Option({ flags: '--lang <idioma>', description: 'idioma da live, ex.: pt' })
+  @Option({ flags: '--lang <idioma>', description: 'idioma da live, ex.: pt, ou auto' })
   parseLang(value: string): string {
     return value;
   }

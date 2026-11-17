@@ -77,6 +77,12 @@ export class TranscriptionService {
     }
     const config = await this.config.load();
     const lang = language ?? config.language;
+    if (lang === 'auto') {
+      throw new AppError(
+        'INVALID_INPUT',
+        'a legenda do YouTube precisa de um idioma, ex.: --lang pt',
+      );
+    }
     const link = url ?? (await readJson(workspace.origin, originSchema).catch(() => null))?.url;
     if (link === undefined) {
       throw new AppError('INVALID_INPUT', 'sem link de origem: use --url ou baixe com fetch');

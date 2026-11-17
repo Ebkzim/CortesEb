@@ -3,7 +3,12 @@ import { z } from 'zod';
 import { AccountService } from '../../accounts/account.service.js';
 import { AppError } from '../../common/app-error.js';
 import { Output } from '../../common/output.js';
-import { UserConfigStore, WHISPER_MODELS, type UserConfig } from '../../config/user-config.js';
+import {
+  LANGUAGE_PATTERN,
+  UserConfigStore,
+  WHISPER_MODELS,
+  type UserConfig,
+} from '../../config/user-config.js';
 import { NicheRegistry } from '../../niches/niche-registry.js';
 import { GuardedCommand, parseOptions, type RawOptions } from '../guarded-command.js';
 
@@ -85,10 +90,7 @@ export class AccountCommand extends GuardedCommand {
 
 const settingsOptions = z.object({
   model: z.enum(WHISPER_MODELS).optional(),
-  language: z
-    .string()
-    .regex(/^[a-z]{2,3}$/)
-    .optional(),
+  language: z.string().regex(LANGUAGE_PATTERN).optional(),
   sfxGain: z.coerce.number().min(0).max(2).optional(),
   niche: z.string().optional(),
 });
@@ -108,7 +110,7 @@ export class ConfigCommand extends GuardedCommand {
     return value;
   }
 
-  @Option({ flags: '--language <idioma>', description: 'idioma padrão, ex.: pt' })
+  @Option({ flags: '--language <idioma>', description: 'idioma padrão, ex.: pt, ou auto' })
   parseLanguage(value: string): string {
     return value;
   }

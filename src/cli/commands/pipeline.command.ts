@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AppError } from '../../common/app-error.js';
 import { exists } from '../../common/json-file.js';
 import { Output } from '../../common/output.js';
+import { LANGUAGE_PATTERN } from '../../config/user-config.js';
 import { PeaksService } from '../../analysis/peaks.service.js';
 import { VideoFetcher } from '../../download/video-fetcher.js';
 import { MediaTools } from '../../media/media-tools.js';
@@ -82,10 +83,7 @@ export class FetchCommand extends WorkspaceCommand {
 
 const transcribeOptions = z.object({
   work: workDir,
-  lang: z
-    .string()
-    .regex(/^[a-z]{2,3}$/)
-    .optional(),
+  lang: z.string().regex(LANGUAGE_PATTERN).optional(),
   maxSeconds: z.coerce.number().positive().max(86_400).optional(),
   from: z.coerce.number().min(0).max(86_400).optional(),
   to: z.coerce.number().positive().max(86_400).optional(),
@@ -100,7 +98,7 @@ export class TranscribeCommand extends WorkspaceCommand {
     super();
   }
 
-  @Option({ flags: '--lang <idioma>', description: 'idioma do vídeo, ex.: pt' })
+  @Option({ flags: '--lang <idioma>', description: 'idioma do vídeo, ex.: pt, ou auto' })
   parseLang(value: string): string {
     return value;
   }
