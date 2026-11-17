@@ -16,6 +16,8 @@ import { SFX_NAMES, SfxLibrary } from '../sfx/sfx-library.js';
 import { dropMarkers } from '../transcription/tokens.js';
 import type { Workspace } from '../workspace/workspace.js';
 import { ClipComposer, type RenderContext } from './clip-composer.js';
+import { FfmpegEngine } from './ffmpeg/ffmpeg-engine.js';
+import type { EngineName, RenderEngine } from './render-engine.js';
 import { RemotionEngine } from './remotion-engine.js';
 import type { StagedSounds } from './sound-plan.js';
 
@@ -45,7 +47,8 @@ export class RenderService {
     private readonly media: MediaTools,
     private readonly sfx: SfxLibrary,
     private readonly composer: ClipComposer,
-    private readonly engine: RemotionEngine,
+    private readonly fast: FfmpegEngine,
+    private readonly remotion: RemotionEngine,
     private readonly output: Output,
   ) {}
 
@@ -53,7 +56,9 @@ export class RenderService {
     workspace: Workspace,
     outDir: string,
     requested: readonly string[] | undefined,
+    engineName: EngineName = 'fast',
   ): Promise<ClipResult[]> {
+    const engine: RenderEngine = engineName === 'fast' ? this.fast : this.remotion;
     const cuts = await readJson(workspace.cuts, cutsSchema);
     const plan = await this.planTargets(cuts.clips, requested, workspace);
     const context = await this.buildContext(
@@ -62,7 +67,7 @@ export class RenderService {
     );
     await this.targets.assert(workspace);
     const base = path.resolve(outDir);
-    const session = await this.engine.open(workspace.root);
+    const session = await engine.open(workspace.root);
     const results: ClipResult[] = [];
     try {
       for (const [index, clip] of cuts.clips.entries()) {
@@ -80,7 +85,7 @@ export class RenderService {
           );
           const result = { id: clip.id, account, file, seconds };
           try {
-            await this.engine.render(session, props, file);
+            await engine.render(session, props, file);
             results.push({ ...result, ok: true, warnings: composed.warnings });
           } catch (error) {
             results.push({

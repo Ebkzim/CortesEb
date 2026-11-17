@@ -6,16 +6,12 @@ import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, selectComposition } from '@remotion/renderer';
 import { AppPaths } from '../config/app-paths.js';
 import { SPLIT_CUT_COMPOSITION, type SplitCutProps } from '../contracts/render.js';
-
-export interface RenderSession {
-  serveUrl: string;
-  dispose: () => Promise<void>;
-}
+import type { RenderEngine, RenderSession } from './render-engine.js';
 
 const CRF = 20;
 
 @Injectable()
-export class RemotionEngine {
+export class RemotionEngine implements RenderEngine {
   constructor(private readonly paths: AppPaths) {}
 
   async ensureBrowser(): Promise<void> {

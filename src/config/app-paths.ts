@@ -38,6 +38,10 @@ export class AppPaths {
     return path.join(this.packageRoot, 'remotion', 'index.ts');
   }
 
+  get fontsDir(): string {
+    return path.join(this.packageRoot, 'assets', 'fonts');
+  }
+
   get skillDir(): string {
     return path.join(this.packageRoot, 'skill');
   }
