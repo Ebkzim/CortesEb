@@ -93,7 +93,7 @@ export class LivePipeline implements Pipeline {
       {
         link,
         outDir: context.outDir,
-        accounts: request.accounts,
+        accounts: request.accounts ?? [],
         bottom: preset.bottom === 'niche' ? niche.defaultBottomUrl : null,
         language: settings.language,
         model: undefined,

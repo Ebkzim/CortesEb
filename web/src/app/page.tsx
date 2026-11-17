@@ -1,12 +1,14 @@
 'use client';
 
-import { ArrowRight, ArrowUpRight, Film } from 'lucide-react';
-import { motion } from 'motion/react';
+import { ArrowRight, ArrowUpRight, Film, Trash2 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ClipTile } from '@/components/clip-tile';
+import { Profiles } from '@/components/profiles';
+import { useToast } from '@/components/toast';
 import { Button, EASE, Progress } from '@/components/ui';
-import { api } from '@/lib/api';
+import { api, remove } from '@/lib/api';
 import { useJobEvents } from '@/lib/events';
 import { PRESET_LABEL, STATUS_LABEL, ago } from '@/lib/format';
 import type { ClipView, DaySummary, JobView, StepState } from '@/lib/types';
@@ -20,6 +22,7 @@ export default function HomePage() {
   const [covers, setCovers] = useState<Covers>({});
   const [clips, setClips] = useState<ClipView[] | null>(null);
   const [days, setDays] = useState<DaySummary[]>([]);
+  const toast = useToast();
 
   const loadClips = (): void => {
     void api<ClipView[]>('/clips/recent?limit=6')
@@ -40,7 +43,40 @@ export default function HomePage() {
     loadClips();
   }, []);
 
+  async function forget(job: JobView): Promise<void> {
+    if (!window.confirm(`Apagar “${job.title}” do histórico? Os cortes continuam em Meus clipes.`))
+      return;
+    try {
+      await remove(`/jobs/${job.id}`);
+      setJobs((current) => current?.filter((item) => item.id !== job.id) ?? null);
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'não consegui apagar');
+    }
+  }
+
+  async function clearHistory(): Promise<void> {
+    if (
+      !window.confirm(
+        'Apagar todas as tarefas terminadas do histórico? Os cortes continuam em Meus clipes.',
+      )
+    )
+      return;
+    try {
+      const result = await remove<{ removed: number }>('/jobs');
+      setJobs((current) => current?.filter((item) => ACTIVE.includes(item.status)) ?? null);
+      toast(
+        `${String(result.removed)} ${result.removed === 1 ? 'tarefa apagada' : 'tarefas apagadas'} do histórico.`,
+      );
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'não consegui limpar');
+    }
+  }
+
   useJobEvents((event) => {
+    if (event.type === 'removed') {
+      setJobs((current) => current?.filter((item) => item.id !== event.jobId) ?? null);
+      return;
+    }
     if (event.type === 'clip') {
       loadClips();
       setCovers((current) => {
@@ -130,6 +166,13 @@ export default function HomePage() {
             />
           </motion.div>
         )}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6, duration: 0.6, ease: EASE }}
+        >
+          <Profiles />
+        </motion.div>
       </section>
 
       <section className="home__side">
@@ -160,7 +203,20 @@ export default function HomePage() {
         </div>
 
         <div className="stack" style={{ gap: 14 }}>
-          <h2 className="title-md">Atividade</h2>
+          <div className="spread">
+            <h2 className="title-md">Atividade</h2>
+            {(jobs ?? []).some((job) => !ACTIVE.includes(job.status)) && (
+              <button
+                type="button"
+                className="link-arrow"
+                onClick={() => {
+                  void clearHistory();
+                }}
+              >
+                limpar histórico
+              </button>
+            )}
+          </div>
           {jobs === null ? (
             <div className="row muted">
               <span className="spinner" /> carregando
@@ -168,11 +224,21 @@ export default function HomePage() {
           ) : jobs.length === 0 ? (
             <div className="empty">Nenhuma tarefa ainda.</div>
           ) : (
-            <div className="activity">
-              {jobs.map((job, index) => (
-                <ActivityCard key={job.id} job={job} cover={covers[job.id]} index={index} />
-              ))}
-            </div>
+            <motion.div className="activity" layout>
+              <AnimatePresence initial={false}>
+                {jobs.map((job, index) => (
+                  <ActivityCard
+                    key={job.id}
+                    job={job}
+                    cover={covers[job.id]}
+                    index={index}
+                    onRemove={() => {
+                      void forget(job);
+                    }}
+                  />
+                ))}
+              </AnimatePresence>
+            </motion.div>
           )}
         </div>
       </section>
@@ -193,19 +259,23 @@ function ActivityCard({
   job,
   cover,
   index,
+  onRemove,
 }: {
   job: JobView;
   cover: { clipId: string; count: number } | undefined;
   index: number;
+  onRemove: () => void;
 }) {
   const running = ACTIVE.includes(job.status);
   const current = job.steps.find((step) => step.status === 'running' || step.status === 'waiting');
   return (
     <motion.div
+      className="activity__row"
+      layout
       initial={{ opacity: 0, x: 18 }}
       animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -18, transition: { duration: 0.3 } }}
       transition={{ delay: 0.15 + index * 0.05, duration: 0.5, ease: EASE }}
-      whileHover={{ x: 4 }}
       whileTap={{ scale: 0.985 }}
     >
       <Link
@@ -235,6 +305,17 @@ function ActivityCard({
           {running ? (current?.label ?? 'Na fila') : (STATUS_LABEL[job.status] ?? job.status)}
         </span>
       </Link>
+      {!running && (
+        <motion.button
+          type="button"
+          className="activity__remove"
+          aria-label="apagar do histórico"
+          whileTap={{ scale: 0.85 }}
+          onClick={onRemove}
+        >
+          <Trash2 size={14} />
+        </motion.button>
+      )}
     </motion.div>
   );
 }

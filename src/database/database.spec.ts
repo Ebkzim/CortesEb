@@ -117,7 +117,21 @@ describe.skipIf(TEST_URL === undefined)('repositories on a real database', () =>
     expect(await jobs.clipsOfDay('2026-11-16')).toHaveLength(1);
     expect(await jobs.interruptRunning()).toBe(1);
     expect((await jobs.get(job.id)).status).toBe('interrupted');
+    await jobs.update(job.id, { status: 'done' });
+    await jobs.remove(job.id);
+    const kept = await jobs.clipsOfDay('2026-11-17');
+    expect(kept).toHaveLength(2);
+    expect(kept.every((clip) => clip.jobId === null)).toBe(true);
     await expect(jobs.get('00000000-0000-0000-0000-000000000000')).rejects.toThrow();
+    const other = await jobs.create({
+      kind: 'cut',
+      title: 'b',
+      preset: 'podcast',
+      request: {},
+      workDir: '/tmp/y',
+    });
+    await jobs.update(other.id, { status: 'failed' });
+    expect((await jobs.removeFinished(['failed'])).map((row) => row.id)).toEqual([other.id]);
   });
 
   it('stores api keys encrypted and only reveals them on request', async () => {

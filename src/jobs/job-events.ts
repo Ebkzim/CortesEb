@@ -7,7 +7,8 @@ export type JobEvent =
   | { type: 'job'; jobId: string; job: JobView }
   | { type: 'steps'; jobId: string; steps: StepState[]; remainingSeconds: number | null }
   | { type: 'log'; jobId: string; level: 'info' | 'warn' | 'error'; message: string; at: string }
-  | { type: 'clip'; jobId: string; clip: ClipView };
+  | { type: 'clip'; jobId: string; clip: ClipView }
+  | { type: 'removed'; jobId: string };
 
 const CHANNEL = 'event';
 const MAX_LISTENERS = 200;

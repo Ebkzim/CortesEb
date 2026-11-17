@@ -49,6 +49,10 @@ function JobScreen() {
 
   useJobEvents((event) => {
     if (event.jobId !== id) return;
+    if (event.type === 'removed') {
+      router.push('/');
+      return;
+    }
     setDetail((current) => {
       if (current === null) return current;
       if (event.type === 'job')

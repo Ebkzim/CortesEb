@@ -88,7 +88,7 @@ export interface JobView {
 
 export interface ClipView {
   id: string;
-  jobId: string;
+  jobId: string | null;
   day: string;
   title: string;
   hook: string | null;
@@ -133,4 +133,5 @@ export type JobEvent =
   | { type: 'job'; jobId: string; job: JobView }
   | { type: 'steps'; jobId: string; steps: StepState[]; remainingSeconds: number | null }
   | { type: 'log'; jobId: string; level: LogLine['level']; message: string; at: string }
-  | { type: 'clip'; jobId: string; clip: ClipView };
+  | { type: 'clip'; jobId: string; clip: ClipView }
+  | { type: 'removed'; jobId: string };

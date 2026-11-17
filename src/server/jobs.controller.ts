@@ -1,6 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import { AppError } from '../common/app-error.js';
 import { assertPlainName, resolveInside } from '../common/safe-path.js';
@@ -59,6 +69,17 @@ export class JobsController {
         at: row.createdAt.toISOString(),
       })),
     };
+  }
+
+  @Delete('jobs/:id')
+  async forget(@Param('id', new ParseUUIDPipe()) id: string): Promise<{ ok: true }> {
+    await this.runner.forget(id);
+    return { ok: true };
+  }
+
+  @Delete('jobs')
+  async forgetFinished(): Promise<{ removed: number }> {
+    return { removed: await this.runner.forgetFinished() };
   }
 
   @Post('jobs/:id/cancel')

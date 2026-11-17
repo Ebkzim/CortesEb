@@ -195,7 +195,12 @@ export class CutPipeline implements Pipeline {
     const cuts = await readJson(workspace.cuts, cutsSchema);
     tracker.start('render', `${String(cuts.clips.length)} cortes para renderizar`);
     const renderStarted = Date.now();
-    const results = await this.renderer.run(workspace, context.outDir, request.accounts, 'fast');
+    const results = await this.renderer.run(
+      workspace,
+      context.outDir,
+      request.accounts ?? [],
+      'fast',
+    );
     const rendered = results.filter((item) => item.ok).reduce((sum, item) => sum + item.seconds, 0);
     await this.speed.record('render', (Date.now() - renderStarted) / 1000, rendered);
     const failed = results.filter((result) => !result.ok);

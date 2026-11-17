@@ -20,6 +20,7 @@ import { presetOf } from './presets.js';
 import { StepTracker, type JobStepId, type StepState } from './step-tracker.js';
 
 const IDLE_MS = 1500;
+const FINISHED = ['done', 'failed', 'canceled', 'interrupted'];
 const PERSIST_MS = 1000;
 
 const STEP_ALIASES: Partial<Record<StepId, JobStepId>> = {
@@ -115,6 +116,32 @@ export class JobRunner implements OnModuleDestroy {
       throw new AppError('INVALID_INPUT', 'essa tarefa não está esperando o enquadramento');
     }
     this.active.camera(rect);
+  }
+
+  async forget(id: string): Promise<void> {
+    const job = await this.jobs.get(id);
+    if (!FINISHED.includes(job.status) || this.active?.id === id) {
+      throw new AppError('INVALID_INPUT', 'pare a tarefa antes de apagar do histórico');
+    }
+    await this.jobs.remove(id);
+    await this.dropWorkDir(job.workDir);
+    this.events.publish({ type: 'removed', jobId: id });
+  }
+
+  async forgetFinished(): Promise<number> {
+    const removed = await this.jobs.removeFinished(FINISHED);
+    for (const job of removed) {
+      await this.dropWorkDir(job.workDir);
+      this.events.publish({ type: 'removed', jobId: job.id });
+    }
+    return removed.length;
+  }
+
+  private async dropWorkDir(workDir: string): Promise<void> {
+    const folder = path.resolve(workDir);
+    const root = path.resolve(this.paths.jobsDir);
+    if (path.dirname(folder) !== root) return;
+    await fs.rm(folder, { recursive: true, force: true }).catch(() => undefined);
   }
 
   async retry(id: string): Promise<JobRow> {

@@ -48,7 +48,7 @@ model JobLog {
 
 model Clip {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  jobId     String   @map("job_id") @db.Uuid
+  jobId     String?  @map("job_id") @db.Uuid
   day       String   @db.Char(10)
   title     String   @db.VarChar(200)
   hook      String?  @db.VarChar(500)
@@ -59,7 +59,7 @@ model Clip {
   sizeBytes BigInt   @map("size_bytes")
   account   String?  @db.VarChar(32)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job       Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
   @@index([day, createdAt])
   @@index([jobId])

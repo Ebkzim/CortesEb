@@ -153,6 +153,7 @@ export class JobRepository {
     });
     const found: Record<string, { clipId: string; count: number }> = {};
     for (const row of rows) {
+      if (row.jobId === null) continue;
       const current = found[row.jobId];
       if (current === undefined) found[row.jobId] = { clipId: row.id, count: 1 };
       else current.count += 1;
@@ -167,8 +168,24 @@ export class JobRepository {
       select: { id: true, job: { select: { preset: true } } },
     });
     const found: Record<string, string> = {};
-    for (const row of rows) found[row.job.preset] ??= row.id;
+    for (const row of rows) {
+      if (row.job !== null) found[row.job.preset] ??= row.id;
+    }
     return found;
+  }
+
+  async remove(id: string): Promise<JobRow> {
+    const job = await this.get(id);
+    await this.prisma.db.job.delete({ where: { id } });
+    return job;
+  }
+
+  async removeFinished(statuses: readonly string[]): Promise<JobRow[]> {
+    const jobs = await this.prisma.db.job.findMany({ where: { status: { in: [...statuses] } } });
+    if (jobs.length > 0) {
+      await this.prisma.db.job.deleteMany({ where: { id: { in: jobs.map((job) => job.id) } } });
+    }
+    return jobs;
   }
 
   async days(): Promise<DaySummary[]> {

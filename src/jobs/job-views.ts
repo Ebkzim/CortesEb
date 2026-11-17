@@ -19,7 +19,7 @@ export interface JobView {
 
 export interface ClipView {
   id: string;
-  jobId: string;
+  jobId: string | null;
   day: string;
   title: string;
   hook: string | null;

@@ -27,6 +27,7 @@ import { PresetPreview } from '@/components/preset-preview';
 import { useToast } from '@/components/toast';
 import { Button, Choice, EASE, Progress, Segmented, fade } from '@/components/ui';
 import { KeyForm } from '@/components/key-form';
+import { Avatar } from '@/components/profiles';
 import { api, post, upload } from '@/lib/api';
 import { duration, parseClock } from '@/lib/format';
 import { PLATFORM_LABEL, linkError } from '@/lib/links';
@@ -89,6 +90,7 @@ export default function NewCutPage() {
   const [agent, setAgent] = useState<'claude' | 'codex'>('claude');
   const [accounts, setAccounts] = useState<AccountView[]>([]);
   const [chosenAccounts, setChosenAccounts] = useState<string[]>([]);
+  const [watermark, setWatermark] = useState<'on' | 'off'>('off');
   const [title, setTitle] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -101,6 +103,7 @@ export default function NewCutPage() {
       .then((list) => {
         setAccounts(list);
         setChosenAccounts(list.filter((item) => item.isDefault).map((item) => item.id));
+        setWatermark(list.length > 0 ? 'on' : 'off');
       })
       .catch(() => undefined);
   }, []);
@@ -182,7 +185,7 @@ export default function NewCutPage() {
       targets,
       selector,
       ...(title.trim() === '' ? {} : { title: title.trim() }),
-      ...(chosenAccounts.length > 0 ? { accounts: chosenAccounts } : {}),
+      ...(watermark === 'on' && chosenAccounts.length > 0 ? { accounts: chosenAccounts } : {}),
     };
     try {
       const job = await post<JobView>('/jobs', request);
@@ -707,39 +710,71 @@ export default function NewCutPage() {
                       }}
                     />
                   </label>
-                  {accounts.length > 0 && (
-                    <div className="field">
-                      <span className="field__label">Marca d’água</span>
-                      <div className="row wrap">
-                        {accounts.map((account) => {
-                          const on = chosenAccounts.includes(account.id);
-                          return (
-                            <motion.button
-                              whileTap={{ scale: 0.94 }}
-                              key={account.id}
-                              type="button"
-                              className={`chip ${on ? 'chip--dark' : ''}`}
-                              onClick={() => {
-                                setChosenAccounts((current) =>
-                                  on
-                                    ? current.filter((id) => id !== account.id)
-                                    : [...current, account.id],
-                                );
-                              }}
-                            >
-                              {account.name ?? account.id}
-                            </motion.button>
-                          );
-                        })}
-                      </div>
+                  {accounts.length > 0 ? (
+                    <div className="watermark">
+                      <span className="field__label">Colocar marca d’água?</span>
+                      <Segmented
+                        id="watermark"
+                        value={watermark}
+                        options={[
+                          { value: 'on', label: 'Com marca d’água' },
+                          { value: 'off', label: 'Sem marca d’água' },
+                        ]}
+                        onChange={(next) => {
+                          setWatermark(next);
+                          if (next === 'on' && chosenAccounts.length === 0) {
+                            const fallback = accounts.find((item) => item.isDefault) ?? accounts[0];
+                            if (fallback !== undefined) setChosenAccounts([fallback.id]);
+                          }
+                        }}
+                      />
+                      <AnimatePresence initial={false}>
+                        {watermark === 'on' && (
+                          <motion.div
+                            className="watermark__accounts"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.35, ease: EASE }}
+                          >
+                            {accounts.map((account) => {
+                              const on = chosenAccounts.includes(account.id);
+                              return (
+                                <motion.button
+                                  whileTap={{ scale: 0.94 }}
+                                  key={account.id}
+                                  type="button"
+                                  className={`watermark__account ${on ? 'watermark__account--on' : ''}`}
+                                  onClick={() => {
+                                    setChosenAccounts((current) =>
+                                      on
+                                        ? current.filter((value) => value !== account.id)
+                                        : [...current, account.id],
+                                    );
+                                  }}
+                                >
+                                  <Avatar account={account} size={32} />
+                                  {account.name ?? account.id}
+                                </motion.button>
+                              );
+                            })}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                       <span className="field__hint">
-                        Sem conta marcada, o corte sai sem marca d’água.
+                        {watermark === 'off'
+                          ? 'O corte sai limpo, sem nome nem logo.'
+                          : chosenAccounts.length === 0
+                            ? 'Escolha pelo menos um perfil, ou marque sem marca d’água.'
+                            : chosenAccounts.length > 1
+                              ? 'Sai uma versão do corte para cada perfil.'
+                              : 'O nome e a logo do perfil vão no canto do corte.'}
                       </span>
                     </div>
-                  )}
-                  {accounts.length === 0 && (
+                  ) : (
                     <p className="muted small">
-                      Os cortes saem sem marca d’água. Cadastre contas na engrenagem se quiser.
+                      Os cortes saem sem marca d’água. Crie um perfil na página inicial se quiser
+                      usar.
                     </p>
                   )}
                 </div>
@@ -766,7 +801,10 @@ export default function NewCutPage() {
           ) : (
             <Button
               icon={<ArrowRight />}
-              disabled={sending}
+              disabled={
+                sending ||
+                (watermark === 'on' && accounts.length > 0 && chosenAccounts.length === 0)
+              }
               onClick={() => {
                 void start();
               }}
