@@ -56,7 +56,6 @@ export interface DaySummary {
 
 const LOG_LIMIT = 1000;
 const PAGE_LIMIT = 100;
-const EXAMPLE_SCAN = 300;
 
 @Injectable()
 export class JobRepository {
@@ -173,19 +172,6 @@ export class JobRepository {
       const current = found[row.jobId];
       if (current === undefined) found[row.jobId] = { clipId: row.id, count: 1 };
       else current.count += 1;
-    }
-    return found;
-  }
-
-  async examples(): Promise<Record<string, string>> {
-    const rows = await this.prisma.db.clip.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: EXAMPLE_SCAN,
-      select: { id: true, job: { select: { preset: true } } },
-    });
-    const found: Record<string, string> = {};
-    for (const row of rows) {
-      if (row.job !== null) found[row.job.preset] ??= row.id;
     }
     return found;
   }
