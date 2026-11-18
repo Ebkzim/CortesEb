@@ -41,7 +41,7 @@ import { StageGates, type Stage } from './stage-gates.js';
 import type { JobStepId } from './step-tracker.js';
 
 const AGENT_POLL_MS = 3000;
-const ATTENTION_PRESETS = new Set(['gameplay-camera', 'gta6-react', 'filmes', 'series']);
+const ATTENTION_PRESETS = new Set(['gameplay-camera', 'react', 'filmes', 'series']);
 const REUSABLE = [
   'source.mp4',
   'bottom.mp4',

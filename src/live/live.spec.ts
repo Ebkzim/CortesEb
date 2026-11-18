@@ -449,7 +449,7 @@ describe('ClipJudge', () => {
 
   it('returns the score and a title', async () => {
     const { client } = scripted(['{"score": 8.5, "title": "Que jogada"}']);
-    expect(await new ClipJudge(client, 5, 'GTA').judge('texto')).toEqual({
+    expect(await new ClipJudge(client, 5, 'Gameplay').judge('texto')).toEqual({
       score: 8.5,
       title: 'Que jogada',
     });
@@ -459,24 +459,24 @@ describe('ClipJudge', () => {
     const { client, prompts } = scripted([
       '{"why":"reação forte","standalone":false,"payoff":false,"score":8,"title":"Ele surtou"}',
     ]);
-    const verdict = await new ClipJudge(client, 5, 'GTA', 'live').judge('texto');
+    const verdict = await new ClipJudge(client, 5, 'Gameplay', 'live').judge('texto');
     expect(verdict).toEqual({ score: 8, title: 'Ele surtou' });
     expect(prompts).toHaveLength(1);
   });
 
   it('retries once after an invalid answer and then gives up', async () => {
     const retry = scripted(['quebrado', '{"score":"7","title":"ok"}']);
-    expect((await new ClipJudge(retry.client, 5, 'GTA').judge('t')).score).toBe(7);
+    expect((await new ClipJudge(retry.client, 5, 'Gameplay').judge('t')).score).toBe(7);
     expect(retry.prompts[1]).toContain('not valid');
     const fail = scripted(['x', 'y']);
-    await expect(new ClipJudge(fail.client, 5, 'GTA').judge('t')).rejects.toThrow();
+    await expect(new ClipJudge(fail.client, 5, 'Gameplay').judge('t')).rejects.toThrow();
   });
 
   it('rejects scores out of range and limits the text sent', async () => {
     const wild = scripted(['{"score":42,"title":"a"}', '{"score":42,"title":"a"}']);
-    await expect(new ClipJudge(wild.client, 5, 'GTA').judge('t')).rejects.toThrow();
+    await expect(new ClipJudge(wild.client, 5, 'Gameplay').judge('t')).rejects.toThrow();
     const long = scripted(['{"score":5,"title":"a"}']);
-    await new ClipJudge(long.client, 5, 'GTA').judge('x'.repeat(20000));
+    await new ClipJudge(long.client, 5, 'Gameplay').judge('x'.repeat(20000));
     expect((long.prompts[0] ?? '').length).toBeLessThan(6100);
   });
 

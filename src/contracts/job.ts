@@ -3,8 +3,7 @@ import { ACCOUNT_REF_PATTERN } from './cuts.js';
 
 export const PRESET_IDS = [
   'gameplay-camera',
-  'gta6-gameplay',
-  'gta6-react',
+  'react',
   'filmes',
   'series',
   'filmes-cena',

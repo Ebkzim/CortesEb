@@ -1,5 +1,4 @@
-export type PresetId =
-  'gameplay-camera' | 'gta6-gameplay' | 'gta6-react' | 'filmes' | 'series' | 'podcast';
+export type PresetId = 'gameplay-camera' | 'react' | 'filmes' | 'series' | 'podcast';
 
 export type PlatformId = 'twitch' | 'kick' | 'youtube';
 

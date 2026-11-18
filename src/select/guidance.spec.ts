@@ -29,10 +29,10 @@ describe('guidance', () => {
 
   it('joins the preset hint, the core rules and the niche guide', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-guide-'));
-    const file = path.join(dir, 'gta6.md');
+    const file = path.join(dir, 'react.md');
     await fs.writeFile(file, guide);
-    const text = await buildGuidance('gta6-react', file);
-    expect(text).toContain(PRESET_HINTS['gta6-react']);
+    const text = await buildGuidance('react', file);
+    expect(text).toContain(PRESET_HINTS['react']);
     expect(text).toContain('ignore essa abertura');
     expect(text).toContain('Guia do nicho');
     expect(text).toContain('Opinião forte');
@@ -43,11 +43,11 @@ describe('guidance', () => {
   });
 
   it('skips a longer opening for reacts than for other videos', () => {
-    expect(introSeconds('gta6-react', 1200)).toBe(96);
-    expect(introSeconds('gta6-react', 300)).toBe(45);
+    expect(introSeconds('react', 1200)).toBe(96);
+    expect(introSeconds('react', 300)).toBe(45);
     expect(introSeconds('podcast', 1200)).toBe(48);
     expect(introSeconds('podcast', 100)).toBe(15);
-    expect(introSeconds('gta6-react', 100)).toBe(25);
+    expect(introSeconds('react', 100)).toBe(25);
   });
 });
 

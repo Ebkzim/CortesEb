@@ -158,21 +158,21 @@ describe('JobRunner lanes', () => {
     const { cut, live, runner, repo } = setup();
     running.push(runner);
     await runner.submit({
-      preset: 'gta6-react',
+      preset: 'react',
       source: VIDEO,
       targets: TARGETS,
       selector: OLLAMA,
       title: 'a',
     });
     await runner.submit({
-      preset: 'gta6-react',
+      preset: 'react',
       source: VIDEO,
       targets: TARGETS,
       selector: OLLAMA,
       title: 'b',
     });
     await runner.submit({
-      preset: 'gta6-react',
+      preset: 'react',
       source: LIVE,
       targets: TARGETS,
       selector: { kind: 'rules' },
@@ -233,7 +233,7 @@ describe('JobRunner batches', () => {
   it('alternates the accounts so every one gets clips early', async () => {
     const { runner, repo } = setup();
     const { batch, jobs } = await runner.submitBatch({
-      preset: 'gta6-react',
+      preset: 'react',
       targets: TARGETS,
       selector: OLLAMA,
       items: [
@@ -264,14 +264,14 @@ describe('JobRunner batches', () => {
     const { cut, runner, repo } = setup();
     running.push(runner);
     await runner.submit({
-      preset: 'gta6-react',
+      preset: 'react',
       source: VIDEO,
       targets: TARGETS,
       selector: OLLAMA,
       title: 'sozinho',
     });
     const { jobs } = await runner.submitBatch({
-      preset: 'gta6-react',
+      preset: 'react',
       targets: TARGETS,
       selector: OLLAMA,
       mode: 'together',
@@ -292,7 +292,7 @@ describe('JobRunner batches', () => {
   it('refuses the chat agent and sources the type does not take', async () => {
     const { runner, repo } = setup();
     const base = {
-      preset: 'gta6-react',
+      preset: 'react',
       targets: TARGETS,
       items: [{ account: null, videos: [{ source: VIDEO }] }],
     };

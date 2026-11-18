@@ -58,7 +58,7 @@ describe('chunkTranscript', () => {
 
 describe('prompt', () => {
   const context = {
-    niche: 'GTA 6',
+    niche: 'Gameplay',
     perChunk: 3,
     targets: { minSeconds: 20, maxSeconds: 60 },
     peaks: [120, 340],
@@ -68,7 +68,7 @@ describe('prompt', () => {
     const system = buildSystemPrompt(context);
     expect(system).toContain('between 20 and 60 seconds');
     expect(system).toContain('at most 3 clips');
-    expect(system).toContain('GTA 6');
+    expect(system).toContain('Gameplay');
     expect(system).toContain('{"clips"');
   });
 
@@ -341,7 +341,7 @@ describe('SelectorService', () => {
       ...request,
       avoidStartSeconds: 60,
       judge: true,
-      guidance: 'É um react de GTA 6.',
+      guidance: 'É um react.',
     });
     expect(result.clips.map((clip) => [Math.round(clip.start), clip.score])).toEqual([[300, 9]]);
     expect(prompts).toHaveLength(4);

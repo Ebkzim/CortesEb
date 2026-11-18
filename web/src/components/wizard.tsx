@@ -57,9 +57,8 @@ interface QueueItem {
 }
 
 const PRESET_ICON: Partial<Record<PresetId, ReactNode>> = {
-  'gameplay-camera': <ScanFace size={20} />,
-  'gta6-gameplay': <Gamepad2 size={20} />,
-  'gta6-react': <Sparkles size={20} />,
+  'gameplay-camera': <Gamepad2 size={20} />,
+  react: <Sparkles size={20} />,
   filmes: <Film size={20} />,
   series: <Tv size={20} />,
   podcast: <Mic size={20} />,
