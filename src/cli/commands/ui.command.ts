@@ -45,10 +45,23 @@ export class UiCommand extends GuardedCommand {
       process.once('SIGINT', stop);
       process.once('SIGTERM', stop);
     });
-    this.output.info('> fechando o painel');
+    this.output.info('> fechando o painel (Ctrl+C de novo fecha na hora)');
+    const force = (): void => {
+      process.exit(1);
+    };
+    process.once('SIGINT', force);
+    process.once('SIGTERM', force);
+    const timer = setTimeout(() => {
+      this.output.info('> o fechamento demorou demais; encerrando agora');
+      process.exit(1);
+    }, CLOSE_TIMEOUT_MS);
+    timer.unref();
     await server.close();
+    clearTimeout(timer);
   }
 }
+
+const CLOSE_TIMEOUT_MS = 15_000;
 
 function openBrowser(link: string): void {
   const opener =
