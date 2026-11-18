@@ -5,27 +5,26 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  schemas  = ["cortes_eb"]
+  provider = "sqlite"
 }
 
 model Job {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  kind       String    @db.VarChar(16)
-  status     String    @db.VarChar(16)
-  title      String    @db.VarChar(200)
-  preset     String    @db.VarChar(40)
+  id         String    @id @default(uuid())
+  kind       String
+  status     String
+  title      String
+  preset     String
   request    Json
   steps      Json      @default("[]")
   waiting    Json?
   summary    Json?
-  error      String?   @db.VarChar(1000)
-  workDir    String    @map("work_dir") @db.VarChar(1024)
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  startedAt  DateTime? @map("started_at") @db.Timestamptz(6)
-  finishedAt DateTime? @map("finished_at") @db.Timestamptz(6)
-  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  batchId    String?   @map("batch_id") @db.Uuid
+  error      String?
+  workDir    String    @map("work_dir")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  startedAt  DateTime? @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  batchId    String?   @map("batch_id")
   batch      Batch?    @relation(fields: [batchId], references: [id], onDelete: SetNull)
   clips      Clip[]
   logs       JobLog[]
@@ -33,66 +32,61 @@ model Job {
   @@index([status, createdAt])
   @@index([batchId])
   @@map("jobs")
-  @@schema("cortes_eb")
 }
 
 model Batch {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title     String   @db.VarChar(200)
-  preset    String   @db.VarChar(40)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id        String   @id @default(uuid())
+  title     String
+  preset    String
+  createdAt DateTime @default(now()) @map("created_at")
   jobs      Job[]
 
   @@index([createdAt])
   @@map("batches")
-  @@schema("cortes_eb")
 }
 
 model JobLog {
-  id        BigInt   @id @default(autoincrement())
-  jobId     String   @map("job_id") @db.Uuid
-  level     String   @db.VarChar(8)
-  message   String   @db.VarChar(1000)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id        Int      @id @default(autoincrement())
+  jobId     String   @map("job_id")
+  level     String
+  message   String
+  createdAt DateTime @default(now()) @map("created_at")
   job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([jobId, createdAt])
   @@map("job_logs")
-  @@schema("cortes_eb")
 }
 
 model Clip {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  jobId     String?  @map("job_id") @db.Uuid
-  day       String   @db.Char(10)
-  title     String   @db.VarChar(200)
-  hook      String?  @db.VarChar(500)
+  id        String   @id @default(uuid())
+  jobId     String?  @map("job_id")
+  day       String
+  title     String
+  hook      String?
   score     Int?
   seconds   Float
-  file      String   @db.VarChar(1024)
-  thumb     String?  @db.VarChar(1024)
+  file      String
+  thumb     String?
   sizeBytes BigInt   @map("size_bytes")
-  account   String?  @db.VarChar(32)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  account   String?
+  createdAt DateTime @default(now()) @map("created_at")
   job       Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
   @@index([day, createdAt])
   @@index([jobId])
   @@map("clips")
-  @@schema("cortes_eb")
 }
 
 model ApiKey {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  provider  String   @db.VarChar(16)
-  label     String   @db.VarChar(80)
-  baseUrl   String?  @map("base_url") @db.VarChar(300)
-  model     String?  @db.VarChar(100)
-  secret    String   @db.VarChar(4096)
-  hint      String   @db.VarChar(8)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id        String   @id @default(uuid())
+  provider  String
+  label     String
+  baseUrl   String?  @map("base_url")
+  model     String?
+  secret    String
+  hint      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("api_keys")
-  @@schema("cortes_eb")
 }

@@ -49,30 +49,31 @@ describe('SecretBox', () => {
   });
 });
 
-const TEST_URL = process.env.CORTES_EB_TEST_DATABASE_URL;
-
-describe.skipIf(TEST_URL === undefined)('repositories on a real database', () => {
+describe('repositories on a real database', () => {
   let prisma: PrismaService;
   let home = '';
-  let saved: string | undefined;
 
   beforeAll(async () => {
-    saved = process.env.DATABASE_URL;
-    process.env.DATABASE_URL = TEST_URL;
-    prisma = new PrismaService();
     home = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-home-'));
+    const paths = {
+      home,
+      databaseFile: path.join(home, 'cortes.db'),
+      packageRoot: path.resolve(import.meta.dirname, '..', '..'),
+    } as unknown as AppPaths;
+    prisma = new PrismaService(paths);
   });
 
   afterAll(async () => {
     await prisma.onModuleDestroy();
-    process.env.DATABASE_URL = saved;
     await fs.rm(home, { recursive: true, force: true });
   });
 
   beforeEach(async () => {
-    await prisma.db.$executeRawUnsafe(
-      'truncate table cortes_eb.job_logs, cortes_eb.clips, cortes_eb.jobs, cortes_eb.api_keys',
-    );
+    await prisma.db.jobLog.deleteMany();
+    await prisma.db.clip.deleteMany();
+    await prisma.db.job.deleteMany();
+    await prisma.db.batch.deleteMany();
+    await prisma.db.apiKey.deleteMany();
   });
 
   it('answers a ping', async () => {

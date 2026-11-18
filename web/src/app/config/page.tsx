@@ -570,7 +570,7 @@ function System() {
     void api<Health>('/health').then(setHealth);
   }, []);
   const items: [string, keyof Health, string][] = [
-    ['Banco de dados', 'database', 'defina DATABASE_URL e rode cortes-eb db migrate'],
+    ['Banco de dados', 'database', 'rode cortes-eb db migrate e veja o erro'],
     ['FFmpeg', 'ffmpeg', 'instale o ffmpeg'],
     ['yt-dlp', 'ytdlp', 'instale o yt-dlp para baixar links'],
     ['Transcrição', 'whisper', 'baixe o modelo em Transcrição'],

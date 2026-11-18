@@ -21,6 +21,7 @@ import { AccountCommand, ConfigCommand, NichesCommand } from './commands/config.
 import { DoctorCommand, SetupCommand } from './commands/doctor.command.js';
 import { CredentialsCommand } from './commands/credentials.command.js';
 import { UiCommand } from './commands/ui.command.js';
+import { DatabaseModule } from '../database/database.module.js';
 import { DbCommand } from './commands/db.command.js';
 import { LayoutCommand } from './commands/layout.command.js';
 import { LlmCommand } from './commands/llm.command.js';
@@ -60,6 +61,7 @@ import {
     LlmModule,
     SelectModule,
     LayoutModule,
+    DatabaseModule,
   ],
   providers: [
     DoctorService,

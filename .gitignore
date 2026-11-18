@@ -33,9 +33,13 @@ Thumbs.db
 *.swp
 
 README.md
-.dev-db/
 src/generated/
 web/.next/
 web/out/
 web/tsconfig.tsbuildinfo
 web/next-env.d.ts
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+.dev-db/
