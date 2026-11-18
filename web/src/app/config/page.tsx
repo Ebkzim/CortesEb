@@ -14,6 +14,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { KeyForm } from '@/components/key-form';
+import { ImageDrop } from '@/components/image-drop';
 import { useToast } from '@/components/toast';
 import { Button, fade } from '@/components/ui';
 import { api, patch, post, remove, upload } from '@/lib/api';
@@ -453,7 +454,7 @@ function Accounts() {
     >
       <Row
         title="Suas contas"
-        text="Clique na foto para trocar a logo. A estrela marca a conta padrão."
+        text="Clique na foto ou arraste uma imagem para trocar a logo. A estrela marca a conta padrão."
       >
         {accounts.length === 0 ? (
           <p className="muted small">Nenhuma conta ainda.</p>
@@ -466,22 +467,19 @@ function Accounts() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <label className="account__logo" title="trocar a logo">
+              <ImageDrop
+                className="account__logo"
+                title="Trocar a logo: clique ou arraste uma imagem"
+                onFile={(file) => {
+                  void logo(account, file);
+                }}
+              >
                 {account.logo !== null ? (
                   <img src={`/api/accounts/${account.id}/logo?v=${String(stamp)}`} alt="" />
                 ) : (
                   <ImagePlus size={16} />
                 )}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  hidden
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file !== undefined) void logo(account, file);
-                  }}
-                />
-              </label>
+              </ImageDrop>
               <span className="stack" style={{ gap: 2 }}>
                 <span className="key-row__name">{account.name ?? account.id}</span>
                 <span className="muted small">

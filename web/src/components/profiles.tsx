@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, patch, upload } from '@/lib/api';
 import type { AccountView } from '@/lib/types';
+import { ImageDrop } from './image-drop';
 import { useToast } from './toast';
 import { Button, EASE } from './ui';
 
@@ -82,6 +83,23 @@ export function Profiles() {
     }
   }
 
+  async function changeLogo(account: AccountView, file: File): Promise<void> {
+    try {
+      const saved = await upload<AccountView>(
+        `/accounts/${account.id}/logo`,
+        file,
+        () => undefined,
+      );
+      setAccounts((current) =>
+        (current ?? []).map((item) => (item.id === saved.id ? saved : item)),
+      );
+      setStamp(Date.now());
+      toast('Logo atualizada.');
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'não consegui enviar a logo');
+    }
+  }
+
   return (
     <div className="profiles">
       <div className="spread">
@@ -102,7 +120,15 @@ export function Profiles() {
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ delay: index * 0.04, duration: 0.4, ease: EASE }}
             >
-              <Avatar account={account} stamp={stamp} />
+              <ImageDrop
+                className="profile__drop"
+                title="Trocar a logo: clique ou arraste uma imagem"
+                onFile={(file) => {
+                  void changeLogo(account, file);
+                }}
+              >
+                <Avatar account={account} stamp={stamp} />
+              </ImageDrop>
               <span className="profile__name">{account.name ?? account.id}</span>
               {account.isDefault && <span className="profile__badge">padrão</span>}
             </motion.div>
@@ -135,21 +161,17 @@ export function Profiles() {
             transition={{ duration: 0.45, ease: EASE }}
           >
             <div className="profiles__fields">
-              <label className="profile__logo" title="logo (opcional)">
+              <ImageDrop
+                className="profile__logo"
+                title="Logo (opcional): clique ou arraste uma imagem"
+                onFile={setLogo}
+              >
                 {logo !== null ? (
                   <img src={URL.createObjectURL(logo)} alt="" />
                 ) : (
                   <ImagePlus size={18} />
                 )}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  hidden
-                  onChange={(event) => {
-                    setLogo(event.target.files?.[0] ?? null);
-                  }}
-                />
-              </label>
+              </ImageDrop>
               <input
                 className="input"
                 placeholder="Nome na marca d’água, ex.: @meucanal"

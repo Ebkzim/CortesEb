@@ -1770,3 +1770,31 @@
     align-items: stretch;
   }
 }
+
+.image-drop {
+  position: relative;
+  transition:
+    border-color 0.25s var(--ease),
+    box-shadow 0.25s var(--ease),
+    background 0.25s var(--ease);
+}
+
+.image-drop--over {
+  border: 1.5px solid var(--ink);
+  background: var(--surface);
+  box-shadow: 0 0 0 5px rgb(20 20 20 / 0.08);
+}
+
+.profile__drop {
+  display: inline-grid;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.profile__drop:hover .avatar {
+  filter: brightness(0.85);
+}
+
+.profile__drop .avatar {
+  transition: filter 0.25s var(--ease);
+}
