@@ -1,11 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
-import { Prisma, type Clip, type Job, type JobLog } from '../generated/prisma/client.js';
+import {
+  Prisma,
+  type Batch,
+  type Clip,
+  type Job,
+  type JobLog,
+} from '../generated/prisma/client.js';
 import { PrismaService } from './prisma.service.js';
 
 export type JobRow = Job;
 export type ClipRow = Clip;
 export type LogRow = JobLog;
+export type BatchRow = Batch;
 
 export interface NewJob {
   id?: string;
@@ -14,6 +21,7 @@ export interface NewJob {
   preset: string;
   request: Prisma.InputJsonValue;
   workDir: string;
+  batchId?: string;
 }
 
 export interface JobPatch {
@@ -82,9 +90,9 @@ export class JobRepository {
     });
   }
 
-  nextQueued(): Promise<JobRow | null> {
+  nextQueued(kind: 'cut' | 'live', skip: readonly string[] = []): Promise<JobRow | null> {
     return this.prisma.db.job.findFirst({
-      where: { status: 'queued' },
+      where: { status: 'queued', kind, ...(skip.length > 0 ? { id: { notIn: [...skip] } } : {}) },
       orderBy: { createdAt: 'asc' },
     });
   }
@@ -186,6 +194,40 @@ export class JobRepository {
       await this.prisma.db.job.deleteMany({ where: { id: { in: jobs.map((job) => job.id) } } });
     }
     return jobs;
+  }
+
+  createBatch(input: { title: string; preset: string }): Promise<BatchRow> {
+    return this.prisma.db.batch.create({ data: input });
+  }
+
+  async getBatch(id: string): Promise<BatchRow> {
+    const batch = await this.prisma.db.batch.findUnique({ where: { id } });
+    if (batch === null) throw new AppError('INVALID_INPUT', 'fila não encontrada');
+    return batch;
+  }
+
+  listBatches(limit = 20): Promise<(BatchRow & { jobs: { status: string }[] })[]> {
+    return this.prisma.db.batch.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(PAGE_LIMIT, Math.max(1, limit)),
+      include: { jobs: { select: { status: true } } },
+    });
+  }
+
+  jobsOfBatch(batchId: string): Promise<JobRow[]> {
+    return this.prisma.db.job.findMany({ where: { batchId }, orderBy: { createdAt: 'asc' } });
+  }
+
+  clipsOfJobs(jobIds: readonly string[]): Promise<ClipRow[]> {
+    if (jobIds.length === 0) return Promise.resolve([]);
+    return this.prisma.db.clip.findMany({
+      where: { jobId: { in: [...jobIds] } },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async removeBatch(id: string): Promise<void> {
+    await this.prisma.db.batch.delete({ where: { id } });
   }
 
   async days(): Promise<DaySummary[]> {

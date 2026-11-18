@@ -89,7 +89,9 @@ describe.skipIf(TEST_URL === undefined)('repositories on a real database', () =>
       workDir: '/tmp/x',
     });
     expect(job.status).toBe('queued');
-    expect((await jobs.nextQueued())?.id).toBe(job.id);
+    expect((await jobs.nextQueued('cut'))?.id).toBe(job.id);
+    expect(await jobs.nextQueued('live')).toBeNull();
+    expect(await jobs.nextQueued('cut', [job.id])).toBeNull();
     await jobs.update(job.id, { status: 'waiting', waiting: { kind: 'camera' } });
     expect((await jobs.get(job.id)).waiting).toEqual({ kind: 'camera' });
     await jobs.update(job.id, { status: 'running', waiting: null });

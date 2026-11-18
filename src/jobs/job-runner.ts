@@ -6,8 +6,13 @@ import { AppError } from '../common/app-error.js';
 import { withCancellation } from '../common/cancellation.js';
 import { withProgress, type StepId } from '../common/progress.js';
 import { AppPaths } from '../config/app-paths.js';
-import { jobRequestSchema, type JobRequest, type PercentRect } from '../contracts/job.js';
-import { JobRepository, type JobRow } from '../database/job.repository.js';
+import {
+  batchRequestSchema,
+  jobRequestSchema,
+  type JobRequest,
+  type PercentRect,
+} from '../contracts/job.js';
+import { JobRepository, type BatchRow, type JobRow } from '../database/job.repository.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { Workspace } from '../workspace/workspace.js';
 import { CutPipeline } from './cut-pipeline.js';
@@ -20,6 +25,7 @@ import { presetOf } from './presets.js';
 import { StepTracker, type JobStepId, type StepState } from './step-tracker.js';
 
 const IDLE_MS = 1500;
+const MAX_LIVES = 3;
 const FINISHED = ['done', 'failed', 'canceled', 'interrupted'];
 const PERSIST_MS = 1000;
 
@@ -39,13 +45,23 @@ const STEP_ALIASES: Partial<Record<StepId, JobStepId>> = {
 
 interface Active {
   id: string;
+  lane: 'cut' | 'live';
   controller: AbortController;
   camera: ((rect: PercentRect) => void) | null;
+  holding: boolean;
+}
+
+interface SlotWaiter {
+  id: string;
+  grant: () => void;
 }
 
 @Injectable()
 export class JobRunner implements OnModuleDestroy {
-  private active: Active | null = null;
+  private readonly active = new Map<string, Active>();
+  private readonly tasks = new Set<Promise<void>>();
+  private readonly slotWaiters: SlotWaiter[] = [];
+  private slot: string | null = null;
   private running = false;
   private wake: (() => void) | null = null;
   private loopDone: Promise<void> | null = null;
@@ -70,25 +86,76 @@ export class JobRunner implements OnModuleDestroy {
 
   async onModuleDestroy(): Promise<void> {
     this.running = false;
-    this.active?.controller.abort();
+    for (const item of this.active.values()) item.controller.abort();
     this.wake?.();
     await this.loopDone;
+    await Promise.allSettled([...this.tasks]);
   }
 
   async submit(input: unknown): Promise<JobRow> {
-    const parsed = jobRequestSchema.safeParse(input);
-    if (!parsed.success) {
-      const issue = parsed.error.issues[0];
-      throw new AppError(
-        'INVALID_INPUT',
-        issue === undefined ? 'pedido inválido' : `${issue.path.join('.')}: ${issue.message}`,
-      );
+    const request = validRequest(input);
+    const job = await this.create(request);
+    this.wake?.();
+    return job;
+  }
+
+  async submitBatch(input: unknown): Promise<{ batch: BatchRow; jobs: JobRow[] }> {
+    const parsed = batchRequestSchema.safeParse(input);
+    if (!parsed.success) throw new AppError('INVALID_INPUT', firstIssue(parsed.error.issues));
+    const batch = parsed.data;
+    const preset = presetOf(batch.preset);
+    const longest = Math.max(...batch.items.map((item) => item.sources.length));
+    const requests: JobRequest[] = [];
+    for (let round = 0; round < longest; round += 1) {
+      for (const item of batch.items) {
+        const source = item.sources[round];
+        if (source === undefined) continue;
+        requests.push(
+          validRequest({
+            preset: batch.preset,
+            source,
+            targets: batch.targets,
+            selector: batch.selector,
+            accounts: item.account === null ? [] : [item.account],
+            ...(batch.bottom === undefined ? {} : { bottom: batch.bottom }),
+            title: `${item.account ?? 'sem conta'} · ${sourceName(source)} ${String(round + 1)}`,
+          }),
+        );
+      }
     }
-    const request = parsed.data;
+    const row = await this.jobs.createBatch({
+      title: batch.title ?? defaultBatchTitle(preset.label),
+      preset: batch.preset,
+    });
+    const jobs: JobRow[] = [];
+    for (const request of requests) jobs.push(await this.create(request, row.id));
+    this.wake?.();
+    return { batch: row, jobs };
+  }
+
+  async cancelBatch(id: string): Promise<number> {
+    const jobs = await this.jobs.jobsOfBatch(id);
+    let count = 0;
+    for (const job of jobs) {
+      if (['queued', 'running', 'waiting'].includes(job.status)) {
+        await this.cancel(job.id).catch(() => undefined);
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  async forgetBatch(id: string): Promise<void> {
+    const jobs = await this.jobs.jobsOfBatch(id);
+    if (jobs.some((job) => !FINISHED.includes(job.status))) {
+      throw new AppError('INVALID_INPUT', 'pare a fila antes de apagar');
+    }
+    for (const job of jobs) await this.forget(job.id);
+    await this.jobs.removeBatch(id);
+  }
+
+  private async create(request: JobRequest, batchId?: string): Promise<JobRow> {
     const preset = presetOf(request.preset);
-    if (!preset.sources.includes(request.source.type)) {
-      throw new AppError('INVALID_INPUT', `${preset.label} não aceita essa origem de vídeo`);
-    }
     const id = randomUUID();
     const job = await this.jobs.create({
       id,
@@ -97,16 +164,17 @@ export class JobRunner implements OnModuleDestroy {
       preset: request.preset,
       request: request,
       workDir: path.join(this.paths.jobsDir, id),
+      ...(batchId === undefined ? {} : { batchId }),
     });
     this.events.publish({ type: 'job', jobId: job.id, job: jobView(job) });
-    this.wake?.();
     return job;
   }
 
   async cancel(id: string): Promise<JobRow> {
     const job = await this.jobs.get(id);
-    if (this.active?.id === id) {
-      this.active.controller.abort();
+    const running = this.active.get(id);
+    if (running !== undefined) {
+      running.controller.abort();
       return this.setStatus(id, { status: 'canceled', finishedAt: new Date(), waiting: null });
     }
     if (job.status !== 'queued')
@@ -115,15 +183,16 @@ export class JobRunner implements OnModuleDestroy {
   }
 
   provideCamera(id: string, rect: PercentRect): void {
-    if (this.active?.id !== id || this.active.camera === null) {
+    const running = this.active.get(id);
+    if (running?.camera === undefined || running.camera === null) {
       throw new AppError('INVALID_INPUT', 'essa tarefa não está esperando o enquadramento');
     }
-    this.active.camera(rect);
+    running.camera(rect);
   }
 
   async forget(id: string): Promise<void> {
     const job = await this.jobs.get(id);
-    if (!FINISHED.includes(job.status) || this.active?.id === id) {
+    if (!FINISHED.includes(job.status) || this.active.has(id)) {
       throw new AppError('INVALID_INPUT', 'pare a tarefa antes de apagar do histórico');
     }
     await this.jobs.remove(id);
@@ -157,31 +226,107 @@ export class JobRunner implements OnModuleDestroy {
   }
 
   activeId(): string | null {
-    return this.active?.id ?? null;
+    return this.slot ?? this.active.keys().next().value ?? null;
+  }
+
+  activeIds(): string[] {
+    return [...this.active.keys()];
   }
 
   private async loop(): Promise<void> {
     while (this.running) {
-      const next = this.active === null ? await this.jobs.nextQueued().catch(() => null) : null;
-      if (next === null) {
-        await new Promise<void>((resolve) => {
-          this.wake = resolve;
-          setTimeout(resolve, IDLE_MS).unref();
-        });
-        this.wake = null;
-        continue;
-      }
-      await this.execute(next);
+      const started = (await this.startCut()) || (await this.startLive());
+      if (started) continue;
+      await new Promise<void>((resolve) => {
+        this.wake = resolve;
+        setTimeout(resolve, IDLE_MS).unref();
+      });
+      this.wake = null;
     }
   }
 
-  private async execute(job: JobRow): Promise<void> {
+  private async startCut(): Promise<boolean> {
+    if (!this.slotFree()) return false;
+    const next = await this.jobs.nextQueued('cut', [...this.active.keys()]).catch(() => null);
+    if (next === null || !this.running || !this.slotFree()) return false;
+    this.slot = next.id;
+    this.launch(next, 'cut');
+    return true;
+  }
+
+  private async startLive(): Promise<boolean> {
+    const lives = [...this.active.values()].filter((item) => item.lane === 'live').length;
+    if (lives >= MAX_LIVES) return false;
+    const next = await this.jobs.nextQueued('live', [...this.active.keys()]).catch(() => null);
+    if (next === null || !this.running) return false;
+    this.launch(next, 'live');
+    return true;
+  }
+
+  private launch(job: JobRow, lane: 'cut' | 'live'): void {
+    const active: Active = {
+      id: job.id,
+      lane,
+      controller: new AbortController(),
+      camera: null,
+      holding: lane === 'cut',
+    };
+    this.active.set(job.id, active);
+    const task = this.execute(job, active).finally(() => {
+      this.tasks.delete(task);
+      this.active.delete(job.id);
+      this.releaseSlot(active);
+      this.wake?.();
+    });
+    this.tasks.add(task);
+  }
+
+  private slotFree(): boolean {
+    return this.slot === null && this.slotWaiters.length === 0;
+  }
+
+  private releaseSlot(active: Active): void {
+    if (!active.holding) return;
+    active.holding = false;
+    if (this.slot !== active.id) return;
+    this.slot = null;
+    const next = this.slotWaiters.shift();
+    if (next !== undefined) {
+      this.slot = next.id;
+      next.grant();
+      return;
+    }
+    this.wake?.();
+  }
+
+  private acquireSlot(active: Active): Promise<void> {
+    if (active.lane !== 'cut' || active.holding) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      const grant = (): void => {
+        active.holding = true;
+        active.controller.signal.removeEventListener('abort', abort);
+        resolve();
+      };
+      const abort = (): void => {
+        const index = this.slotWaiters.findIndex((item) => item.id === active.id);
+        if (index >= 0) this.slotWaiters.splice(index, 1);
+        reject(new CanceledError());
+      };
+      if (this.slot === null) {
+        this.slot = active.id;
+        grant();
+        return;
+      }
+      this.slotWaiters.push({ id: active.id, grant });
+      active.controller.signal.addEventListener('abort', abort, { once: true });
+    });
+  }
+
+  private async execute(job: JobRow, active: Active): Promise<void> {
     const request = jobRequestSchema.parse(job.request);
     const preset = presetOf(request.preset);
     const pipeline: Pipeline = request.source.type === 'live' ? this.live : this.cut;
-    const controller = new AbortController();
-    const active: Active = { id: job.id, controller, camera: null };
-    this.active = active;
+    const controller = active.controller;
     const saving: { last: number; pending: StepState[] | null; timer: NodeJS.Timeout | null } = {
       last: 0,
       pending: null,
@@ -240,9 +385,11 @@ export class JobRunner implements OnModuleDestroy {
         new Promise<PercentRect>((resolve, reject) => {
           active.camera = (rect) => {
             active.camera = null;
-            void this.setStatus(job.id, { status: 'running', waiting: null }).then(() => {
-              resolve(rect);
-            });
+            void this.acquireSlot(active)
+              .then(() => this.setStatus(job.id, { status: 'running', waiting: null }))
+              .then(() => {
+                resolve(rect);
+              }, reject);
           };
           controller.signal.addEventListener(
             'abort',
@@ -251,12 +398,15 @@ export class JobRunner implements OnModuleDestroy {
             },
             { once: true },
           );
+          this.releaseSlot(active);
           void this.setStatus(job.id, {
             status: 'waiting',
             waiting: { kind: 'camera', frame, suggestion },
           });
         }),
       setWaiting: async (data) => {
+        if (data === null) await this.acquireSlot(active);
+        else if (data.kind === 'agent') this.releaseSlot(active);
         await this.setStatus(job.id, {
           status: data === null ? 'running' : 'waiting',
           waiting: data === null ? null : (data as Prisma.InputJsonValue),
@@ -319,7 +469,6 @@ export class JobRunner implements OnModuleDestroy {
         waiting: null,
       }).catch(() => undefined);
     } finally {
-      this.active = null;
       await fs
         .rm(path.join(job.workDir, 'out'), { recursive: true, force: true })
         .catch(() => undefined);
@@ -337,22 +486,44 @@ export class JobRunner implements OnModuleDestroy {
 }
 
 function defaultTitle(request: JobRequest, label: string): string {
-  const source = request.source;
-  const origin =
-    source.type === 'file'
-      ? 'arquivo'
-      : source.type === 'youtube'
-        ? 'YouTube'
-        : source.type === 'vod'
-          ? `VOD ${source.platform}`
-          : `live ${source.platform}`;
-  const stamp = new Date().toLocaleString('pt-BR', {
+  return `${label} · ${sourceName(request.source)} · ${stamp()}`;
+}
+
+function validRequest(input: unknown): JobRequest {
+  const parsed = jobRequestSchema.safeParse(input);
+  if (!parsed.success) throw new AppError('INVALID_INPUT', firstIssue(parsed.error.issues));
+  const request = parsed.data;
+  const preset = presetOf(request.preset);
+  if (!preset.sources.includes(request.source.type)) {
+    throw new AppError('INVALID_INPUT', `${preset.label} não aceita essa origem de vídeo`);
+  }
+  return request;
+}
+
+function firstIssue(issues: readonly { path: PropertyKey[]; message: string }[]): string {
+  const issue = issues[0];
+  if (issue === undefined) return 'pedido inválido';
+  return `${issue.path.map(String).join('.')}: ${issue.message}`;
+}
+
+function sourceName(source: JobRequest['source']): string {
+  if (source.type === 'file') return 'arquivo';
+  if (source.type === 'youtube') return 'YouTube';
+  if (source.type === 'vod') return `VOD ${source.platform}`;
+  return `live ${source.platform}`;
+}
+
+function defaultBatchTitle(label: string): string {
+  return `Fila · ${label} · ${stamp()}`;
+}
+
+function stamp(): string {
+  return new Date().toLocaleString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
   });
-  return `${label} · ${origin} · ${stamp}`;
 }
 
 function describe(error: unknown): string {
