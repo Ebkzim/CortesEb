@@ -87,6 +87,7 @@ export const jobRequestSchema = z
     camera: percentRectSchema.optional(),
     bottom: bottomSchema.optional(),
     resume: z.uuid().optional(),
+    together: z.boolean().optional(),
   })
   .superRefine((request, context) => {
     const live = request.source.type === 'live';
@@ -122,26 +123,34 @@ export const batchRequestSchema = z
     preset: z.enum(PRESET_IDS),
     targets: targetsSchema,
     selector: selectorSchema,
+    mode: z.enum(['queue', 'together']).default('queue'),
     bottom: bottomSchema.optional(),
     items: z
       .array(
         z.strictObject({
           account: z.string().regex(ACCOUNT_REF_PATTERN).nullable(),
-          sources: z.array(sourceSchema).min(1).max(50),
+          videos: z
+            .array(z.strictObject({ source: sourceSchema, selector: selectorSchema.optional() }))
+            .min(1)
+            .max(50),
         }),
       )
       .min(1)
       .max(20),
   })
   .superRefine((batch, context) => {
-    if (batch.selector.kind === 'agent') {
+    const selectors = [
+      batch.selector,
+      ...batch.items.flatMap((item) => item.videos.map((video) => video.selector)),
+    ];
+    if (selectors.some((selector) => selector?.kind === 'agent')) {
       context.addIssue({
         code: 'custom',
         path: ['selector'],
         message: 'a fila roda sozinha: use API ou IA local',
       });
     }
-    const total = batch.items.reduce((sum, item) => sum + item.sources.length, 0);
+    const total = batch.items.reduce((sum, item) => sum + item.videos.length, 0);
     if (total > 100) {
       context.addIssue({
         code: 'custom',

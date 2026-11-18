@@ -61,6 +61,14 @@ class FakeRepository {
     );
   }
 
+  queued(kind: string, skip: readonly string[] = [], take = 50): Promise<JobRow[]> {
+    return Promise.resolve(
+      this.rows
+        .filter((row) => row.status === 'queued' && row.kind === kind && !skip.includes(row.id))
+        .slice(0, take),
+    );
+  }
+
   interruptRunning(): Promise<number> {
     return Promise.resolve(0);
   }
@@ -108,6 +116,7 @@ const VIDEO = { type: 'youtube', url: 'https://www.youtube.com/watch?v=abc' };
 const LIVE = { type: 'live', platform: 'twitch', url: 'https://www.twitch.tv/alguem' };
 const OLLAMA = { kind: 'ollama', model: 'qwen' };
 const TARGETS = { mode: 'count', count: 1 };
+const API = { kind: 'api', keyId: '6f1c1d52-8a5e-4f0e-9b7a-0c5b8e2f4a11' };
 
 function setup(): {
   repo: FakeRepository;
@@ -228,9 +237,9 @@ describe('JobRunner batches', () => {
       targets: TARGETS,
       selector: OLLAMA,
       items: [
-        { account: 'conta-x', sources: [VIDEO, VIDEO, VIDEO] },
-        { account: 'conta-y', sources: [VIDEO] },
-        { account: null, sources: [VIDEO, LIVE] },
+        { account: 'conta-x', videos: [{ source: VIDEO }, { source: VIDEO }, { source: VIDEO }] },
+        { account: 'conta-y', videos: [{ source: VIDEO, selector: API }] },
+        { account: null, videos: [{ source: VIDEO }, { source: LIVE }] },
       ],
     });
     expect(jobs.map((job) => job.title.split(' · ')[0])).toEqual([
@@ -245,8 +254,39 @@ describe('JobRunner batches', () => {
     expect(jobs.map((job) => job.kind)).toContain('live');
     expect((jobs[0]?.request as { accounts: string[] }).accounts).toEqual(['conta-x']);
     expect((jobs[2]?.request as { accounts: string[] }).accounts).toEqual([]);
+    expect((jobs[1]?.request as { selector: unknown }).selector).toEqual(API);
+    expect((jobs[0]?.request as { selector: unknown }).selector).toEqual(OLLAMA);
     expect(await runner.cancelBatch(batch.id)).toBe(6);
     expect(repo.rows.every((row) => row.status === 'canceled')).toBe(true);
+  });
+
+  it('runs every video of a together batch at the same time', async () => {
+    const { cut, runner, repo } = setup();
+    running.push(runner);
+    await runner.submit({
+      preset: 'gta6-react',
+      source: VIDEO,
+      targets: TARGETS,
+      selector: OLLAMA,
+      title: 'sozinho',
+    });
+    const { jobs } = await runner.submitBatch({
+      preset: 'gta6-react',
+      targets: TARGETS,
+      selector: OLLAMA,
+      mode: 'together',
+      items: [
+        { account: 'conta-x', videos: [{ source: VIDEO }, { source: VIDEO }] },
+        { account: 'conta-y', videos: [{ source: VIDEO }] },
+      ],
+    });
+    expect(jobs.every((job) => (job.request as { together?: boolean }).together === true)).toBe(
+      true,
+    );
+    await runner.start();
+    await until(() => cut.gates.size === 4);
+    for (const gate of cut.gates.values()) gate.open();
+    await until(() => repo.rows.every((row) => row.status === 'done'));
   });
 
   it('refuses the chat agent and sources the type does not take', async () => {
@@ -254,7 +294,7 @@ describe('JobRunner batches', () => {
     const base = {
       preset: 'gta6-react',
       targets: TARGETS,
-      items: [{ account: null, sources: [VIDEO] }],
+      items: [{ account: null, videos: [{ source: VIDEO }] }],
     };
     await expect(
       runner.submitBatch({ ...base, selector: { kind: 'agent', agent: 'claude' } }),
@@ -264,9 +304,21 @@ describe('JobRunner batches', () => {
         ...base,
         preset: 'series',
         selector: OLLAMA,
-        items: [{ account: null, sources: [VIDEO, LIVE] }],
+        items: [{ account: null, videos: [{ source: VIDEO }, { source: LIVE }] }],
       }),
     ).rejects.toThrow(/não aceita/);
+    await expect(
+      runner.submitBatch({
+        ...base,
+        selector: OLLAMA,
+        items: [
+          {
+            account: null,
+            videos: [{ source: VIDEO, selector: { kind: 'agent', agent: 'codex' } }],
+          },
+        ],
+      }),
+    ).rejects.toThrow(/sozinha/);
     expect(repo.rows).toEqual([]);
     expect(repo.batches).toEqual([]);
   });

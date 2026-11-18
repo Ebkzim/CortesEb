@@ -26,6 +26,8 @@ import { StepTracker, type JobStepId, type StepState } from './step-tracker.js';
 
 const IDLE_MS = 1500;
 const MAX_LIVES = 3;
+const MAX_TOGETHER = 8;
+const QUEUE_PEEK = 200;
 const FINISHED = ['done', 'failed', 'canceled', 'interrupted'];
 const PERSIST_MS = 1000;
 
@@ -45,7 +47,7 @@ const STEP_ALIASES: Partial<Record<StepId, JobStepId>> = {
 
 interface Active {
   id: string;
-  lane: 'cut' | 'live';
+  lane: 'cut' | 'live' | 'together';
   controller: AbortController;
   camera: ((rect: PercentRect) => void) | null;
   holding: boolean;
@@ -104,20 +106,22 @@ export class JobRunner implements OnModuleDestroy {
     if (!parsed.success) throw new AppError('INVALID_INPUT', firstIssue(parsed.error.issues));
     const batch = parsed.data;
     const preset = presetOf(batch.preset);
-    const longest = Math.max(...batch.items.map((item) => item.sources.length));
+    const longest = Math.max(...batch.items.map((item) => item.videos.length));
     const requests: JobRequest[] = [];
     for (let round = 0; round < longest; round += 1) {
       for (const item of batch.items) {
-        const source = item.sources[round];
-        if (source === undefined) continue;
+        const video = item.videos[round];
+        if (video === undefined) continue;
+        const source = video.source;
         requests.push(
           validRequest({
             preset: batch.preset,
             source,
             targets: batch.targets,
-            selector: batch.selector,
+            selector: video.selector ?? batch.selector,
             accounts: item.account === null ? [] : [item.account],
             ...(batch.bottom === undefined ? {} : { bottom: batch.bottom }),
+            ...(batch.mode === 'together' && source.type !== 'live' ? { together: true } : {}),
             title: `${item.account ?? 'sem conta'} · ${sourceName(source)} ${String(round + 1)}`,
           }),
         );
@@ -190,6 +194,15 @@ export class JobRunner implements OnModuleDestroy {
     running.camera(rect);
   }
 
+  async cameraFrame(id: string, at: number): Promise<{ frame: string; at: number }> {
+    const running = this.active.get(id);
+    if (running?.camera === undefined || running.camera === null || running.lane === 'live') {
+      throw new AppError('INVALID_INPUT', 'essa tarefa não está esperando o enquadramento');
+    }
+    const job = await this.jobs.get(id);
+    return this.cut.frameAt(new Workspace(path.join(job.workDir, 'work')), at);
+  }
+
   async forget(id: string): Promise<void> {
     const job = await this.jobs.get(id);
     if (!FINISHED.includes(job.status) || this.active.has(id)) {
@@ -235,7 +248,8 @@ export class JobRunner implements OnModuleDestroy {
 
   private async loop(): Promise<void> {
     while (this.running) {
-      const started = (await this.startCut()) || (await this.startLive());
+      const started =
+        (await this.startCut()) || (await this.startTogether()) || (await this.startLive());
       if (started) continue;
       await new Promise<void>((resolve) => {
         this.wake = resolve;
@@ -247,11 +261,27 @@ export class JobRunner implements OnModuleDestroy {
 
   private async startCut(): Promise<boolean> {
     if (!this.slotFree()) return false;
-    const next = await this.jobs.nextQueued('cut', [...this.active.keys()]).catch(() => null);
+    const next = await this.nextCut(false);
     if (next === null || !this.running || !this.slotFree()) return false;
     this.slot = next.id;
     this.launch(next, 'cut');
     return true;
+  }
+
+  private async startTogether(): Promise<boolean> {
+    const together = [...this.active.values()].filter((item) => item.lane === 'together').length;
+    if (together >= MAX_TOGETHER) return false;
+    const next = await this.nextCut(true);
+    if (next === null || !this.running) return false;
+    this.launch(next, 'together');
+    return true;
+  }
+
+  private async nextCut(together: boolean): Promise<JobRow | null> {
+    const queued = await this.jobs
+      .queued('cut', [...this.active.keys()], QUEUE_PEEK)
+      .catch(() => [] as JobRow[]);
+    return queued.find((job) => isTogether(job) === together) ?? null;
   }
 
   private async startLive(): Promise<boolean> {
@@ -263,7 +293,7 @@ export class JobRunner implements OnModuleDestroy {
     return true;
   }
 
-  private launch(job: JobRow, lane: 'cut' | 'live'): void {
+  private launch(job: JobRow, lane: Active['lane']): void {
     const active: Active = {
       id: job.id,
       lane,
@@ -381,7 +411,7 @@ export class JobRunner implements OnModuleDestroy {
       tracker,
       signal: controller.signal,
       log,
-      waitForCamera: (frame, suggestion) =>
+      waitForCamera: (frame, suggestion, timeline) =>
         new Promise<PercentRect>((resolve, reject) => {
           active.camera = (rect) => {
             active.camera = null;
@@ -401,7 +431,7 @@ export class JobRunner implements OnModuleDestroy {
           this.releaseSlot(active);
           void this.setStatus(job.id, {
             status: 'waiting',
-            waiting: { kind: 'camera', frame, suggestion },
+            waiting: { kind: 'camera', frame, suggestion, ...(timeline ?? {}) },
           });
         }),
       setWaiting: async (data) => {
@@ -483,6 +513,11 @@ export class JobRunner implements OnModuleDestroy {
     this.events.publish({ type: 'job', jobId: id, job: jobView(row) });
     return row;
   }
+}
+
+function isTogether(job: JobRow): boolean {
+  const request = job.request as { together?: unknown } | null;
+  return request?.together === true;
 }
 
 function defaultTitle(request: JobRequest, label: string): string {

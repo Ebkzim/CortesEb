@@ -97,6 +97,14 @@ export class JobRepository {
     });
   }
 
+  queued(kind: 'cut' | 'live', skip: readonly string[], take: number): Promise<JobRow[]> {
+    return this.prisma.db.job.findMany({
+      where: { status: 'queued', kind, ...(skip.length > 0 ? { id: { notIn: [...skip] } } : {}) },
+      orderBy: { createdAt: 'asc' },
+      take,
+    });
+  }
+
   async interruptRunning(): Promise<number> {
     const result = await this.prisma.db.job.updateMany({
       where: { status: { in: ['running', 'waiting'] } },

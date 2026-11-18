@@ -106,6 +106,12 @@ export class TargetsService {
     return { widened: true, check: await this.check(workspace) };
   }
 
+  async assertSeparate(workspace: Workspace): Promise<void> {
+    const cuts = await readJson(workspace.cuts, cutsSchema);
+    const first = overlaps(cuts.clips)[0];
+    if (first !== undefined) throw new AppError('INVALID_INPUT', `cortes fora do plano: ${first}`);
+  }
+
   async assert(workspace: Workspace): Promise<void> {
     const check = await this.check(workspace);
     if (check.ok) return;

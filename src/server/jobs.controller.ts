@@ -12,6 +12,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
+import { z } from 'zod';
 import { AppError } from '../common/app-error.js';
 import { assertPlainName, resolveInside } from '../common/safe-path.js';
 import { percentRectSchema } from '../contracts/job.js';
@@ -26,6 +27,8 @@ import {
   type JobView,
 } from '../jobs/job-views.js';
 import { PRESETS, type Preset } from '../jobs/presets.js';
+
+const frameAtSchema = z.strictObject({ at: z.number().min(0).max(864_000) });
 
 @Controller('api')
 export class JobsController {
@@ -162,13 +165,24 @@ export class JobsController {
     return { ok: true };
   }
 
+  @Post('jobs/:id/frame-at')
+  async frameAt(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+  ): Promise<{ frame: string; at: number }> {
+    const parsed = frameAtSchema.safeParse(body);
+    if (!parsed.success) throw new AppError('INVALID_INPUT', 'momento inválido');
+    return this.runner.cameraFrame(id, parsed.data.at);
+  }
+
   @Get('jobs/:id/frame/:name')
   async frame(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Param('name') name: string,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    if (!/^frame-[a-z-]+\.jpg$/.test(name)) throw new AppError('INVALID_INPUT', 'imagem inválida');
+    if (!/^frame-[a-z0-9-]+\.jpg$/.test(name))
+      throw new AppError('INVALID_INPUT', 'imagem inválida');
     const job = await this.jobs.get(id);
     const file = resolveInside(path.join(job.workDir, 'work'), assertPlainName(name));
     if (!fs.existsSync(file)) throw new AppError('MISSING_FILE', 'imagem não encontrada');
