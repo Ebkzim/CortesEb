@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { currentSignal } from '../common/cancellation.js';
 import type { ProcessRunner, RunOptions } from '../common/process-runner.js';
 import type { AppPaths } from '../config/app-paths.js';
 import { Whisper } from './whisper.js';
@@ -75,5 +76,35 @@ describe('Whisper', () => {
     await expect(whisper.transcribe(audio, 'base', 'pt')).rejects.toThrow(
       /não gerou a transcrição/,
     );
+  });
+
+  it('stops whisper when it stops making progress', async () => {
+    let started: () => void = () => undefined;
+    const running = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const runner = {
+      run: () =>
+        new Promise((_resolve, reject) => {
+          started();
+          currentSignal()?.addEventListener('abort', () => {
+            reject(new Error('tarefa cancelada'));
+          });
+        }),
+    } as unknown as ProcessRunner;
+    const paths = {
+      whisperDir: dir,
+      whisperModel: (model: string) => path.join(dir, `ggml-${model}.bin`),
+    } as unknown as AppPaths;
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+    try {
+      const pending = new Whisper(paths, runner).transcribe(audio, 'base', 'pt');
+      const settled = expect(pending).rejects.toThrow(/sem avançar/);
+      await running;
+      await vi.advanceTimersByTimeAsync(16 * 60 * 1000);
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
