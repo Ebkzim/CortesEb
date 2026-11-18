@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { constants, createWriteStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -21,24 +22,32 @@ const OLLAMA_URL = 'http://127.0.0.1:11434';
 const DEFAULT_MODEL = 'qwen2.5:3b-instruct';
 const WHISPER_MODELS = ['tiny', 'base', 'small', 'medium', 'large-v3'];
 
+const BTBN = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest';
+const GYAN = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip';
 const FFMPEG = WINDOWS
   ? [
-      'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',
-      'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
+      { url: `${BTBN}/ffmpeg-master-latest-win64-gpl.zip`, sums: `${BTBN}/checksums.sha256` },
+      { url: GYAN, sums: `${GYAN}.sha256` },
     ]
-  : ARM
-    ? [
-        'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz',
-        'https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz',
-      ]
-    : [
-        'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz',
-        'https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz',
-      ];
+  : [
+      {
+        url: `${BTBN}/ffmpeg-master-latest-${ARM ? 'linuxarm64' : 'linux64'}-gpl.tar.xz`,
+        sums: `${BTBN}/checksums.sha256`,
+      },
+    ];
 
-const YTDLP = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${
-  WINDOWS ? 'yt-dlp.exe' : ARM ? 'yt-dlp_linux_aarch64' : 'yt-dlp_linux'
-}`;
+const YTDLP_RELEASE = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download';
+const YTDLP = {
+  url: `${YTDLP_RELEASE}/${WINDOWS ? 'yt-dlp.exe' : ARM ? 'yt-dlp_linux_aarch64' : 'yt-dlp_linux'}`,
+  sums: `${YTDLP_RELEASE}/SHA2-256SUMS`,
+};
+
+const OLLAMA_RELEASE = 'https://github.com/ollama/ollama/releases/latest/download';
+const OLLAMA_SETUP = {
+  url: `${OLLAMA_RELEASE}/OllamaSetup.exe`,
+  sums: `${OLLAMA_RELEASE}/sha256sum.txt`,
+};
+const OLLAMA_SCRIPT = 'https://ollama.com/install.sh';
 
 const options = parseArgs(process.argv.slice(2));
 const report = [];
@@ -165,7 +174,7 @@ async function installYtdlp() {
     return 'já instalado';
   }
   const target = path.join(BIN, `yt-dlp${EXE}`);
-  await download(YTDLP, `${target}.part`);
+  await verifiedDownload(YTDLP, `${target}.part`);
   await fs.rename(`${target}.part`, target);
   if (!WINDOWS) await fs.chmod(target, 0o755);
   if (!has('yt-dlp')) throw new Error('o yt-dlp baixado não executou nesta máquina');
@@ -198,7 +207,7 @@ async function installOllama() {
       const work = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-ollama-'));
       try {
         const setup = path.join(work, 'OllamaSetup.exe');
-        await download('https://ollama.com/download/OllamaSetup.exe', setup);
+        await verifiedDownload(OLLAMA_SETUP, setup);
         info('instalando o Ollama (pode aparecer uma janela do Windows pedindo permissão)');
         run(setup, ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'], work);
       } finally {
@@ -207,7 +216,14 @@ async function installOllama() {
     } else {
       if (!has('curl')) throw new Error('instale o curl (sudo apt install curl) e rode de novo');
       info('o instalador oficial do Ollama vai pedir sua senha de administrador (sudo)');
-      run('sh', ['-c', 'curl -fsSL https://ollama.com/install.sh | sh'], ROOT);
+      const work = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-ollama-'));
+      try {
+        const script = path.join(work, 'install.sh');
+        await download(OLLAMA_SCRIPT, script);
+        run('sh', [script], work);
+      } finally {
+        await fs.rm(work, { recursive: true, force: true });
+      }
     }
   }
   const executable = await ollamaExecutable();
@@ -281,7 +297,7 @@ async function linkSkill() {
     return 'pulado';
   }
   if (stat !== null) await fs.rm(target, { force: true });
-  await fs.symlink(path.join(ROOT, 'skill'), target, WINDOWS ? 'junction' : 'dir');
+  await fs.symlink(path.join(ROOT, 'alternativa-skills'), target, WINDOWS ? 'junction' : 'dir');
   return 'ok';
 }
 
@@ -395,19 +411,41 @@ async function ollamaUp() {
   }
 }
 
-async function downloadFirst(urls, folder, name) {
+async function downloadFirst(sources, folder, name) {
   let last = null;
-  for (const url of urls) {
+  for (const source of sources) {
     try {
       const target = path.join(folder, name);
-      await download(url, target);
+      await verifiedDownload(source, target);
       return target;
     } catch (error) {
       last = error;
-      info(`não consegui baixar de ${new URL(url).host}, tentando outra fonte`);
+      info(`não consegui baixar de ${new URL(source.url).host}: ${error.message}`);
     }
   }
   throw last ?? new Error('nenhuma fonte de download respondeu');
+}
+
+async function verifiedDownload(source, target) {
+  const expected = await officialChecksum(source);
+  const actual = await download(source.url, target);
+  if (actual !== expected) {
+    await fs.rm(target, { force: true });
+    throw new Error(`${path.basename(source.url)} não confere com o checksum oficial`);
+  }
+}
+
+async function officialChecksum(source) {
+  const response = await fetch(source.sums, { redirect: 'follow' });
+  if (!response.ok) throw new Error(`não consegui baixar o checksum (${response.status})`);
+  const name = path.basename(new URL(source.url).pathname);
+  const lines = (await response.text()).split(/\r?\n/).map((line) => line.trim().split(/\s+/));
+  for (const [hash, file] of lines) {
+    if (!/^[a-f0-9]{64}$/i.test(hash ?? '')) continue;
+    if (file === undefined && lines.filter(([h]) => h).length === 1) return hash.toLowerCase();
+    if (file?.replace(/^[*.]?\/?/, '') === name) return hash.toLowerCase();
+  }
+  throw new Error(`o checksum oficial de ${name} não foi publicado`);
 }
 
 async function download(url, target) {
@@ -416,13 +454,16 @@ async function download(url, target) {
     throw new Error(`download falhou (${response.status}) em ${new URL(url).host}`);
   const total = Number(response.headers.get('content-length') ?? 0);
   const progress = new Progress(`baixando ${path.basename(new URL(url).pathname)}`);
+  const hash = createHash('sha256');
   let received = 0;
   const counted = Readable.fromWeb(response.body).on('data', (chunk) => {
     received += chunk.length;
+    hash.update(chunk);
     progress.update(received, total);
   });
   await pipeline(counted, createWriteStream(target));
   progress.done();
+  return hash.digest('hex');
 }
 
 async function findFile(folder, name) {

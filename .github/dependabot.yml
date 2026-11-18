@@ -17,6 +17,20 @@ updates:
         patterns:
           - '@nestjs/*'
           - nest-commander
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      next:
+        patterns:
+          - next
+          - react
+          - react-dom
   - package-ecosystem: github-actions
     directory: /
     schedule:

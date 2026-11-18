@@ -20,6 +20,19 @@ export interface RunningServer {
 
 const BODY_LIMIT = 1024 * 1024;
 const SAFE_METHODS = new Set(['GET', 'HEAD']);
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "media-src 'self' blob:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
 
 export async function startServer(port: number, webDir: string): Promise<RunningServer> {
   z.config(z.locales.pt());
@@ -54,10 +67,15 @@ export async function startServer(port: number, webDir: string): Promise<Running
     }
     return undefined;
   });
-  fastify.addHook('onSend', async (_request, reply, payload) => {
+  fastify.addHook('onSend', async (request, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('Referrer-Policy', 'no-referrer');
     reply.header('X-Frame-Options', 'DENY');
+    reply.header('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+    reply.header('Cross-Origin-Opener-Policy', 'same-origin');
+    reply.header('Cross-Origin-Resource-Policy', 'same-origin');
+    reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=()');
+    if (routePath(request).startsWith('/api/')) reply.header('Cache-Control', 'no-store');
     return payload;
   });
   if (fs.existsSync(path.join(webDir, 'index.html'))) {

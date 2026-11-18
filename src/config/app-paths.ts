@@ -75,7 +75,7 @@ export class AppPaths {
   }
 
   get skillDir(): string {
-    return path.join(this.packageRoot, 'skill');
+    return path.join(this.packageRoot, 'alternativa-skills');
   }
 
   inHome(name: string): string {
