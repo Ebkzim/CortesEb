@@ -37,4 +37,27 @@ export default tseslint.config(
       'security/detect-non-literal-fs-filename': 'off',
     },
   },
+  {
+    files: ['scripts/**/*.mjs'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      parserOptions: { project: false, projectService: false, program: null },
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        fetch: 'readonly',
+        URL: 'readonly',
+        Buffer: 'readonly',
+        AbortSignal: 'readonly',
+        setTimeout: 'readonly',
+      },
+    },
+    rules: {
+      ...tseslint.configs.disableTypeChecked.rules,
+      'no-console': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      'security/detect-child-process': 'off',
+      'security/detect-non-literal-regexp': 'off',
+    },
+  },
 );
