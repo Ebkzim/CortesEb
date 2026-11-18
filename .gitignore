@@ -32,7 +32,6 @@ Thumbs.db
 .vscode/
 *.swp
 
-README.md
 src/generated/
 web/.next/
 web/out/
