@@ -116,6 +116,42 @@ export const jobRequestSchema = z
     }
   });
 
+export const batchRequestSchema = z
+  .strictObject({
+    title: z.string().trim().min(1).max(120).optional(),
+    preset: z.enum(PRESET_IDS),
+    targets: targetsSchema,
+    selector: selectorSchema,
+    bottom: bottomSchema.optional(),
+    items: z
+      .array(
+        z.strictObject({
+          account: z.string().regex(ACCOUNT_REF_PATTERN).nullable(),
+          sources: z.array(sourceSchema).min(1).max(50),
+        }),
+      )
+      .min(1)
+      .max(20),
+  })
+  .superRefine((batch, context) => {
+    if (batch.selector.kind === 'agent') {
+      context.addIssue({
+        code: 'custom',
+        path: ['selector'],
+        message: 'a fila roda sozinha: use API ou IA local',
+      });
+    }
+    const total = batch.items.reduce((sum, item) => sum + item.sources.length, 0);
+    if (total > 100) {
+      context.addIssue({
+        code: 'custom',
+        path: ['items'],
+        message: 'no máximo 100 vídeos por fila',
+      });
+    }
+  });
+
+export type BatchRequest = z.infer<typeof batchRequestSchema>;
 export type PresetId = (typeof PRESET_IDS)[number];
 export type PlatformId = (typeof PLATFORM_IDS)[number];
 export type PercentRect = z.infer<typeof percentRectSchema>;

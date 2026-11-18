@@ -17,7 +17,14 @@ import { assertPlainName, resolveInside } from '../common/safe-path.js';
 import { percentRectSchema } from '../contracts/job.js';
 import { JobRepository } from '../database/job.repository.js';
 import { JobRunner } from '../jobs/job-runner.js';
-import { clipView, jobView, type ClipView, type JobView } from '../jobs/job-views.js';
+import {
+  batchView,
+  clipView,
+  jobView,
+  type BatchView,
+  type ClipView,
+  type JobView,
+} from '../jobs/job-views.js';
 import { PRESETS, type Preset } from '../jobs/presets.js';
 
 @Controller('api')
@@ -47,6 +54,60 @@ export class JobsController {
   @Post('jobs')
   async create(@Body() body: unknown): Promise<JobView> {
     return jobView(await this.runner.submit(body));
+  }
+
+  @Post('batches')
+  async createBatch(@Body() body: unknown): Promise<{ batch: BatchView; jobs: JobView[] }> {
+    const { batch, jobs } = await this.runner.submitBatch(body);
+    return {
+      batch: batchView(
+        batch,
+        jobs.map((job) => job.status),
+      ),
+      jobs: jobs.map(jobView),
+    };
+  }
+
+  @Get('batches')
+  async batches(@Query('limit') limit?: string): Promise<BatchView[]> {
+    const rows = await this.jobs.listBatches(Number(limit ?? 20) || 20);
+    return rows.map((row) =>
+      batchView(
+        row,
+        row.jobs.map((job) => job.status),
+      ),
+    );
+  }
+
+  @Get('batches/:id')
+  async batch(@Param('id', new ParseUUIDPipe()) id: string): Promise<{
+    batch: BatchView;
+    jobs: JobView[];
+    clips: ClipView[];
+  }> {
+    const [batch, jobs] = await Promise.all([this.jobs.getBatch(id), this.jobs.jobsOfBatch(id)]);
+    const clips = await this.jobs.clipsOfJobs(jobs.map((job) => job.id));
+    return {
+      batch: batchView(
+        batch,
+        jobs.map((job) => job.status),
+      ),
+      jobs: jobs.map(jobView),
+      clips: clips.map(clipView),
+    };
+  }
+
+  @Post('batches/:id/cancel')
+  async cancelBatch(@Param('id', new ParseUUIDPipe()) id: string): Promise<{ canceled: number }> {
+    await this.jobs.getBatch(id);
+    return { canceled: await this.runner.cancelBatch(id) };
+  }
+
+  @Delete('batches/:id')
+  async forgetBatch(@Param('id', new ParseUUIDPipe()) id: string): Promise<{ ok: true }> {
+    await this.jobs.getBatch(id);
+    await this.runner.forgetBatch(id);
+    return { ok: true };
   }
 
   @Get('jobs/:id')

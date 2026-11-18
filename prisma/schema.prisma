@@ -25,11 +25,26 @@ model Job {
   startedAt  DateTime? @map("started_at") @db.Timestamptz(6)
   finishedAt DateTime? @map("finished_at") @db.Timestamptz(6)
   updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  batchId    String?   @map("batch_id") @db.Uuid
+  batch      Batch?    @relation(fields: [batchId], references: [id], onDelete: SetNull)
   clips      Clip[]
   logs       JobLog[]
 
   @@index([status, createdAt])
+  @@index([batchId])
   @@map("jobs")
+  @@schema("cortes_eb")
+}
+
+model Batch {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title     String   @db.VarChar(200)
+  preset    String   @db.VarChar(40)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  jobs      Job[]
+
+  @@index([createdAt])
+  @@map("batches")
   @@schema("cortes_eb")
 }
 
