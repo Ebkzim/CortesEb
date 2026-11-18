@@ -95,6 +95,7 @@ export interface JobView {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+  batchId: string | null;
 }
 
 export interface ClipView {
@@ -146,3 +147,13 @@ export type JobEvent =
   | { type: 'log'; jobId: string; level: LogLine['level']; message: string; at: string }
   | { type: 'clip'; jobId: string; clip: ClipView }
   | { type: 'removed'; jobId: string };
+
+export interface BatchView {
+  id: string;
+  title: string;
+  preset: string;
+  createdAt: string;
+  total: number;
+  finished: number;
+  active: number;
+}

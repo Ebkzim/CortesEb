@@ -1461,3 +1461,312 @@
 .variants .grid > div > .choice {
   flex: 1;
 }
+
+.queue {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.queue__account {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.queue__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.queue__who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.queue__blank {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--sunken);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.queue__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.queue__index {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.queue__kind {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.queue__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.queue__remove {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--muted);
+  transition:
+    background 0.2s var(--ease),
+    color 0.2s var(--ease);
+}
+
+.queue__remove:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.queue__add {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.queue__link {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.queue__link .input {
+  flex: 1;
+}
+
+.queue-review {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.queue-review__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.queue-review__name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.batch {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.batch__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.batch__head > .stack {
+  flex: 1;
+  min-width: min(100%, 420px);
+}
+
+.batch__count {
+  display: inline-block;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.batch__accounts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.batch__account {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+  border-radius: 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.batch__who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.batch__jobs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.batch__job {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--paper);
+}
+
+.batch__line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.batch__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.batch__steps {
+  display: flex;
+  gap: 3px;
+  flex: none;
+}
+
+.batch__step {
+  position: relative;
+  width: 16px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--line-strong);
+  overflow: hidden;
+}
+
+.batch__step--done {
+  background: var(--ink);
+}
+
+.batch__step--waiting {
+  background: var(--muted);
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+.batch__step--failed {
+  background: #b42318;
+}
+
+.batch__step-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--ink);
+  transform-origin: left center;
+}
+
+.batch__job--queued .batch__name {
+  color: var(--muted);
+}
+
+.batch__error {
+  color: #b42318;
+}
+
+.batch__clips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+  overflow: hidden;
+}
+
+.batch__clip {
+  position: relative;
+}
+
+.batch__clip .tile {
+  width: 100%;
+  border-radius: 12px;
+}
+
+.batch__clip .tile__title {
+  font-size: 11px;
+}
+
+.batch__download {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.92);
+  color: var(--ink);
+  transition: transform 0.25s var(--ease);
+}
+
+.batch__download:hover {
+  transform: scale(1.1);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (max-width: 640px) {
+  .batch__steps {
+    display: none;
+  }
+
+  .queue__link {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

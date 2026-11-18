@@ -19,10 +19,11 @@ import {
   Upload,
   Video,
   Wand2,
+  X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { PresetPreview } from '@/components/preset-preview';
 import { useToast } from '@/components/toast';
 import { Button, Choice, EASE, Progress, Segmented, fade } from '@/components/ui';
@@ -45,7 +46,14 @@ import type {
   PresetId,
 } from '@/lib/types';
 
-const STEPS = ['Tipo', 'Quantidade', 'Origem', 'Inteligência', 'Revisão'] as const;
+const STEPS = ['Tipo', 'Quantidade', 'Origem', 'Inteligência', 'Revisão'];
+const QUEUE_STEPS = ['Tipo', 'Quantidade', 'Contas e vídeos', 'Inteligência', 'Revisão'];
+
+interface QueueItem {
+  key: string;
+  source: JobSource;
+  label: string;
+}
 
 const PRESET_ICON: Partial<Record<PresetId, ReactNode>> = {
   'gameplay-camera': <ScanFace size={20} />,
@@ -81,7 +89,8 @@ interface OllamaState {
   models: string[];
 }
 
-export default function NewCutPage() {
+export function Wizard({ queue }: { queue: boolean }) {
+  const steps = queue ? QUEUE_STEPS : STEPS;
   const router = useRouter();
   const toast = useToast();
   const [step, setStep] = useState(0);
@@ -117,6 +126,7 @@ export default function NewCutPage() {
   const [watermark, setWatermark] = useState<'on' | 'off'>('off');
   const [title, setTitle] = useState('');
   const [sending, setSending] = useState(false);
+  const [queueItems, setQueueItems] = useState<Record<string, QueueItem[]>>({});
 
   useEffect(() => {
     void api<Preset[]>('/presets').then(setPresets);
@@ -145,7 +155,13 @@ export default function NewCutPage() {
       });
   }, [selectorKind, ollama]);
 
-  const isLive = sourceKind === 'live';
+  const isLive = !queue && sourceKind === 'live';
+  const queueGroups = useMemo(
+    () => (accounts.length > 0 ? accounts.map((item) => item.id) : ['']),
+    [accounts],
+  );
+  const queueTotal = queueGroups.reduce((sum, ref) => sum + (queueItems[ref]?.length ?? 0), 0);
+  const queueAccounts = queueGroups.filter((ref) => (queueItems[ref]?.length ?? 0) > 0).length;
   const entries = useMemo(() => {
     const list: (
       | { kind: 'preset'; preset: Preset }
@@ -207,15 +223,23 @@ export default function NewCutPage() {
     if (selectorKind === 'api') return keyId === null ? null : { kind: 'api', keyId };
     if (selectorKind === 'ollama')
       return ollamaModel === '' ? null : { kind: 'ollama', model: ollamaModel };
-    if (selectorKind === 'agent') return isLive ? null : { kind: 'agent', agent };
+    if (selectorKind === 'agent') return isLive || queue ? null : { kind: 'agent', agent };
     if (selectorKind === 'rules') return isLive ? { kind: 'rules' } : null;
     return null;
-  }, [selectorKind, keyId, ollamaModel, agent, isLive]);
+  }, [selectorKind, keyId, ollamaModel, agent, isLive, queue]);
 
   const allowedSources: SourceKind[] = chosenPreset?.sources ?? ['file', 'youtube', 'vod', 'live'];
 
   useEffect(() => {
     if (sourceKind !== null && !allowedSources.includes(sourceKind)) setSourceKind(null);
+    setQueueItems((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([ref, items]) => [
+          ref,
+          items.filter((item) => allowedSources.includes(item.source.type)),
+        ]),
+      ),
+    );
     setBottomMode(chosenPreset?.bottom === 'niche' ? 'default' : 'source');
   }, [preset]);
 
@@ -253,12 +277,40 @@ export default function NewCutPage() {
   const canAdvance = [
     preset !== null,
     targets !== null,
-    source !== null && bottomProblem === null,
+    (queue ? queueTotal > 0 : source !== null) && bottomProblem === null,
     selector !== null,
     true,
   ][step];
 
+  async function startQueue(): Promise<void> {
+    if (preset === null || targets === null || selector === null || queueTotal === 0) return;
+    setSending(true);
+    try {
+      const result = await post<{ batch: { id: string } }>('/batches', {
+        preset,
+        targets,
+        selector,
+        ...(bottomChoice === undefined ? {} : { bottom: bottomChoice }),
+        ...(title.trim() === '' ? {} : { title: title.trim() }),
+        items: queueGroups
+          .filter((ref) => (queueItems[ref]?.length ?? 0) > 0)
+          .map((ref) => ({
+            account: ref === '' ? null : ref,
+            sources: (queueItems[ref] ?? []).map((item) => item.source),
+          })),
+      });
+      router.push(`/fila/?id=${result.batch.id}`);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'não consegui começar a fila');
+      setSending(false);
+    }
+  }
+
   async function start(): Promise<void> {
+    if (queue) {
+      await startQueue();
+      return;
+    }
     if (preset === null || targets === null || source === null || selector === null) return;
     setSending(true);
     const request: JobRequest = {
@@ -307,7 +359,13 @@ export default function NewCutPage() {
           : `de ${duration(targets.minSeconds)} a ${duration(targets.maxSeconds)}`,
     });
   }
-  if (step > 1 && source !== null) {
+  if (step > 1 && queue && queueTotal > 0) {
+    summary.push({
+      label: 'Origem',
+      value: `${String(queueTotal)} ${queueTotal === 1 ? 'vídeo' : 'vídeos'} · ${String(queueAccounts)} ${queueAccounts === 1 ? 'conta' : 'contas'}`,
+    });
+  }
+  if (step > 1 && !queue && source !== null) {
     summary.push({ label: 'Origem', value: sourceLabel(source, uploadState?.name) });
   }
   if (step > 2 && selector !== null) {
@@ -315,13 +373,89 @@ export default function NewCutPage() {
   }
 
   const goNext = (): void => {
-    setStep((value) => Math.min(STEPS.length - 1, value + 1));
+    setStep((value) => Math.min(steps.length - 1, value + 1));
   };
+
+  const bottomSection = (queue ? queueTotal > 0 : sourceKind !== null) &&
+    chosenPreset !== null &&
+    chosenPreset.frame !== 'fit' && (
+      <motion.div className="panel stack" {...fade}>
+        <span className="field__label">O que vai embaixo?</span>
+        <Segmented
+          id="bottom"
+          value={bottomMode}
+          options={[
+            ...(chosenPreset.bottom === 'niche'
+              ? [
+                  {
+                    value: 'default' as const,
+                    label: chosenPreset.below.charAt(0).toUpperCase() + chosenPreset.below.slice(1),
+                  },
+                ]
+              : []),
+            { value: 'source' as const, label: 'O próprio vídeo' },
+            { value: 'other' as const, label: 'Outro vídeo' },
+          ]}
+          onChange={setBottomMode}
+        />
+        <AnimatePresence mode="wait">
+          {bottomMode === 'other' ? (
+            <motion.div key="other" className="stack" {...fade}>
+              <Segmented
+                id="bottom-kind"
+                value={bottomKind}
+                options={[
+                  { value: 'url', label: 'Link do YouTube' },
+                  { value: 'file', label: 'Arquivo' },
+                ]}
+                onChange={setBottomKind}
+              />
+              {bottomKind === 'url' ? (
+                <label className="field">
+                  <input
+                    className={`input ${bottomLink !== '' && bottomProblem !== null ? 'input--error' : ''}`}
+                    placeholder="https://www.youtube.com/watch?v=…"
+                    value={bottomLink}
+                    onChange={(event) => {
+                      setBottomLink(event.target.value);
+                    }}
+                  />
+                  {bottomLink !== '' && bottomProblem !== null && (
+                    <span className="field__hint">{bottomProblem}</span>
+                  )}
+                </label>
+              ) : (
+                <Dropzone
+                  name={bottomUpload?.name ?? null}
+                  progress={bottomProgress}
+                  onFile={(file) => {
+                    void sendBottom(file);
+                  }}
+                />
+              )}
+              <span className="field__hint">
+                Ex.: gameplay sem som, um trailer ou um vídeo satisfatório. Ele toca sem áudio
+                embaixo do corte.
+              </span>
+            </motion.div>
+          ) : (
+            <motion.p key={bottomMode} className="field__hint" {...fade}>
+              {bottomMode === 'default'
+                ? `Embaixo entra o ${chosenPreset.below}, baixado uma vez e reaproveitado.`
+                : chosenPreset.id === 'podcast'
+                  ? 'Um lado da conversa em cima e o outro embaixo.'
+                  : 'A metade de baixo mostra o próprio vídeo (o jogo ou a cena).'}
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    );
 
   return (
     <div className="wizard">
       <div className="wizard__main">
         <Phases
+          labels={steps}
           step={step}
           onJump={(index) => {
             if (index < step) setStep(index);
@@ -519,7 +653,40 @@ export default function NewCutPage() {
               </>
             )}
 
-            {step === 2 && (
+            {step === 2 && queue && (
+              <>
+                <Heading
+                  title="Que vídeos vão para cada conta?"
+                  text="Adicione quantos quiser em cada conta. Tudo roda em fila, e cada corte aparece assim que fica pronto."
+                />
+                <div className="queue">
+                  {queueGroups.map((ref, index) => (
+                    <QueueAccount
+                      key={ref || 'sem-conta'}
+                      index={index}
+                      account={accounts.find((item) => item.id === ref) ?? null}
+                      items={queueItems[ref] ?? []}
+                      allowed={allowedSources}
+                      onAdd={(item) => {
+                        setQueueItems((current) => ({
+                          ...current,
+                          [ref]: [...(current[ref] ?? []), item],
+                        }));
+                      }}
+                      onRemove={(key) => {
+                        setQueueItems((current) => ({
+                          ...current,
+                          [ref]: (current[ref] ?? []).filter((item) => item.key !== key),
+                        }));
+                      }}
+                    />
+                  ))}
+                </div>
+                {bottomSection}
+              </>
+            )}
+
+            {step === 2 && !queue && (
               <>
                 <Heading
                   title="De onde vem o vídeo?"
@@ -642,80 +809,7 @@ export default function NewCutPage() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-                {sourceKind !== null && chosenPreset !== null && chosenPreset.frame !== 'fit' && (
-                  <motion.div className="panel stack" {...fade}>
-                    <span className="field__label">O que vai embaixo?</span>
-                    <Segmented
-                      id="bottom"
-                      value={bottomMode}
-                      options={[
-                        ...(chosenPreset.bottom === 'niche'
-                          ? [
-                              {
-                                value: 'default' as const,
-                                label:
-                                  chosenPreset.below.charAt(0).toUpperCase() +
-                                  chosenPreset.below.slice(1),
-                              },
-                            ]
-                          : []),
-                        { value: 'source' as const, label: 'O próprio vídeo' },
-                        { value: 'other' as const, label: 'Outro vídeo' },
-                      ]}
-                      onChange={setBottomMode}
-                    />
-                    <AnimatePresence mode="wait">
-                      {bottomMode === 'other' ? (
-                        <motion.div key="other" className="stack" {...fade}>
-                          <Segmented
-                            id="bottom-kind"
-                            value={bottomKind}
-                            options={[
-                              { value: 'url', label: 'Link do YouTube' },
-                              { value: 'file', label: 'Arquivo' },
-                            ]}
-                            onChange={setBottomKind}
-                          />
-                          {bottomKind === 'url' ? (
-                            <label className="field">
-                              <input
-                                className={`input ${bottomLink !== '' && bottomProblem !== null ? 'input--error' : ''}`}
-                                placeholder="https://www.youtube.com/watch?v=…"
-                                value={bottomLink}
-                                onChange={(event) => {
-                                  setBottomLink(event.target.value);
-                                }}
-                              />
-                              {bottomLink !== '' && bottomProblem !== null && (
-                                <span className="field__hint">{bottomProblem}</span>
-                              )}
-                            </label>
-                          ) : (
-                            <Dropzone
-                              name={bottomUpload?.name ?? null}
-                              progress={bottomProgress}
-                              onFile={(file) => {
-                                void sendBottom(file);
-                              }}
-                            />
-                          )}
-                          <span className="field__hint">
-                            Ex.: gameplay sem som, um trailer ou um vídeo satisfatório. Ele toca sem
-                            áudio embaixo do corte.
-                          </span>
-                        </motion.div>
-                      ) : (
-                        <motion.p key={bottomMode} className="field__hint" {...fade}>
-                          {bottomMode === 'default'
-                            ? `Embaixo entra o ${chosenPreset.below}, baixado uma vez e reaproveitado.`
-                            : chosenPreset.id === 'podcast'
-                              ? 'Um lado da conversa em cima e o outro embaixo.'
-                              : 'A metade de baixo mostra o próprio vídeo (o jogo ou a cena).'}
-                        </motion.p>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                )}
+                {bottomSection}
               </>
             )}
 
@@ -724,12 +818,14 @@ export default function NewCutPage() {
                 <Heading
                   title="Quem escolhe os cortes?"
                   text={
-                    isLive
-                      ? 'Na live os momentos são detectados sozinhos. Uma IA pode avaliar cada um.'
-                      : 'Uma IA lê a transcrição e escolhe os melhores ganchos.'
+                    queue
+                      ? 'A fila roda sozinha, então quem escolhe é uma chave de API ou a IA local.'
+                      : isLive
+                        ? 'Na live os momentos são detectados sozinhos. Uma IA pode avaliar cada um.'
+                        : 'Uma IA lê a transcrição e escolhe os melhores ganchos.'
                   }
                 />
-                <div className="grid grid--3">
+                <div className={`grid grid--${queue ? '2' : '3'}`}>
                   <Choice
                     active={selectorKind === 'api'}
                     icon={<KeyRound size={18} />}
@@ -748,7 +844,7 @@ export default function NewCutPage() {
                       setSelectorKind('ollama');
                     }}
                   />
-                  {isLive ? (
+                  {queue ? null : isLive ? (
                     <Choice
                       active={selectorKind === 'rules'}
                       icon={<Wand2 size={18} />}
@@ -906,7 +1002,11 @@ export default function NewCutPage() {
               <>
                 <Heading
                   title="Tudo certo?"
-                  text="Confira e comece. Você acompanha cada etapa ao vivo."
+                  text={
+                    queue
+                      ? 'A fila roda sozinha. Pode deixar o computador trabalhando.'
+                      : 'Confira e comece. Você acompanha cada etapa ao vivo.'
+                  }
                 />
                 <div className="panel stack">
                   <label className="field">
@@ -921,7 +1021,37 @@ export default function NewCutPage() {
                       }}
                     />
                   </label>
-                  {accounts.length > 0 ? (
+                  {queue ? (
+                    <div className="queue-review">
+                      {queueGroups
+                        .filter((ref) => (queueItems[ref]?.length ?? 0) > 0)
+                        .map((ref) => {
+                          const account = accounts.find((item) => item.id === ref) ?? null;
+                          const count = queueItems[ref]?.length ?? 0;
+                          return (
+                            <div key={ref || 'sem-conta'} className="queue-review__row">
+                              {account !== null ? (
+                                <Avatar account={account} size={30} />
+                              ) : (
+                                <span className="queue__blank">
+                                  <Film size={14} />
+                                </span>
+                              )}
+                              <span className="queue-review__name">
+                                {account?.name ?? account?.id ?? 'Sem conta'}
+                              </span>
+                              <span className="muted small">
+                                {count} {count === 1 ? 'vídeo' : 'vídeos'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      <span className="field__hint">
+                        Cada conta recebe a própria marca d’água. Os vídeos alternam entre as
+                        contas, para todas receberem cortes desde o começo.
+                      </span>
+                    </div>
+                  ) : accounts.length > 0 ? (
                     <div className="watermark">
                       <span className="field__label">Colocar marca d’água?</span>
                       <Segmented
@@ -1005,7 +1135,7 @@ export default function NewCutPage() {
           >
             Voltar
           </Button>
-          {step < STEPS.length - 1 ? (
+          {step < steps.length - 1 ? (
             <Button icon={<ArrowRight />} disabled={canAdvance !== true} onClick={goNext}>
               Próximo
             </Button>
@@ -1014,13 +1144,13 @@ export default function NewCutPage() {
               icon={<ArrowRight />}
               disabled={
                 sending ||
-                (watermark === 'on' && accounts.length > 0 && chosenAccounts.length === 0)
+                (!queue && watermark === 'on' && accounts.length > 0 && chosenAccounts.length === 0)
               }
               onClick={() => {
                 void start();
               }}
             >
-              {sending ? 'Começando…' : 'Começar os cortes'}
+              {sending ? 'Começando…' : queue ? 'Começar a fila' : 'Começar os cortes'}
             </Button>
           )}
         </div>
@@ -1042,10 +1172,18 @@ function Heading({ title, text }: { title: string; text: string }) {
   );
 }
 
-function Phases({ step, onJump }: { step: number; onJump: (index: number) => void }) {
+function Phases({
+  labels,
+  step,
+  onJump,
+}: {
+  labels: string[];
+  step: number;
+  onJump: (index: number) => void;
+}) {
   return (
     <ol className="phases">
-      {STEPS.map((label, index) => (
+      {labels.map((label, index) => (
         <li key={label}>
           <button
             type="button"
@@ -1161,11 +1299,17 @@ function Dropzone({
   name,
   progress,
   onFile,
+  multiple,
 }: {
   name: string | null;
   progress: number | null;
   onFile: (file: File) => void;
+  multiple?: boolean;
 }) {
+  const take = (list: FileList | null | undefined): void => {
+    const files = [...(list ?? [])];
+    for (const file of multiple === true ? files : files.slice(0, 1)) onFile(file);
+  };
   const [over, setOver] = useState(false);
   return (
     <motion.label
@@ -1181,17 +1325,17 @@ function Dropzone({
       onDrop={(event) => {
         event.preventDefault();
         setOver(false);
-        const file = event.dataTransfer.files[0];
-        if (file !== undefined) onFile(file);
+        take(event.dataTransfer.files);
       }}
     >
       <input
         type="file"
         accept="video/mp4,video/quicktime,video/x-matroska,video/webm,.mp4,.mov,.mkv,.webm,.m4v,.avi"
         hidden
+        multiple={multiple}
         onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file !== undefined) onFile(file);
+          take(event.target.files);
+          event.target.value = '';
         }}
       />
       <Upload size={22} />
@@ -1206,12 +1350,220 @@ function Dropzone({
         </span>
       ) : (
         <span>
-          Arraste o vídeo aqui ou <u>escolha um arquivo</u>
+          {multiple === true ? 'Arraste os vídeos aqui ou ' : 'Arraste o vídeo aqui ou '}
+          <u>{multiple === true ? 'escolha arquivos' : 'escolha um arquivo'}</u>
         </span>
       )}
       <span className="muted small">MP4, MOV, MKV ou WEBM, até 8 GB</span>
     </motion.label>
   );
+}
+
+function QueueAccount({
+  index,
+  account,
+  items,
+  allowed,
+  onAdd,
+  onRemove,
+}: {
+  index: number;
+  account: AccountView | null;
+  items: QueueItem[];
+  allowed: SourceKind[];
+  onAdd: (item: QueueItem) => void;
+  onRemove: (key: string) => void;
+}) {
+  const toast = useToast();
+  const kinds = SOURCE_OPTIONS.filter((option) => allowed.includes(option.kind));
+  const [chosen, setChosen] = useState<SourceKind>('youtube');
+  const kind = allowed.includes(chosen) ? chosen : (kinds[0]?.kind ?? 'youtube');
+  const [platform, setPlatform] = useState<PlatformId>('twitch');
+  const [link, setLink] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const chain = useRef<Promise<void>>(Promise.resolve());
+
+  function addLink(): void {
+    const target = kind === 'youtube' ? 'youtube' : platform;
+    const error = linkError(link, target);
+    if (error !== null) {
+      setProblem(error);
+      return;
+    }
+    const url = link.trim();
+    const source: JobSource =
+      kind === 'youtube'
+        ? { type: 'youtube', url }
+        : kind === 'live'
+          ? { type: 'live', platform, url }
+          : { type: 'vod', platform, url };
+    onAdd({ key: crypto.randomUUID(), source, label: shortLink(url) });
+    setLink('');
+    setProblem(null);
+  }
+
+  async function addFile(file: File): Promise<void> {
+    setProgress(0);
+    try {
+      const result = await upload<{ uploadId: string; name: string }>(
+        '/uploads',
+        file,
+        setProgress,
+      );
+      onAdd({
+        key: crypto.randomUUID(),
+        source: { type: 'file', uploadId: result.uploadId },
+        label: result.name,
+      });
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'falha no envio');
+    } finally {
+      setProgress(null);
+    }
+  }
+
+  return (
+    <motion.section
+      className="queue__account"
+      layout
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.06, duration: 0.5, ease: EASE }}
+    >
+      <header className="queue__head">
+        {account !== null ? (
+          <Avatar account={account} size={38} />
+        ) : (
+          <span className="queue__blank">
+            <Film size={16} />
+          </span>
+        )}
+        <span className="queue__who">
+          <strong>{account?.name ?? account?.id ?? 'Sem conta'}</strong>
+          <span className="muted small">
+            {items.length === 0
+              ? 'nenhum vídeo ainda'
+              : `${String(items.length)} ${items.length === 1 ? 'vídeo' : 'vídeos'} na fila`}
+          </span>
+        </span>
+      </header>
+      <AnimatePresence initial={false}>
+        {items.map((item, position) => (
+          <motion.div
+            key={item.key}
+            layout
+            className="queue__item"
+            initial={{ opacity: 0, height: 0, x: -8 }}
+            animate={{ opacity: 1, height: 'auto', x: 0 }}
+            exit={{ opacity: 0, height: 0, x: 8 }}
+            transition={{ duration: 0.35, ease: EASE }}
+          >
+            <span className="queue__index">{position + 1}</span>
+            <span className="queue__kind">{queueKindLabel(item.source)}</span>
+            <span className="queue__label">{item.label}</span>
+            <motion.button
+              type="button"
+              className="queue__remove"
+              aria-label="tirar da fila"
+              whileTap={{ scale: 0.85 }}
+              onClick={() => {
+                onRemove(item.key);
+              }}
+            >
+              <X size={14} />
+            </motion.button>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+      <div className="queue__add">
+        <div className="row wrap" style={{ gap: 8 }}>
+          <Segmented
+            id={`queue-kind-${String(index)}`}
+            value={kind}
+            options={kinds.map((option) => ({ value: option.kind, label: option.title }))}
+            onChange={(next) => {
+              setChosen(next);
+              setProblem(null);
+            }}
+          />
+          {(kind === 'vod' || kind === 'live') && (
+            <Segmented
+              id={`queue-platform-${String(index)}`}
+              value={platform}
+              options={(['twitch', 'kick', 'youtube'] as const).map((value) => ({
+                value,
+                label: PLATFORM_LABEL[value],
+              }))}
+              onChange={setPlatform}
+            />
+          )}
+        </div>
+        {kind === 'file' ? (
+          <Dropzone
+            multiple
+            name={null}
+            progress={progress}
+            onFile={(file) => {
+              chain.current = chain.current.then(() => addFile(file));
+            }}
+          />
+        ) : (
+          <div className="queue__link">
+            <input
+              className={`input ${problem !== null ? 'input--error' : ''}`}
+              placeholder={
+                kind === 'live'
+                  ? `Link da live na ${PLATFORM_LABEL[platform]}`
+                  : kind === 'vod'
+                    ? `Link do VOD na ${PLATFORM_LABEL[platform]}`
+                    : 'Link do vídeo no YouTube'
+              }
+              value={link}
+              onChange={(event) => {
+                setLink(event.target.value);
+                setProblem(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  addLink();
+                }
+              }}
+            />
+            <Button
+              variant="light"
+              size="small"
+              lead={<Plus />}
+              disabled={link.trim() === ''}
+              onClick={addLink}
+            >
+              Adicionar
+            </Button>
+          </div>
+        )}
+        {problem !== null && <span className="field__hint">{problem}</span>}
+      </div>
+    </motion.section>
+  );
+}
+
+function queueKindLabel(source: JobSource): string {
+  if (source.type === 'file') return 'Arquivo';
+  if (source.type === 'youtube') return 'YouTube';
+  if (source.type === 'vod') return `VOD ${PLATFORM_LABEL[source.platform]}`;
+  return `Live ${PLATFORM_LABEL[source.platform]}`;
+}
+
+function shortLink(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const tail = `${parsed.pathname}${parsed.search}`.replace(/\/$/, '');
+    const text = `${parsed.hostname.replace(/^www\./, '')}${tail}`;
+    return text.length > 60 ? `${text.slice(0, 57)}…` : text;
+  } catch {
+    return url;
+  }
 }
 
 function providerLabel(provider: ApiKeyView['provider']): string {

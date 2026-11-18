@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, ArrowUpRight, Film, Trash2 } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Film, Layers, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -11,7 +11,7 @@ import { Button, EASE, Progress } from '@/components/ui';
 import { api, remove } from '@/lib/api';
 import { useJobEvents } from '@/lib/events';
 import { PRESET_LABEL, STATUS_LABEL, ago } from '@/lib/format';
-import type { ClipView, DaySummary, JobView, StepState } from '@/lib/types';
+import type { BatchView, ClipView, DaySummary, JobView, StepState } from '@/lib/types';
 
 const ACTIVE = ['queued', 'running', 'waiting'];
 
@@ -22,6 +22,7 @@ export default function HomePage() {
   const [covers, setCovers] = useState<Covers>({});
   const [clips, setClips] = useState<ClipView[] | null>(null);
   const [days, setDays] = useState<DaySummary[]>([]);
+  const [batches, setBatches] = useState<BatchView[]>([]);
   const toast = useToast();
 
   const loadClips = (): void => {
@@ -41,7 +42,14 @@ export default function HomePage() {
       setCovers(data.covers);
     });
     loadClips();
+    loadBatches();
   }, []);
+
+  function loadBatches(): void {
+    void api<BatchView[]>('/batches?limit=4')
+      .then(setBatches)
+      .catch(() => undefined);
+  }
 
   async function forget(job: JobView): Promise<void> {
     if (!window.confirm(`Apagar “${job.title}” do histórico? Os cortes continuam em Meus clipes.`))
@@ -73,6 +81,7 @@ export default function HomePage() {
   }
 
   useJobEvents((event) => {
+    if (event.type === 'job' && event.job.batchId !== null) loadBatches();
     if (event.type === 'removed') {
       setJobs((current) => current?.filter((item) => item.id !== event.jobId) ?? null);
       return;
@@ -201,6 +210,46 @@ export default function HomePage() {
             </div>
           )}
         </div>
+
+        {batches.length > 0 && (
+          <div className="stack" style={{ gap: 14 }}>
+            <h2 className="title-md">Filas</h2>
+            <div className="activity">
+              {batches.map((batch, index) => (
+                <motion.div
+                  key={batch.id}
+                  initial={{ opacity: 0, x: 18 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 + index * 0.05, duration: 0.5, ease: EASE }}
+                  whileTap={{ scale: 0.985 }}
+                >
+                  <Link
+                    href={`/fila/?id=${batch.id}`}
+                    className={`activity__item ${batch.active > 0 ? 'activity__item--live' : ''}`}
+                  >
+                    <span className="activity__cover">
+                      <Layers size={16} />
+                    </span>
+                    <span className="activity__body">
+                      <span className="activity__title">{batch.title}</span>
+                      <span className="activity__meta">
+                        {batch.finished} de {batch.total} {batch.total === 1 ? 'vídeo' : 'vídeos'}
+                        {` · ${ago(batch.createdAt)}`}
+                      </span>
+                      {batch.finished < batch.total && (
+                        <Progress value={batch.finished / Math.max(1, batch.total)} active />
+                      )}
+                    </span>
+                    <span className="activity__status">
+                      <span className={`dot ${batch.finished < batch.total ? 'dot--live' : ''}`} />
+                      {batch.finished < batch.total ? 'Rodando' : 'Concluída'}
+                    </span>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="stack" style={{ gap: 14 }}>
           <div className="spread">

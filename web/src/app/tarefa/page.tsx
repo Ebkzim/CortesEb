@@ -1,6 +1,7 @@
 'use client';
 
-import { Check, Copy, FolderOpen, RotateCcw, Square } from 'lucide-react';
+import { ArrowLeft, Check, Copy, FolderOpen, RotateCcw, Square } from 'lucide-react';
+import Link from 'next/link';
 import { AnimatePresence, motion, useSpring, useTransform } from 'motion/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
@@ -129,6 +130,11 @@ function JobScreen() {
               {STATUS_LABEL[job.status] ?? job.status} · {clock(job.createdAt)}
             </span>
             <h1 className="title-lg">{job.title}</h1>
+            {job.batchId !== null && (
+              <Link href={`/fila/?id=${job.batchId}`} className="link-arrow">
+                <ArrowLeft size={15} /> voltar para a fila
+              </Link>
+            )}
           </div>
         </header>
 

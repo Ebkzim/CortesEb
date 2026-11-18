@@ -1,12 +1,13 @@
 'use client';
 
-import { Clapperboard, FolderOpen, Plus, Settings } from 'lucide-react';
+import { Clapperboard, FolderOpen, Layers, Plus, Settings, SquarePlus } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ensureSession } from '@/lib/api';
-import { ToastProvider } from './toast';
+import { useJobEvents } from '@/lib/events';
+import { ToastProvider, useToast } from './toast';
 import { Splash } from './splash';
 
 const LINKS = [
@@ -31,11 +32,21 @@ export function Shell({ children }: { children: ReactNode }) {
       });
   }, []);
 
+  const [menu, setMenu] = useState(false);
   const active = (href: string): boolean =>
-    href === '/' ? pathname === '/' : pathname.startsWith(href.replace(/\/$/, ''));
+    href === '/'
+      ? pathname === '/'
+      : href === '/novo/'
+        ? pathname.startsWith('/novo') || pathname.startsWith('/fila')
+        : pathname.startsWith(href.replace(/\/$/, ''));
+
+  useEffect(() => {
+    setMenu(false);
+  }, [pathname]);
 
   return (
     <ToastProvider>
+      {ready && error === null && <ClipNotifier pathname={pathname} />}
       <Splash done={ready} />
       <div className="app">
         <header className="topbar">
@@ -45,23 +56,76 @@ export function Shell({ children }: { children: ReactNode }) {
               <span className="brand__dot" />
             </Link>
             <nav className="nav" aria-label="Principal">
-              {LINKS.map(({ href, label, icon: Icon }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className={`nav__link ${active(href) ? 'nav__link--active' : ''}`}
-                >
-                  {active(href) && (
-                    <motion.span
-                      layoutId="nav-pill"
-                      className="nav__pill"
-                      transition={{ type: 'spring', stiffness: 420, damping: 36 }}
-                    />
-                  )}
-                  <Icon size={16} />
-                  <span className="nav__label">{label}</span>
-                </Link>
-              ))}
+              {LINKS.map(({ href, label, icon: Icon }) => {
+                const link = (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`nav__link ${active(href) ? 'nav__link--active' : ''}`}
+                  >
+                    {active(href) && (
+                      <motion.span
+                        layoutId="nav-pill"
+                        className="nav__pill"
+                        transition={{ type: 'spring', stiffness: 420, damping: 36 }}
+                      />
+                    )}
+                    <Icon size={16} />
+                    <span className="nav__label">{label}</span>
+                  </Link>
+                );
+                if (href !== '/novo/') return link;
+                return (
+                  <div
+                    key={href}
+                    className="nav__group"
+                    onMouseEnter={() => {
+                      setMenu(true);
+                    }}
+                    onMouseLeave={() => {
+                      setMenu(false);
+                    }}
+                    onFocus={() => {
+                      setMenu(true);
+                    }}
+                    onBlur={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget)) setMenu(false);
+                    }}
+                  >
+                    {link}
+                    <AnimatePresence>
+                      {menu && (
+                        <motion.div
+                          className="nav__menu"
+                          initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                          <Link href="/novo/" className="nav__option">
+                            <span className="nav__option-icon">
+                              <SquarePlus size={16} />
+                            </span>
+                            <span className="nav__option-text">
+                              <strong>Corte único</strong>
+                              <span>Um vídeo, passo a passo.</span>
+                            </span>
+                          </Link>
+                          <Link href="/fila/" className="nav__option">
+                            <span className="nav__option-icon">
+                              <Layers size={16} />
+                            </span>
+                            <span className="nav__option-text">
+                              <strong>Cortes em fila</strong>
+                              <span>Vários vídeos para cada conta, rodando sozinho.</span>
+                            </span>
+                          </Link>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
             </nav>
             <Link href="/config/" className="icon-button topbar__end" aria-label="Configurações">
               <Settings size={18} />
@@ -96,4 +160,14 @@ export function Shell({ children }: { children: ReactNode }) {
       </div>
     </ToastProvider>
   );
+}
+
+function ClipNotifier({ pathname }: { pathname: string }) {
+  const toast = useToast();
+  useJobEvents((event) => {
+    if (event.type !== 'clip') return;
+    if (pathname.startsWith('/tarefa') || pathname.startsWith('/fila')) return;
+    toast(`Corte pronto: ${event.clip.title}`);
+  });
+  return null;
 }
