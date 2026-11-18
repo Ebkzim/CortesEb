@@ -11,7 +11,16 @@ export const candidateSchema = z.object({
   topic: z.string().trim().max(200).optional(),
 });
 
-export const answerSchema = z.object({ clips: z.array(candidateSchema).max(10) });
+export const pickSchema = z.object({
+  topic: z.string().trim().max(200).optional(),
+  first_line: z.coerce.number().int().positive(),
+  last_line: z.coerce.number().int().positive(),
+  why: z.string().trim().max(400).optional(),
+  score: z.coerce.number().min(0).max(10),
+  title: z.string().trim().min(1).max(200),
+});
+
+export const answerSchema = z.object({ clips: z.array(pickSchema).max(10) });
 
 export type Candidate = z.infer<typeof candidateSchema>;
 
@@ -33,14 +42,14 @@ export function answerJsonSchema(perChunk: number): Record<string, unknown> {
         items: {
           type: 'object',
           properties: {
-            start: { type: 'number' },
-            end: { type: 'number' },
-            score: { type: 'number' },
-            hook: { type: 'string' },
-            title: { type: 'string' },
             topic: { type: 'string' },
+            first_line: { type: 'integer' },
+            last_line: { type: 'integer' },
+            why: { type: 'string' },
+            score: { type: 'number' },
+            title: { type: 'string' },
           },
-          required: ['start', 'end', 'score', 'hook', 'title'],
+          required: ['topic', 'first_line', 'last_line', 'why', 'score', 'title'],
         },
       },
     },
@@ -53,17 +62,23 @@ export function buildSystemPrompt(context: PromptContext): string {
   return [
     'You pick the best moments of a video transcript to cut into vertical short videos (Shorts, Reels, TikTok).',
     `Subject area: ${context.niche}.`,
-    'Each line of the transcript starts with its time in seconds, like [312] text.',
+    'Each transcript line looks like: L12 [312] text. L12 is the line number and [312] is the time in seconds.',
+    '',
+    'How to work:',
+    '1. Read the whole transcript and find the moments a stranger scrolling the feed would stop to watch.',
+    '2. For each moment, choose the first line (the hook) and the last line (where the thought or the joke closes).',
+    '3. Check that the moment makes sense alone, without anything said before it. If it needs context, skip it.',
     '',
     'Rules:',
-    `- Each clip lasts between ${minSeconds} and ${maxSeconds} seconds. start and end are seconds from the transcript timestamps.`,
-    '- The clip must start on the sentence that works as a hook: it makes a viewer scrolling the feed want to keep watching.',
-    '- The clip must end right after the sentence that closes the thought. Never cut in the middle of an idea.',
-    '- Prefer concrete facts, numbers, names, surprise, disagreement or a strong verdict. Avoid greetings, filler and anything that needs earlier context.',
-    '- Never invent words. Use only what is in the transcript.',
-    '- Score each hook from 0 to 10. Give 9 or 10 only to excellent hooks. Below 6 means not worth cutting.',
-    `- Return at most ${context.perChunk} clips, from different topics, without overlapping times. Return an empty list if nothing is good.`,
-    '- Write hook, title and topic in the same language as the transcript. The hook is the opening sentence of the clip. The title is a short headline of at most 60 characters.',
+    `- Each clip lasts between ${minSeconds} and ${maxSeconds} seconds: compare the [seconds] of the first and the last line.`,
+    '- The first line must grab attention on its own: a strong claim, a question, a surprise, a joke, a fact or a reaction.',
+    '- The last line closes the idea: the answer, the punchline, the verdict. Never stop in the middle of an idea.',
+    '- Skip greetings, intros, asking for likes or subscriptions, ads, sponsors, small talk, technical problems and filler.',
+    '- Each clip is about a different topic. Clips never overlap.',
+    '- why: one short sentence saying why a stranger would watch until the end.',
+    '- score from 0 to 10. 9 or 10 only for excellent moments. Below 6 means not worth cutting. Be strict.',
+    `- Return at most ${context.perChunk} clips. Return an empty list if nothing is good: that is better than a weak clip.`,
+    '- Write title, topic and why in the same language as the transcript. The title is a short catchy headline of at most 60 characters.',
     '',
     ...(context.guidance === undefined || context.guidance === ''
       ? []
@@ -72,7 +87,7 @@ export function buildSystemPrompt(context: PromptContext): string {
           context.guidance,
           '',
         ]),
-    'Answer only with JSON in the form {"clips":[{"start":0,"end":0,"score":0,"hook":"","title":"","topic":""}]}.',
+    'Answer only with JSON in the form {"clips":[{"topic":"","first_line":0,"last_line":0,"why":"","score":0,"title":""}]}.',
   ].join('\n');
 }
 

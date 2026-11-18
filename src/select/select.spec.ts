@@ -36,9 +36,9 @@ describe('chunkTranscript', () => {
     expect(chunks.length).toBe(3);
     expect(chunks[0]?.from).toBe(0);
     expect(chunks[1]?.from).toBe(330);
-    expect(chunks[0]?.text.startsWith('[')).toBe(true);
+    expect(chunks[0]?.text.startsWith('L1 [')).toBe(true);
     const lastLine = chunks[2]?.text.split('\n').pop() ?? '';
-    expect(Number(/^\[(\d+)\]/.exec(lastLine)?.[1])).toBeGreaterThan(600);
+    expect(Number(/^L\d+ \[(\d+)\]/.exec(lastLine)?.[1])).toBeGreaterThan(600);
   });
 
   it('returns nothing for empty speech and one chunk for a short video', () => {
@@ -48,7 +48,11 @@ describe('chunkTranscript', () => {
 
   it('breaks lines on pauses', () => {
     const [chunk] = chunkTranscript([word('a', 1, 1.2), word('b', 1.25, 1.5), word('c', 3, 3.2)]);
-    expect(chunk?.text.split('\n')).toEqual(['[1] a b', '[3] c']);
+    expect(chunk?.text.split('\n')).toEqual(['L1 [1] a b', 'L2 [3] c']);
+    expect(chunk?.lines.map((line) => [line.id, line.start, line.end])).toEqual([
+      [1, 1, 1.5],
+      [2, 3, 3.2],
+    ]);
   });
 });
 
@@ -69,7 +73,7 @@ describe('prompt', () => {
   });
 
   it('includes peak hints only when there are some', () => {
-    const chunk = { from: 0, to: 360, text: '[1] oi' };
+    const chunk = { from: 0, to: 360, text: 'L1 [1] oi', lines: [] };
     expect(buildUserPrompt(chunk, context)).toContain('120, 340');
     expect(buildUserPrompt(chunk, { ...context, peaks: [] })).not.toContain('Loud');
   });
@@ -81,26 +85,52 @@ describe('prompt', () => {
 });
 
 describe('parseAnswer', () => {
-  const chunk = { from: 100, to: 460, text: '' };
-  const item = (start: number, end: number): unknown => ({
-    start,
-    end,
+  const chunk = {
+    from: 100,
+    to: 460,
+    text: '',
+    lines: [
+      { id: 1, start: 120, end: 130, text: 'essa é a frase que abre o corte' },
+      { id: 2, start: 131, end: 150, text: 'meio' },
+      { id: 3, start: 151, end: 160, text: 'fim' },
+      { id: 4, start: 170, end: 172, text: 'olha' },
+    ],
+  };
+  const item = (first: number, last: number): unknown => ({
+    first_line: first,
+    last_line: last,
+    why: 'porque sim',
     score: 8,
-    hook: 'gancho',
     title: 'titulo',
   });
 
-  it('accepts clips inside the chunk and drops others', () => {
-    const text = JSON.stringify({ clips: [item(120, 160), item(20, 60), item(300, 290)] });
-    expect(parseAnswer(text, chunk)).toHaveLength(1);
+  it('turns line numbers into times and takes the hook from the transcript', () => {
+    const text = JSON.stringify({ clips: [item(1, 3), item(9, 12), item(3, 1)] });
+    const parsed = parseAnswer(text, chunk);
+    expect(parsed).toEqual([
+      {
+        start: 120,
+        end: 160,
+        score: 8,
+        hook: 'essa é a frase que abre o corte',
+        title: 'titulo',
+      },
+    ]);
+  });
+
+  it('joins a short opening line with the next one', () => {
+    const text = JSON.stringify({ clips: [item(4, 4)] });
+    expect(parseAnswer(text, chunk)[0]?.hook).toBe('olha');
+    const longer = JSON.stringify({ clips: [item(2, 3)] });
+    expect(parseAnswer(longer, chunk)[0]?.hook).toBe('meio fim');
   });
 
   it('coerces numeric strings and rejects the wrong shape', () => {
     const text = JSON.stringify({
-      clips: [{ start: '120', end: '160', score: '7', hook: 'h', title: 't' }],
+      clips: [{ first_line: '1', last_line: '3', score: '7', title: 't' }],
     });
     expect(parseAnswer(text, chunk)[0]?.score).toBe(7);
-    expect(() => parseAnswer('{"clips":[{"start":1}]}', chunk)).toThrow();
+    expect(() => parseAnswer('{"clips":[{"first_line":1}]}', chunk)).toThrow();
     expect(() => parseAnswer('nada', chunk)).toThrow();
   });
 });
@@ -210,7 +240,10 @@ describe('SelectorService', () => {
     await fs.rm(dir, { recursive: true, force: true });
   });
 
-  function build(answers: string[]): { service: SelectorService; prompts: string[] } {
+  function build(
+    answers: string[],
+    levels: number[] = [],
+  ): { service: SelectorService; prompts: string[] } {
     const prompts: string[] = [];
     const client: LlmClient = {
       label: 'fake:model',
@@ -234,7 +267,7 @@ describe('SelectorService', () => {
         }),
     } as unknown as TargetsService;
     const progress = { step: () => undefined } as unknown as Progress;
-    const media = { rmsLevels: () => Promise.resolve([]) } as unknown as MediaTools;
+    const media = { rmsLevels: () => Promise.resolve(levels) } as unknown as MediaTools;
     return { service: new SelectorService(llm, targets, progress, media), prompts };
   }
 
@@ -246,12 +279,18 @@ describe('SelectorService', () => {
     chunk: {},
   };
 
-  const good = JSON.stringify({
-    clips: [
-      { start: 40, end: 80, score: 9, hook: 'primeiro gancho', title: 'Primeiro corte' },
-      { start: 200, end: 240, score: 8, hook: 'segundo gancho', title: 'Segundo corte' },
-    ],
+  const lines = chunkTranscript(speech(500))[0]?.lines ?? [];
+  const at = (seconds: number): number =>
+    lines.find((line) => line.end >= seconds)?.id ?? lines.length;
+  const pick = (start: number, end: number, score: number, title: string): unknown => ({
+    first_line: at(start),
+    last_line: at(end),
+    why: 'w',
+    score,
+    title,
   });
+  const answer = (...clips: unknown[]): string => JSON.stringify({ clips });
+  const good = answer(pick(40, 80, 9, 'Primeiro corte'), pick(200, 240, 8, 'Segundo corte'));
 
   it('writes a valid cuts.json from the model answer', async () => {
     const { service } = build([good]);
@@ -262,7 +301,7 @@ describe('SelectorService', () => {
       JSON.parse(await fs.readFile(path.join(dir, 'cuts.json'), 'utf8')),
     );
     expect(cuts.clips.map((clip) => clip.id)).toEqual(['01-primeiro-corte', '02-segundo-corte']);
-    expect(cuts.clips[0]?.hook).toBe('primeiro gancho');
+    expect(cuts.clips[0]?.hook).toMatch(/^w40/);
   });
 
   it('retries once when the first answer is not valid json', async () => {
@@ -278,26 +317,25 @@ describe('SelectorService', () => {
   });
 
   it('refuses clips below the minimum score', async () => {
-    const weak = JSON.stringify({
-      clips: [{ start: 40, end: 80, score: 3, hook: 'h', title: 't' }],
-    });
-    const { service } = build([weak]);
+    const { service } = build([answer(pick(40, 80, 3, 't'))]);
     await expect(service.run(new Workspace(dir), request)).rejects.toThrow(/nota/);
   });
 
   it('rescores candidates with the judge and skips the opening', async () => {
-    const answer = JSON.stringify({
+    const opening = chunkTranscript(speech(500).filter((item) => item.startMs >= 60_000))[0];
+    const line = (seconds: number): number =>
+      opening?.lines.find((item) => item.end >= seconds)?.id ?? 1;
+    const reply = JSON.stringify({
       clips: [
-        { start: 5, end: 45, score: 9, hook: 'fala galera', title: 'Abertura' },
-        { start: 100, end: 140, score: 9, hook: 'h', title: 'Fraco' },
-        { start: 300, end: 340, score: 6, hook: 'h', title: 'Forte' },
+        { first_line: line(100), last_line: line(140), score: 9, title: 'Fraco' },
+        { first_line: line(300), last_line: line(340), score: 6, title: 'Forte' },
       ],
     });
     const { service, prompts } = build([
-      answer,
+      reply,
       JSON.stringify({ clips: [] }),
       '{"score":2,"title":"x"}',
-      '{"score":10,"title":"y"}',
+      '{"why":"bom","standalone":true,"payoff":true,"score":10,"title":"y"}',
     ]);
     const result = await service.run(new Workspace(dir), {
       ...request,
@@ -305,16 +343,13 @@ describe('SelectorService', () => {
       judge: true,
       guidance: 'É um react de GTA 6.',
     });
-    expect(result.clips.map((clip) => [clip.start, clip.score])).toEqual([[300.45, 9]]);
-    expect(result.warnings.join(' ')).toContain('abertura do vídeo');
+    expect(result.clips.map((clip) => [Math.round(clip.start), clip.score])).toEqual([[300, 9]]);
     expect(prompts).toHaveLength(4);
+    expect(prompts[0]).not.toContain('w30 ');
   });
 
   it('falls back to the best weak clips when asked, with a warning', async () => {
-    const weak = JSON.stringify({
-      clips: [{ start: 40, end: 80, score: 4, hook: 'h', title: 'Fraco' }],
-    });
-    const { service } = build([weak]);
+    const { service } = build([answer(pick(40, 80, 4, 'Fraco'))]);
     const result = await service.run(new Workspace(dir), { ...request, fallback: true });
     expect(result.clips.length).toBeGreaterThan(0);
     expect(result.warnings.join(' ')).toContain('maior nota');
@@ -334,12 +369,37 @@ describe('SelectorService', () => {
   });
 
   it('warns when fewer clips than planned pass the score', async () => {
-    const one = JSON.stringify({
-      clips: [{ start: 40, end: 80, score: 9, hook: 'h', title: 'Unico' }],
-    });
-    const { service } = build([one]);
+    const { service } = build([answer(pick(40, 80, 9, 'Unico'))]);
     const result = await service.run(new Workspace(dir), request);
     expect(result.clips).toHaveLength(1);
     expect(result.warnings.join(' ')).toContain('pedia 2 cortes');
+  });
+
+  it('sends a moment of attention through the judge and takes its title', async () => {
+    const quietTalk = [...speech(500)].filter(
+      (item) => item.startMs < 100_000 || item.startMs >= 130_000,
+    );
+    await fs.writeFile(path.join(dir, 'captions.json'), JSON.stringify(quietTalk));
+    const levels = Array.from({ length: 500 }, (_, second) =>
+      second >= 100 && second < 130 ? -14 : -30,
+    );
+    const { service } = build(
+      [
+        JSON.stringify({ clips: [] }),
+        JSON.stringify({ clips: [] }),
+        '{"why":"reação forte","standalone":true,"payoff":true,"score":9,"title":"Ele travou"}',
+      ],
+      levels,
+    );
+    const result = await service.run(new Workspace(dir), {
+      ...request,
+      judge: true,
+      attention: true,
+    });
+    const cuts = cutsSchema.parse(
+      JSON.parse(await fs.readFile(path.join(dir, 'cuts.json'), 'utf8')),
+    );
+    expect(cuts.clips[0]?.title).toBe('Ele travou');
+    expect(result.clips[0]?.score).toBe(8);
   });
 });

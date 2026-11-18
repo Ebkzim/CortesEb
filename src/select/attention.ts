@@ -69,8 +69,8 @@ export function attentionMoments(
             start,
             end: Math.min(total, stop),
             score: Math.min(
-              9,
-              6 + Math.min(1.5, (length - config.minGap) / 10) + (reaction.length >= 8 ? 1 : 0),
+              7.5,
+              6 + Math.min(1, (length - config.minGap) / 10) + (reaction.length >= 8 ? 0.5 : 0),
             ),
             hook: text.slice(0, HOOK_WORDS).join(' '),
             title: `A reação: ${text.slice(0, 5).join(' ')}`,
