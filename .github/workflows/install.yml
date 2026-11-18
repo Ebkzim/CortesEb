@@ -51,6 +51,8 @@ jobs:
       - name: transcrever um vídeo curto
         shell: bash
         run: |
+          if command -v cygpath > /dev/null; then BIN="$(cygpath -u "$CORTES_EB_HOME/bin")"; else BIN="$CORTES_EB_HOME/bin"; fi
+          export PATH="$BIN:$PATH"
           ffmpeg -v error -f lavfi -i testsrc=size=640x360:rate=30:duration=5 -f lavfi -i sine=frequency=440:duration=5 -shortest -c:v libx264 -pix_fmt yuv420p -c:a aac teste.mp4
           cortes-eb fetch teste.mp4 --work trabalho
           cortes-eb transcribe --work trabalho --lang pt
