@@ -38,7 +38,13 @@ export class Whisper {
   }
 
   async install(model: UserConfig['whisperModel']): Promise<void> {
-    await installWhisperCpp({ to: this.paths.whisperDir, version: WHISPER_VERSION });
+    const modulePath = process.env.PSModulePath;
+    if (process.platform === 'win32') delete process.env.PSModulePath;
+    try {
+      await installWhisperCpp({ to: this.paths.whisperDir, version: WHISPER_VERSION });
+    } finally {
+      if (modulePath !== undefined) process.env.PSModulePath = modulePath;
+    }
     await downloadWhisperModel({ model, folder: this.paths.whisperDir, printOutput: false });
   }
 
