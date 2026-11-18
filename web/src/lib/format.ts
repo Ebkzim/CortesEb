@@ -69,8 +69,7 @@ export const STATUS_LABEL: Record<string, string> = {
 
 export const PRESET_LABEL: Record<string, string> = {
   'gameplay-camera': 'Gameplay com câmera',
-  'gta6-gameplay': 'Gameplay GTA 6',
-  'gta6-react': 'React GTA 6',
+  react: 'React',
   filmes: 'React de filme',
   series: 'React de série',
   'filmes-cena': 'Cena de filme',

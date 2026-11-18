@@ -10,10 +10,8 @@ export const CORE_RULES = [
 export const PRESET_HINTS: Record<string, string> = {
   'gameplay-camera':
     'É uma live de gameplay com a câmera do jogador. Os melhores cortes são reações fortes ao que acontece no jogo, jogadas marcantes e comentários engraçados ou opiniões fortes sobre o jogo.',
-  'gta6-gameplay':
-    'É uma gameplay de GTA 6 comentada. Os melhores cortes mostram detalhes novos do jogo, comparações com GTA 5 e descobertas ou opiniões fortes.',
-  'gta6-react':
-    'É um streamer reagindo a um trailer ou vídeo de GTA 6. O começo costuma ser ele falando sozinho antes de o vídeo começar: ignore essa abertura. Os melhores cortes são os momentos em que ele reage ao que aparece na tela: nota um detalhe, se surpreende, compara com outro GTA ou dá uma opinião forte.',
+  react:
+    'É alguém reagindo a um vídeo, trailer ou notícia. O começo costuma ser a pessoa falando sozinha antes de o vídeo começar: ignore essa abertura. Os melhores cortes são os momentos em que ela reage ao que aparece na tela: nota um detalhe, se surpreende, compara com outra coisa ou dá uma opinião forte.',
   filmes:
     'É alguém reagindo ou comentando um filme. O começo costuma ser a pessoa falando sozinha antes de a cena começar: ignore essa abertura. Os melhores cortes são reações fortes, vereditos, teorias e detalhes que passaram despercebidos.',
   series:
@@ -52,7 +50,7 @@ export async function buildGuidance(preset: string, nicheFile: string | null): P
 }
 
 export function introSeconds(preset: string, duration: number): number {
-  const react = preset === 'gta6-react' || preset === 'filmes' || preset === 'series';
+  const react = preset === 'react' || preset === 'filmes' || preset === 'series';
   const share = react ? 0.08 : 0.04;
   const floor = react ? 45 : 15;
   const ceiling = react ? 180 : 60;

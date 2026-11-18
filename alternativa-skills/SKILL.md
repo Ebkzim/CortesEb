@@ -1,6 +1,6 @@
 ---
 name: cortes-eb
-description: Transforma um vídeo longo (link ou arquivo) de streamer, gameplay, podcast, filme ou série em vários cortes verticais para Shorts, cada um com um assunto e um gancho próprios, em tela dividida, com legenda palavra por palavra, pausas removidas, jump cuts com zoom e a marca d'água da conta. Suporta várias contas, cada uma com seu nome e logo. Tem um nicho especial de GTA 6. Use com /cortes-eb ou quando o usuário pedir cortes, "cortar esse vídeo" ou "fazer shorts desse vídeo".
+description: Transforma um vídeo longo (link ou arquivo) de streamer, gameplay, podcast, filme ou série em vários cortes verticais para Shorts, cada um com um assunto e um gancho próprios, em tela dividida, com legenda palavra por palavra, pausas removidas, jump cuts com zoom e a marca d'água da conta. Suporta várias contas, cada uma com seu nome e logo. Use com /cortes-eb ou quando o usuário pedir cortes, "cortar esse vídeo" ou "fazer shorts desse vídeo".
 ---
 
 # cortes-eb
@@ -40,12 +40,12 @@ Uma conta é um destino para os cortes: um id curto (minúsculas, números e hí
 | Nenhum dos dois | Nenhuma.                                                       |
 
 ```bash
-cortes-eb account add gta --name "@canalgta" --logo "/caminho/da/logo.png"
+cortes-eb account add jogos --name "@canaljogos" --logo "/caminho/da/logo.png"
 cortes-eb account add games
-cortes-eb account add gta --clear-logo
+cortes-eb account add jogos --clear-logo
 cortes-eb account list
-cortes-eb account default gta
-cortes-eb account remove gta
+cortes-eb account default jogos
+cortes-eb account remove jogos
 ```
 
 `account add` com um id que já existe atualiza só o que for passado. `--clear-name` e `--clear-logo` removem um item. A primeira conta cadastrada vira a padrão.
@@ -60,7 +60,7 @@ O nicho define o guia de ganchos e o vídeo sugerido para a metade de baixo. O p
 
 ```bash
 cortes-eb niches
-cortes-eb niches gta6
+cortes-eb niches gameplay
 ```
 
 Escolha o nicho pelo conteúdo do vídeo e leia o guia dele em `niches/<id>.md` antes de escolher os cortes. Se o usuário disser o nicho, use o dele. Para trocar o padrão: `cortes-eb config --niche <id>`.
@@ -400,7 +400,7 @@ Olhe um quadro com `frame` antes de escolher o `--camera`. Sem um layout, o topo
 ## 8. Renderizar
 
 ```bash
-cortes-eb render --work cortes/<slug>/work --out cortes/<slug> --account gta,filmes
+cortes-eb render --work cortes/<slug>/work --out cortes/<slug> --account jogos,filmes
 ```
 
 `--engine fast` (padrão) monta o vídeo direto no ffmpeg e leva uns 2 minutos para um corte de 70 s. `--engine remotion` usa o navegador do Remotion, com o visual de referência, e leva uns 13 minutos para o mesmo corte. Use o rápido sempre, a menos que o usuário peça o outro.

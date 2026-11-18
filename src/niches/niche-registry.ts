@@ -13,17 +13,17 @@ export interface Niche {
 
 const NICHES: readonly Niche[] = [
   {
-    id: 'gta6',
-    label: 'GTA 6',
-    summary: 'Cortes de streamers e podcasts falando de GTA 6',
-    bottomHint: 'trailer oficial ou gameplay de GTA',
-    defaultBottomUrl: 'https://www.youtube.com/watch?v=rz1B4B2yBZY',
-  },
-  {
     id: 'gameplay',
     label: 'Gameplay',
     summary: 'Cortes de lives e vídeos de qualquer jogo',
     bottomHint: 'gameplay do jogo comentado',
+    defaultBottomUrl: null,
+  },
+  {
+    id: 'react',
+    label: 'React',
+    summary: 'Cortes de quem reage a vídeos, trailers e notícias',
+    bottomHint: 'o vídeo que está sendo comentado',
     defaultBottomUrl: null,
   },
   {

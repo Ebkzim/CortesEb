@@ -36,9 +36,11 @@ export const userConfigSchema = z.strictObject({
   language: z.string().regex(LANGUAGE_PATTERN).default('pt'),
   sfxGain: z.number().min(0).max(2).default(0.6),
   niche: z
-    .string()
-    .regex(/^[a-z0-9-]{1,32}$/)
-    .default('gta6'),
+    .preprocess(
+      (value) => (value === 'gta6' ? 'gameplay' : value),
+      z.string().regex(/^[a-z0-9-]{1,32}$/),
+    )
+    .default('gameplay'),
   llm: llmSettingsSchema.default({ provider: 'agent' }),
   layout: layoutSchema.default({}),
 });

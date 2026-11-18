@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AppPaths } from '../config/app-paths.js';
+import { userConfigSchema } from '../config/user-config.js';
 import { jobRequestSchema } from '../contracts/job.js';
 import type { JobRepository, NewClip } from '../database/job.repository.js';
 import type { MediaTools } from '../media/media-tools.js';
@@ -86,9 +87,9 @@ describe('presets', () => {
       bottom: 'source',
       camera: '1,2,20.12,30',
     });
-    expect(layoutFor(presetOf('gta6-gameplay'), camera)).toEqual({
+    expect(layoutFor(presetOf('filmes-cena'), camera)).toEqual({
       camera: 'none',
-      bottom: 'video',
+      frame: 'fit',
     });
     expect(layoutFor(presetOf('podcast'), camera).bottomArea).toBe('36.7,0,63.3,100');
     expect(rectSpec({ x: 0, y: 0, w: 50, h: 50 })).toBe('0,0,50,50');
@@ -175,8 +176,8 @@ describe('agent prompt', () => {
       agent: 'claude',
       workDir: '/home/x/.cortes-eb/jobs/1/work',
       targets: { count: 3, minSeconds: 20, maxSeconds: 60 },
-      preset: 'React GTA 6',
-      niche: 'GTA 6',
+      preset: 'React',
+      niche: 'React',
     });
     expect(prompt).toContain('skill cortes-eb');
     expect(prompt).toContain('cortes-eb transcript --work "/home/x/.cortes-eb/jobs/1/work"');
@@ -239,20 +240,21 @@ describe('SpeedBook', () => {
 
 describe('bottom choice', () => {
   const trailer = 'https://www.youtube.com/watch?v=trailer';
+  const nicheBacked = { ...presetOf('gameplay-camera'), bottom: 'niche' as const };
 
   it('uses the preset default when nothing is chosen', () => {
-    expect(bottomPlan(presetOf('gta6-gameplay'), undefined, trailer)).toEqual({
+    expect(bottomPlan(nicheBacked, undefined, trailer)).toEqual({
       kind: 'url',
       url: trailer,
     });
     expect(bottomPlan(presetOf('gameplay-camera'), undefined, null)).toEqual({ kind: 'source' });
-    expect(bottomPlan(presetOf('gta6-gameplay'), { type: 'default' }, null)).toEqual({
+    expect(bottomPlan(nicheBacked, { type: 'default' }, null)).toEqual({
       kind: 'source',
     });
   });
 
   it('respects the user choice', () => {
-    expect(bottomPlan(presetOf('gta6-gameplay'), { type: 'source' }, trailer)).toEqual({
+    expect(bottomPlan(nicheBacked, { type: 'source' }, trailer)).toEqual({
       kind: 'source',
     });
     expect(
@@ -276,5 +278,19 @@ describe('bottom choice', () => {
     expect(presetOf('series').sources).not.toContain('live');
     expect(presetOf('filmes').sources).not.toContain('live');
     expect(presetOf('gameplay-camera').sources).toContain('live');
+  });
+});
+
+describe('generic presets', () => {
+  it('has no game specific preset or niche left', () => {
+    expect(PRESETS.map((preset) => preset.id)).not.toContain('gta6-react');
+    expect(PRESETS.every((preset) => !/gta/i.test(`${preset.label} ${preset.niche}`))).toBe(true);
+    expect(presetOf('react').niche).toBe('react');
+  });
+
+  it('moves an old gta6 niche setting to gameplay', () => {
+    expect(userConfigSchema.parse({ niche: 'gta6' }).niche).toBe('gameplay');
+    expect(userConfigSchema.parse({}).niche).toBe('gameplay');
+    expect(userConfigSchema.parse({ niche: 'podcast' }).niche).toBe('podcast');
   });
 });

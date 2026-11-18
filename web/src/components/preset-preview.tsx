@@ -7,7 +7,7 @@ import { EASE } from './ui';
 
 const SAMPLE: Record<string, string> = {
   'gameplay-camera': 'gameplay',
-  'gta6-gameplay': 'gameplay-gta',
+  podcast: 'podcast',
 };
 
 function sampleOf(preset: Preset): string {
