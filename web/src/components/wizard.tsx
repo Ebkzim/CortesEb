@@ -56,6 +56,10 @@ interface QueueItem {
   brain: 'default' | 'local' | 'api';
 }
 
+function mainVariant(variants: Preset[]): Preset | undefined {
+  return variants.find((item) => item.variant === 'cena') ?? variants[0];
+}
+
 const PRESET_ICON: Partial<Record<PresetId, ReactNode>> = {
   'gameplay-camera': <Gamepad2 size={20} />,
   react: <Sparkles size={20} />,
@@ -542,10 +546,10 @@ export function Wizard({ queue }: { queue: boolean }) {
                         onClick={() => {
                           setOpenGroup(entry.group);
                           if (chosenPreset?.group !== entry.group)
-                            setPreset(entry.variants[0]?.id ?? null);
+                            setPreset(mainVariant(entry.variants)?.id ?? null);
                         }}
                         onHover={(inside) => {
-                          setHovered(inside ? (entry.variants[0]?.id ?? null) : null);
+                          setHovered(inside ? (mainVariant(entry.variants)?.id ?? null) : null);
                         }}
                       />
                     ),
