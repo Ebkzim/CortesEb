@@ -814,6 +814,101 @@
   cursor: nwse-resize;
 }
 
+.camera__frame img,
+.camera__crop {
+  transition: opacity 0.25s var(--ease);
+}
+
+.camera__frame--seeking img {
+  opacity: 0.55;
+}
+
+.camera__time {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.camera__strip {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 760px) {
+  .camera__strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .camera__clock {
+    min-width: 0;
+  }
+}
+
+.camera__thumb {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease);
+}
+
+.camera__thumb img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  opacity: 0.8;
+  transition: opacity 0.2s var(--ease);
+}
+
+.camera__thumb:hover img,
+.camera__thumb--on img {
+  opacity: 1;
+}
+
+.camera__thumb--on {
+  border-color: var(--ink);
+}
+
+.camera__thumb span {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.7);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.camera__seek {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.camera__range {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--ink);
+}
+
+.camera__clock {
+  min-width: 96px;
+  text-align: right;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .camera__result {
   display: flex;
   flex-direction: column;
@@ -1591,6 +1686,33 @@
 .queue-review__name {
   flex: 1;
   font-weight: 600;
+}
+
+.queue-review__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.queue-review__video {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 42px;
+  min-height: 36px;
+}
+
+.queue-review__video .segmented {
+  flex: none;
+}
+
+@media (max-width: 640px) {
+  .queue-review__video {
+    flex-wrap: wrap;
+    padding-left: 0;
+  }
 }
 
 .batch {

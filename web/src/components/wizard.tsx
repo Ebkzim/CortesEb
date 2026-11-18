@@ -53,6 +53,7 @@ interface QueueItem {
   key: string;
   source: JobSource;
   label: string;
+  brain: 'default' | 'local' | 'api';
 }
 
 const PRESET_ICON: Partial<Record<PresetId, ReactNode>> = {
@@ -127,6 +128,7 @@ export function Wizard({ queue }: { queue: boolean }) {
   const [title, setTitle] = useState('');
   const [sending, setSending] = useState(false);
   const [queueItems, setQueueItems] = useState<Record<string, QueueItem[]>>({});
+  const [runMode, setRunMode] = useState<'queue' | 'together'>('queue');
 
   useEffect(() => {
     void api<Preset[]>('/presets').then(setPresets);
@@ -143,7 +145,7 @@ export function Wizard({ queue }: { queue: boolean }) {
   }, []);
 
   useEffect(() => {
-    if (selectorKind !== 'ollama' || ollama !== null) return;
+    if ((!queue && selectorKind !== 'ollama') || ollama !== null) return;
     void api<OllamaState>('/ollama')
       .then((state) => {
         setOllama(state);
@@ -153,7 +155,7 @@ export function Wizard({ queue }: { queue: boolean }) {
       .catch(() => {
         setOllama({ reachable: false, models: [] });
       });
-  }, [selectorKind, ollama]);
+  }, [selectorKind, ollama, queue]);
 
   const isLive = !queue && sourceKind === 'live';
   const queueGroups = useMemo(
@@ -282,6 +284,39 @@ export function Wizard({ queue }: { queue: boolean }) {
     true,
   ][step];
 
+  const localSelector: JobSelector | null = useMemo(() => {
+    const model = ollamaModel || ollama?.models[0];
+    return ollama?.reachable === true && model !== undefined && model !== ''
+      ? { kind: 'ollama', model }
+      : null;
+  }, [ollama, ollamaModel]);
+  const apiSelector: JobSelector | null = useMemo(() => {
+    const id = keyId ?? keys[0]?.id;
+    return id === undefined ? null : { kind: 'api', keyId: id };
+  }, [keyId, keys]);
+
+  const brainOptions = [
+    ...(localSelector === null || selector?.kind === 'ollama'
+      ? []
+      : [{ value: 'local' as const, label: 'IA local' }]),
+    ...(apiSelector === null || selector?.kind === 'api'
+      ? []
+      : [{ value: 'api' as const, label: 'API' }]),
+  ];
+
+  function selectorOf(item: QueueItem): JobSelector | null {
+    if (item.brain === 'local') return localSelector;
+    if (item.brain === 'api') return apiSelector;
+    return null;
+  }
+
+  function setBrain(ref: string, key: string, brain: QueueItem['brain']): void {
+    setQueueItems((current) => ({
+      ...current,
+      [ref]: (current[ref] ?? []).map((item) => (item.key === key ? { ...item, brain } : item)),
+    }));
+  }
+
   async function startQueue(): Promise<void> {
     if (preset === null || targets === null || selector === null || queueTotal === 0) return;
     setSending(true);
@@ -290,13 +325,19 @@ export function Wizard({ queue }: { queue: boolean }) {
         preset,
         targets,
         selector,
+        mode: runMode,
         ...(bottomChoice === undefined ? {} : { bottom: bottomChoice }),
         ...(title.trim() === '' ? {} : { title: title.trim() }),
         items: queueGroups
           .filter((ref) => (queueItems[ref]?.length ?? 0) > 0)
           .map((ref) => ({
             account: ref === '' ? null : ref,
-            sources: (queueItems[ref] ?? []).map((item) => item.source),
+            videos: (queueItems[ref] ?? []).map((item) => {
+              const chosen = item.source.type === 'live' ? null : selectorOf(item);
+              return chosen === null
+                ? { source: item.source }
+                : { source: item.source, selector: chosen };
+            }),
           })),
       });
       router.push(`/fila/?id=${result.batch.id}`);
@@ -657,7 +698,7 @@ export function Wizard({ queue }: { queue: boolean }) {
               <>
                 <Heading
                   title="Que vídeos vão para cada conta?"
-                  text="Adicione quantos quiser em cada conta. Tudo roda em fila, e cada corte aparece assim que fica pronto."
+                  text="Adicione quantos quiser em cada conta. Tudo roda sozinho, e cada corte aparece assim que fica pronto."
                 />
                 <div className="queue">
                   {queueGroups.map((ref, index) => (
@@ -1023,32 +1064,86 @@ export function Wizard({ queue }: { queue: boolean }) {
                   </label>
                   {queue ? (
                     <div className="queue-review">
+                      <div className="field">
+                        <span className="field__label">Como rodar</span>
+                        <Segmented
+                          id="run-mode"
+                          value={runMode}
+                          options={[
+                            { value: 'queue', label: 'Em fila' },
+                            { value: 'together', label: 'Simultâneo' },
+                          ]}
+                          onChange={setRunMode}
+                        />
+                        <AnimatePresence mode="wait" initial={false}>
+                          <motion.span
+                            key={runMode}
+                            className="field__hint"
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.25, ease: EASE }}
+                          >
+                            {runMode === 'queue'
+                              ? 'Um vídeo por vez: termina um e começa o próximo. Mais leve para o computador.'
+                              : 'Todos começam juntos: baixam, transcrevem e escolhem lado a lado, e cada corte sai assim que fica pronto. As partes pesadas se revezam para não travar o computador.'}
+                          </motion.span>
+                        </AnimatePresence>
+                      </div>
                       {queueGroups
                         .filter((ref) => (queueItems[ref]?.length ?? 0) > 0)
                         .map((ref) => {
                           const account = accounts.find((item) => item.id === ref) ?? null;
-                          const count = queueItems[ref]?.length ?? 0;
+                          const items = queueItems[ref] ?? [];
                           return (
-                            <div key={ref || 'sem-conta'} className="queue-review__row">
-                              {account !== null ? (
-                                <Avatar account={account} size={30} />
-                              ) : (
-                                <span className="queue__blank">
-                                  <Film size={14} />
+                            <div key={ref || 'sem-conta'} className="queue-review__group">
+                              <div className="queue-review__row">
+                                {account !== null ? (
+                                  <Avatar account={account} size={30} />
+                                ) : (
+                                  <span className="queue__blank">
+                                    <Film size={14} />
+                                  </span>
+                                )}
+                                <span className="queue-review__name">
+                                  {account?.name ?? account?.id ?? 'Sem conta'}
                                 </span>
-                              )}
-                              <span className="queue-review__name">
-                                {account?.name ?? account?.id ?? 'Sem conta'}
-                              </span>
-                              <span className="muted small">
-                                {count} {count === 1 ? 'vídeo' : 'vídeos'}
-                              </span>
+                                <span className="muted small">
+                                  {items.length} {items.length === 1 ? 'vídeo' : 'vídeos'}
+                                </span>
+                              </div>
+                              {items.map((item) => (
+                                <div key={item.key} className="queue-review__video">
+                                  <span className="queue__kind">{queueKindLabel(item.source)}</span>
+                                  <span className="queue__label">{item.label}</span>
+                                  {item.source.type === 'live' || brainOptions.length === 0 ? (
+                                    <span className="muted small">IA padrão</span>
+                                  ) : (
+                                    <Segmented
+                                      id={`brain-${item.key}`}
+                                      value={item.brain}
+                                      options={[
+                                        { value: 'default' as const, label: 'Padrão' },
+                                        ...brainOptions,
+                                      ]}
+                                      onChange={(next) => {
+                                        setBrain(ref, item.key, next);
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              ))}
                             </div>
                           );
                         })}
                       <span className="field__hint">
-                        Cada conta recebe a própria marca d’água. Os vídeos alternam entre as
-                        contas, para todas receberem cortes desde o começo.
+                        Padrão usa{' '}
+                        {selector === null ? 'a IA escolhida' : selectorLabel(selector, keys)}.{' '}
+                        {brainOptions.length > 0
+                          ? 'Troque em cada vídeo se quiser.'
+                          : 'Com uma chave de API ou o Ollama aberto, dá para escolher a IA de cada vídeo.'}{' '}
+                        Cada conta recebe a própria marca d’água, e os vídeos alternam entre as
+                        contas para todas receberem cortes desde o começo.
                       </span>
                     </div>
                   ) : accounts.length > 0 ? (
@@ -1398,7 +1493,7 @@ function QueueAccount({
         : kind === 'live'
           ? { type: 'live', platform, url }
           : { type: 'vod', platform, url };
-    onAdd({ key: crypto.randomUUID(), source, label: shortLink(url) });
+    onAdd({ key: crypto.randomUUID(), source, label: shortLink(url), brain: 'default' });
     setLink('');
     setProblem(null);
   }
@@ -1415,6 +1510,7 @@ function QueueAccount({
         key: crypto.randomUUID(),
         source: { type: 'file', uploadId: result.uploadId },
         label: result.name,
+        brain: 'default',
       });
     } catch (error) {
       toast(error instanceof Error ? error.message : 'falha no envio');

@@ -143,7 +143,18 @@ function JobScreen() {
             <motion.section key="camera" className="panel stack" {...fade}>
               <h2 className="title-md">Onde está o rosto?</h2>
               <CameraPicker
-                src={`/api/jobs/${job.id}/frame/${job.waiting.frame}`}
+                key={job.waiting.frame}
+                jobId={job.id}
+                frame={job.waiting.frame}
+                timeline={
+                  job.waiting.duration === undefined
+                    ? null
+                    : {
+                        duration: job.waiting.duration,
+                        at: job.waiting.at ?? 0,
+                        strip: job.waiting.strip ?? [],
+                      }
+                }
                 suggestion={job.waiting.suggestion}
                 onConfirm={(rect) => {
                   void post(`/jobs/${job.id}/camera`, rect).catch((caught: unknown) => {

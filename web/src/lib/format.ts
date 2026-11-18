@@ -39,6 +39,16 @@ export function clock(iso: string): string {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+export function timecode(totalSeconds: number): string {
+  const whole = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(whole / 3600);
+  const minutes = Math.floor((whole % 3600) / 60);
+  const seconds = String(whole % 60).padStart(2, '0');
+  return hours > 0
+    ? `${String(hours)}:${String(minutes).padStart(2, '0')}:${seconds}`
+    : `${String(minutes)}:${seconds}`;
+}
+
 export function parseClock(text: string): number | null {
   const clean = text.trim();
   if (clean === '') return null;

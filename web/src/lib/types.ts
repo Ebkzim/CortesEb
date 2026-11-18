@@ -71,8 +71,14 @@ export interface StepState {
   remainingSeconds: number | null;
 }
 
+export interface CameraTimeline {
+  duration: number;
+  at: number;
+  strip: { name: string; at: number }[];
+}
+
 export type Waiting =
-  | { kind: 'camera'; frame: string; suggestion: PercentRect }
+  | ({ kind: 'camera'; frame: string; suggestion: PercentRect } & Partial<CameraTimeline>)
   | {
       kind: 'agent';
       agent: 'claude' | 'codex';

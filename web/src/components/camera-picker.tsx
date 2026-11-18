@@ -1,9 +1,15 @@
 'use client';
 
-import { Check } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { post } from '@/lib/api';
+import { timecode } from '@/lib/format';
 import { Button } from './ui';
-import type { PercentRect } from '@/lib/types';
+import type { CameraTimeline, PercentRect } from '@/lib/types';
+
+const STEP_SECONDS = 5;
+const SEEK_DELAY_MS = 220;
 
 const TOP_RATIO = 1080 / 960;
 const CORNERS: { label: string; rect: (w: number, h: number) => PercentRect }[] = [
@@ -14,14 +20,52 @@ const CORNERS: { label: string; rect: (w: number, h: number) => PercentRect }[] 
 ];
 
 export function CameraPicker({
-  src,
+  jobId,
+  frame: firstFrame,
+  timeline,
   suggestion,
   onConfirm,
 }: {
-  src: string;
+  jobId: string;
+  frame: string;
+  timeline: CameraTimeline | null;
   suggestion: PercentRect;
   onConfirm: (rect: PercentRect) => void;
 }) {
+  const [shown, setShown] = useState(firstFrame);
+  const [at, setAt] = useState(timeline?.at ?? 0);
+  const [seeking, setSeeking] = useState(false);
+  const seekTimer = useRef<number | null>(null);
+  const seekTicket = useRef(0);
+  const src = `/api/jobs/${jobId}/frame/${shown}`;
+
+  function seek(moment: number, delay = 0): void {
+    if (timeline === null) return;
+    const bounded = Math.min(timeline.duration, Math.max(0, moment));
+    setAt(bounded);
+    if (seekTimer.current !== null) window.clearTimeout(seekTimer.current);
+    seekTimer.current = window.setTimeout(() => {
+      const ticket = ++seekTicket.current;
+      setSeeking(true);
+      void post<{ frame: string; at: number }>(`/jobs/${jobId}/frame-at`, { at: bounded })
+        .then((result) => {
+          if (ticket === seekTicket.current) setShown(result.frame);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (ticket === seekTicket.current) setSeeking(false);
+        });
+    }, delay);
+  }
+
+  function pick(name: string, moment: number): void {
+    seekTicket.current += 1;
+    if (seekTimer.current !== null) window.clearTimeout(seekTimer.current);
+    setSeeking(false);
+    setAt(moment);
+    setShown(name);
+  }
+
   const box = useRef<HTMLDivElement>(null);
   const [frame, setFrame] = useState<{ w: number; h: number } | null>(null);
   const [rect, setRect] = useState<PercentRect>(suggestion);
@@ -73,7 +117,7 @@ export function CameraPicker({
       <div className="camera__stage">
         <div
           ref={box}
-          className="camera__frame"
+          className={seeking ? 'camera__frame camera__frame--seeking' : 'camera__frame'}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerLeave={onPointerUp}
@@ -122,6 +166,69 @@ export function CameraPicker({
           />
         </div>
       </div>
+      {timeline !== null && (
+        <div className="camera__time">
+          <div className="camera__strip">
+            {timeline.strip.map((item) => (
+              <motion.button
+                key={item.name}
+                type="button"
+                className={
+                  shown === item.name || Math.abs(item.at - at) < 0.5
+                    ? 'camera__thumb camera__thumb--on'
+                    : 'camera__thumb'
+                }
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => {
+                  pick(item.name, item.at);
+                }}
+                title={`Usar o quadro de ${timecode(item.at)}`}
+              >
+                <img src={`/api/jobs/${jobId}/frame/${item.name}`} alt="" draggable={false} />
+                <span>{timecode(item.at)}</span>
+              </motion.button>
+            ))}
+          </div>
+          <div className="camera__seek">
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Voltar 5 segundos"
+              onClick={() => {
+                seek(at - STEP_SECONDS);
+              }}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <input
+              type="range"
+              className="camera__range"
+              min={0}
+              max={Math.max(1, Math.floor(timeline.duration))}
+              step={1}
+              value={Math.round(at)}
+              aria-label="Momento do vídeo"
+              onChange={(event) => {
+                seek(Number(event.target.value), SEEK_DELAY_MS);
+              }}
+            />
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Avançar 5 segundos"
+              onClick={() => {
+                seek(at + STEP_SECONDS);
+              }}
+            >
+              <ChevronRight size={16} />
+            </button>
+            <span className="camera__clock">
+              {timecode(at)} / {timecode(timeline.duration)}
+            </span>
+          </div>
+        </div>
+      )}
       <div className="row wrap">
         {CORNERS.map((corner) => (
           <button
@@ -138,7 +245,9 @@ export function CameraPicker({
         ))}
       </div>
       <p className="muted small">
-        Arraste o retângulo até o rosto e puxe o canto para ajustar o tamanho.
+        {timeline === null
+          ? 'Arraste o retângulo até o rosto e puxe o canto para ajustar o tamanho.'
+          : 'Se o rosto não aparece, escolha outro quadro acima ou arraste a linha do tempo. Depois arraste o retângulo até o rosto e puxe o canto para ajustar o tamanho.'}
       </p>
       <div>
         <Button
