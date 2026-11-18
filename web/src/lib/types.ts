@@ -15,7 +15,6 @@ export interface Preset {
   frame: 'split' | 'fit';
   top: string;
   below: string;
-  example: string | null;
 }
 
 export interface PercentRect {

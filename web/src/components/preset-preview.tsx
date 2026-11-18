@@ -19,7 +19,7 @@ export function PresetPreview({ preset }: { preset: Preset | null }) {
     <div className="preview">
       <AnimatePresence mode="wait">
         <motion.div
-          key={preset === null ? 'vazio' : (preset.example ?? sampleOf(preset))}
+          key={preset === null ? 'vazio' : sampleOf(preset)}
           className="preview__frame"
           initial={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
           animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
@@ -29,13 +29,7 @@ export function PresetPreview({ preset }: { preset: Preset | null }) {
           {preset === null ? (
             <div className="preview__empty">Escolha um tipo para ver como fica</div>
           ) : (
-            <Example
-              src={
-                preset.example !== null
-                  ? `/api/clips/${preset.example}/video`
-                  : `/examples/${sampleOf(preset)}.mp4`
-              }
-            />
+            <Example src={`/examples/${sampleOf(preset)}.mp4`} />
           )}
         </motion.div>
       </AnimatePresence>
@@ -50,11 +44,9 @@ export function PresetPreview({ preset }: { preset: Preset | null }) {
         >
           {preset === null
             ? ''
-            : preset.example !== null
-              ? 'Um corte real seu neste formato'
-              : preset.frame === 'fit'
-                ? 'A cena inteira, título em cima e legenda embaixo'
-                : `${preset.top} em cima, ${preset.below} embaixo`}
+            : preset.frame === 'fit'
+              ? 'A cena inteira, título em cima e legenda embaixo'
+              : `${preset.top} em cima, ${preset.below} embaixo`}
         </motion.p>
       </AnimatePresence>
     </div>

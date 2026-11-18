@@ -38,9 +38,8 @@ export class JobsController {
   ) {}
 
   @Get('presets')
-  async presets(): Promise<(Preset & { example: string | null })[]> {
-    const examples: Record<string, string> = await this.jobs.examples().catch(() => ({}));
-    return PRESETS.map((preset) => ({ ...preset, example: examples[preset.id] ?? null }));
+  presets(): readonly Preset[] {
+    return PRESETS;
   }
 
   @Get('jobs')
