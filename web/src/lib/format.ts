@@ -39,6 +39,16 @@ export function clock(iso: string): string {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+export function timecode(totalSeconds: number): string {
+  const whole = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(whole / 3600);
+  const minutes = Math.floor((whole % 3600) / 60);
+  const seconds = String(whole % 60).padStart(2, '0');
+  return hours > 0
+    ? `${String(hours)}:${String(minutes).padStart(2, '0')}:${seconds}`
+    : `${String(minutes)}:${seconds}`;
+}
+
 export function parseClock(text: string): number | null {
   const clean = text.trim();
   if (clean === '') return null;
@@ -56,3 +66,24 @@ export const STATUS_LABEL: Record<string, string> = {
   canceled: 'Cancelado',
   interrupted: 'Interrompido',
 };
+
+export const PRESET_LABEL: Record<string, string> = {
+  'gameplay-camera': 'Gameplay com câmera',
+  'gta6-gameplay': 'Gameplay GTA 6',
+  'gta6-react': 'React GTA 6',
+  filmes: 'React de filme',
+  series: 'React de série',
+  'filmes-cena': 'Cena de filme',
+  'series-cena': 'Cena de série',
+  podcast: 'Podcast',
+};
+
+export function ago(iso: string): string {
+  const minutes = Math.round((Date.now() - Date.parse(iso)) / 60_000);
+  if (minutes < 1) return 'agora';
+  if (minutes < 60) return `há ${String(minutes)} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `há ${String(hours)} h`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? 'ontem' : `há ${String(days)} dias`;
+}

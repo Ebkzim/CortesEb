@@ -7,6 +7,7 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { ClipCard } from '@/components/clip-card';
 import { useToast } from '@/components/toast';
+import { Button } from '@/components/ui';
 import { api, remove } from '@/lib/api';
 import { useJobEvents } from '@/lib/events';
 import { bytes, dayLabel } from '@/lib/format';
@@ -36,8 +37,7 @@ function Days() {
   });
   return (
     <div className="stack" style={{ gap: 32 }}>
-      <header className="stack" style={{ gap: 10 }}>
-        <span className="eyebrow">Biblioteca</span>
+      <header className="stack" style={{ gap: 8 }}>
         <h1 className="title-lg">Meus clipes</h1>
         <p className="lead">Uma pasta por dia, com todos os cortes prontos para baixar.</p>
       </header>
@@ -48,7 +48,7 @@ function Days() {
       ) : days.length === 0 ? (
         <div className="empty">Ainda não há clipes. Os cortes prontos aparecem aqui sozinhos.</div>
       ) : (
-        <div className="grid grid--4">
+        <div className="folders">
           {days.map((item, index) => (
             <motion.div
               key={item.day}
@@ -61,9 +61,9 @@ function Days() {
                 <Folder size={22} />
                 <span className="folder__name">{dayLabel(item.day)}</span>
                 <span className="muted small">
-                  {item.clips} {item.clips === 1 ? 'clipe' : 'clipes'} · {bytes(item.bytes)}
+                  {item.day.split('-').reverse().join('/')} · {item.clips}{' '}
+                  {item.clips === 1 ? 'clipe' : 'clipes'} · {bytes(item.bytes)}
                 </span>
-                <span className="folder__date">{item.day.split('-').reverse().join('/')}</span>
               </Link>
             </motion.div>
           ))}
@@ -100,19 +100,17 @@ function Day({ day }: { day: string }) {
   }
   return (
     <div className="stack" style={{ gap: 28 }}>
-      <Link
-        href="/clipes/"
-        className="button button--ghost button--small"
-        style={{ alignSelf: 'flex-start' }}
-      >
-        <ArrowLeft size={16} /> Todas as pastas
-      </Link>
+      <div>
+        <Button href="/clipes/" variant="ghost" size="small" lead={<ArrowLeft />}>
+          Todas as pastas
+        </Button>
+      </div>
       <header className="spread">
         <div className="stack" style={{ gap: 8 }}>
-          <span className="eyebrow">{day.split('-').reverse().join('/')}</span>
           <h1 className="title-lg" style={{ textTransform: 'capitalize' }}>
             {dayLabel(day)}
           </h1>
+          <span className="muted small">{day.split('-').reverse().join('/')}</span>
         </div>
         {clips !== null && (
           <span className="chip">

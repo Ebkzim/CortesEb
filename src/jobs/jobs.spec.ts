@@ -7,9 +7,10 @@ import { jobRequestSchema } from '../contracts/job.js';
 import type { JobRepository, NewClip } from '../database/job.repository.js';
 import type { MediaTools } from '../media/media-tools.js';
 import { buildAgentPrompt } from './agent-prompt.js';
+import { SpeedBook } from './speed-book.js';
 import { targetsInput, youtubeLink } from './cut-pipeline.js';
 import { folderName, LibraryService, localDay } from './library.service.js';
-import { layoutFor, PRESETS, presetOf, rectSpec } from './presets.js';
+import { bottomPlan, layoutFor, PRESETS, presetOf, rectSpec, withBottom } from './presets.js';
 
 const base = {
   preset: 'gameplay-camera',
@@ -215,5 +216,65 @@ describe('cut pipeline helpers', () => {
     expect(
       youtubeLink({ type: 'vod', platform: 'twitch', url: 'https://twitch.tv/videos/1' }),
     ).toBeNull();
+  });
+});
+
+describe('SpeedBook', () => {
+  it('learns a rate per key and blends new samples', async () => {
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-speed-'));
+    const paths = { inHome: (name: string) => path.join(home, name) } as unknown as AppPaths;
+    const book = new SpeedBook(paths);
+    expect(await book.estimate('render', 60, 3)).toBe(180);
+    await book.record('render', 120, 60);
+    expect(await book.rate('render', 3)).toBe(2);
+    await book.record('render', 240, 60);
+    expect(await book.rate('render', 3)).toBe(3);
+    await book.record('Select:ollama-Qwen 3B', 100, 2);
+    expect(await new SpeedBook(paths).rate('select:ollama-qwen-3b', 1)).toBe(50);
+    await book.record('render', 0, 10);
+    expect(await book.rate('render', 3)).toBe(3);
+    await fs.rm(home, { recursive: true, force: true });
+  });
+});
+
+describe('bottom choice', () => {
+  const trailer = 'https://www.youtube.com/watch?v=trailer';
+
+  it('uses the preset default when nothing is chosen', () => {
+    expect(bottomPlan(presetOf('gta6-gameplay'), undefined, trailer)).toEqual({
+      kind: 'url',
+      url: trailer,
+    });
+    expect(bottomPlan(presetOf('gameplay-camera'), undefined, null)).toEqual({ kind: 'source' });
+    expect(bottomPlan(presetOf('gta6-gameplay'), { type: 'default' }, null)).toEqual({
+      kind: 'source',
+    });
+  });
+
+  it('respects the user choice', () => {
+    expect(bottomPlan(presetOf('gta6-gameplay'), { type: 'source' }, trailer)).toEqual({
+      kind: 'source',
+    });
+    expect(
+      bottomPlan(presetOf('podcast'), { type: 'url', url: 'https://youtu.be/x' }, null),
+    ).toEqual({ kind: 'url', url: 'https://youtu.be/x' });
+    expect(bottomPlan(presetOf('filmes'), { type: 'file', uploadId: 'u' }, null)).toEqual({
+      kind: 'file',
+      uploadId: 'u',
+    });
+  });
+
+  it('switches the layout bottom and drops the podcast split for a separate video', () => {
+    const podcast = layoutFor(presetOf('podcast'), undefined);
+    expect(withBottom(podcast, { kind: 'source' }).bottomArea).toBe('36.7,0,63.3,100');
+    const other = withBottom(podcast, { kind: 'url', url: 'https://youtu.be/x' });
+    expect(other.bottom).toBe('video');
+    expect(other.bottomArea).toBeUndefined();
+  });
+
+  it('offers lives only where they make sense', () => {
+    expect(presetOf('series').sources).not.toContain('live');
+    expect(presetOf('filmes').sources).not.toContain('live');
+    expect(presetOf('gameplay-camera').sources).toContain('live');
   });
 });

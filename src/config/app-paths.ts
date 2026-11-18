@@ -18,6 +18,10 @@ export class AppPaths {
     this.packageRoot = fileURLToPath(new URL('../..', import.meta.url));
   }
 
+  get databaseFile(): string {
+    return path.join(this.home, 'cortes.db');
+  }
+
   get configFile(): string {
     return path.join(this.home, 'config.json');
   }

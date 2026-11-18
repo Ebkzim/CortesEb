@@ -18,6 +18,8 @@ export function mergeLayouts(workspace: Layout | null, saved: Layout): Layout {
 export function applyLayout(clip: Clip, layout: Layout, frame: SourceMeta): ResolvedClip {
   const bottom = clip.bottom ?? layout.bottom ?? 'video';
   const resolved: ResolvedClip = { ...clip, bottom };
+  const shape = clip.frame ?? layout.frame;
+  if (shape !== undefined) resolved.frame = shape;
   if (clip.crop === undefined && layout.camera !== undefined && layout.camera !== NO_CAMERA) {
     const camera = parseCamera(layout.camera, layout.cameraSize ?? DEFAULT_CAMERA_SIZE);
     resolved.crop = cameraCrop(camera, frame.width, frame.height);

@@ -50,6 +50,8 @@ export type SplitCutProps = {
   pages: CaptionPage[];
   watermark: RenderWatermark | null;
   credit?: string | null;
+  frame?: 'split' | 'fit';
+  headline?: string | null;
   sfx: RenderSound[];
   images: RenderImage[];
 };

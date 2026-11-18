@@ -1,10 +1,11 @@
 'use client';
 
-import { Download, Play, Trash2, X } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import { Download, Trash2 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useRef, useState } from 'react';
 import { bytes, duration } from '@/lib/format';
 import type { ClipView } from '@/lib/types';
+import { ClipLightbox } from './clip-lightbox';
 
 export function ClipCard({
   clip,
@@ -58,9 +59,6 @@ export function ClipCard({
             playsInline
             preload="none"
           />
-          <span className="clip__play">
-            <Play size={18} fill="currentColor" />
-          </span>
           <span className="clip__time">{duration(clip.seconds)}</span>
         </button>
         <div className="clip__body">
@@ -98,61 +96,13 @@ export function ClipCard({
           </div>
         </div>
       </motion.article>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            className="lightbox"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => {
-              setOpen(false);
-            }}
-          >
-            <motion.div
-              className="lightbox__inner"
-              initial={{ scale: 0.94, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.96, y: 10 }}
-              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-              onClick={(event) => {
-                event.stopPropagation();
-              }}
-            >
-              <video
-                src={`/api/clips/${clip.id}/video`}
-                controls
-                autoPlay
-                playsInline
-                className="lightbox__video"
-              />
-              <div className="spread">
-                <p className="clip__title">{clip.title}</p>
-                <span className="row">
-                  <a
-                    className="button button--dark button--small"
-                    href={`/api/clips/${clip.id}/download`}
-                    download
-                  >
-                    Baixar <Download />
-                  </a>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    onClick={() => {
-                      setOpen(false);
-                    }}
-                    aria-label="fechar"
-                  >
-                    <X size={18} />
-                  </button>
-                </span>
-              </div>
-              {clip.hook !== null && <p className="muted small">“{clip.hook}”</p>}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ClipLightbox
+        clip={clip}
+        open={open}
+        onClose={() => {
+          setOpen(false);
+        }}
+      />
     </>
   );
 }

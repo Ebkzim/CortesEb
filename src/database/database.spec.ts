@@ -49,30 +49,31 @@ describe('SecretBox', () => {
   });
 });
 
-const TEST_URL = process.env.CORTES_EB_TEST_DATABASE_URL;
-
-describe.skipIf(TEST_URL === undefined)('repositories on a real database', () => {
+describe('repositories on a real database', () => {
   let prisma: PrismaService;
   let home = '';
-  let saved: string | undefined;
 
   beforeAll(async () => {
-    saved = process.env.DATABASE_URL;
-    process.env.DATABASE_URL = TEST_URL;
-    prisma = new PrismaService();
     home = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-home-'));
+    const paths = {
+      home,
+      databaseFile: path.join(home, 'cortes.db'),
+      packageRoot: path.resolve(import.meta.dirname, '..', '..'),
+    } as unknown as AppPaths;
+    prisma = new PrismaService(paths);
   });
 
   afterAll(async () => {
     await prisma.onModuleDestroy();
-    process.env.DATABASE_URL = saved;
     await fs.rm(home, { recursive: true, force: true });
   });
 
   beforeEach(async () => {
-    await prisma.db.$executeRawUnsafe(
-      'truncate table cortes_eb.job_logs, cortes_eb.clips, cortes_eb.jobs, cortes_eb.api_keys',
-    );
+    await prisma.db.jobLog.deleteMany();
+    await prisma.db.clip.deleteMany();
+    await prisma.db.job.deleteMany();
+    await prisma.db.batch.deleteMany();
+    await prisma.db.apiKey.deleteMany();
   });
 
   it('answers a ping', async () => {
@@ -89,7 +90,9 @@ describe.skipIf(TEST_URL === undefined)('repositories on a real database', () =>
       workDir: '/tmp/x',
     });
     expect(job.status).toBe('queued');
-    expect((await jobs.nextQueued())?.id).toBe(job.id);
+    expect((await jobs.nextQueued('cut'))?.id).toBe(job.id);
+    expect(await jobs.nextQueued('live')).toBeNull();
+    expect(await jobs.nextQueued('cut', [job.id])).toBeNull();
     await jobs.update(job.id, { status: 'waiting', waiting: { kind: 'camera' } });
     expect((await jobs.get(job.id)).waiting).toEqual({ kind: 'camera' });
     await jobs.update(job.id, { status: 'running', waiting: null });
@@ -117,7 +120,21 @@ describe.skipIf(TEST_URL === undefined)('repositories on a real database', () =>
     expect(await jobs.clipsOfDay('2026-11-16')).toHaveLength(1);
     expect(await jobs.interruptRunning()).toBe(1);
     expect((await jobs.get(job.id)).status).toBe('interrupted');
+    await jobs.update(job.id, { status: 'done' });
+    await jobs.remove(job.id);
+    const kept = await jobs.clipsOfDay('2026-11-17');
+    expect(kept).toHaveLength(2);
+    expect(kept.every((clip) => clip.jobId === null)).toBe(true);
     await expect(jobs.get('00000000-0000-0000-0000-000000000000')).rejects.toThrow();
+    const other = await jobs.create({
+      kind: 'cut',
+      title: 'b',
+      preset: 'podcast',
+      request: {},
+      workDir: '/tmp/y',
+    });
+    await jobs.update(other.id, { status: 'failed' });
+    expect((await jobs.removeFinished(['failed'])).map((row) => row.id)).toEqual([other.id]);
   });
 
   it('stores api keys encrypted and only reveals them on request', async () => {

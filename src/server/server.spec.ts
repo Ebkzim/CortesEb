@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { readCookie } from './bootstrap.js';
+import type { FastifyRequest } from 'fastify';
+import { readCookie, routePath } from './bootstrap.js';
 import { parseRange, SessionGate } from './session.js';
 
 describe('SessionGate', () => {
@@ -51,5 +52,23 @@ describe('readCookie', () => {
     expect(readCookie('a=1; ceb_session=abc=; b=2', 'ceb_session')).toBe('abc=');
     expect(readCookie('a=1', 'ceb_session')).toBeUndefined();
     expect(readCookie(undefined, 'ceb_session')).toBeUndefined();
+  });
+});
+
+describe('routePath', () => {
+  const request = (url: string, route?: string): FastifyRequest =>
+    ({ url, routeOptions: { url: route } }) as unknown as FastifyRequest;
+
+  it('treats encoded, doubled or uppercase api paths as api', () => {
+    expect(routePath(request('/%61pi/accounts', '/api/accounts'))).toBe('/api/accounts');
+    expect(routePath(request('/%61pi/nada'))).toBe('/api/');
+    expect(routePath(request('//api/accounts'))).toBe('/api/');
+    expect(routePath(request('/API/accounts'))).toBe('/api/');
+    expect(routePath(request('/%E0%A4%A'))).toBe('/api/');
+  });
+
+  it('leaves the panel pages alone', () => {
+    expect(routePath(request('/novo/', '/*'))).toBe('/novo/');
+    expect(routePath(request('/_next/static/a.js?v=1', '/*'))).toBe('/_next/static/a.js');
   });
 });

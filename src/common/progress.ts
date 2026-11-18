@@ -36,6 +36,32 @@ export function withProgress<T>(sink: ProgressSink, work: () => Promise<T>): Pro
   return storage.run(sink, work);
 }
 
+export function withScaledProgress<T>(
+  offset: number,
+  share: number,
+  work: () => Promise<T>,
+  relabel?: (fraction: number) => string,
+): Promise<T> {
+  const outer = storage.getStore();
+  if (outer === undefined) return work();
+  return storage.run(
+    {
+      step: (update) => {
+        const fraction = update.fraction === null ? null : offset + update.fraction * share;
+        outer.step({
+          ...update,
+          fraction,
+          message: fraction === null || relabel === undefined ? update.message : relabel(fraction),
+        });
+      },
+      event: (name, data) => {
+        outer.event(name, data);
+      },
+    },
+    work,
+  );
+}
+
 @Injectable()
 export class Progress {
   constructor(private readonly output: Output) {}

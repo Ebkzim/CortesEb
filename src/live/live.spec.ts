@@ -455,6 +455,15 @@ describe('ClipJudge', () => {
     });
   });
 
+  it('keeps the score of a live reaction even without a clean ending', async () => {
+    const { client, prompts } = scripted([
+      '{"why":"reação forte","standalone":false,"payoff":false,"score":8,"title":"Ele surtou"}',
+    ]);
+    const verdict = await new ClipJudge(client, 5, 'GTA', 'live').judge('texto');
+    expect(verdict).toEqual({ score: 8, title: 'Ele surtou' });
+    expect(prompts).toHaveLength(1);
+  });
+
   it('retries once after an invalid answer and then gives up', async () => {
     const retry = scripted(['quebrado', '{"score":"7","title":"ok"}']);
     expect((await new ClipJudge(retry.client, 5, 'GTA').judge('t')).score).toBe(7);

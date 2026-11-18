@@ -60,6 +60,20 @@ describe('dropMarkers', () => {
   });
   const texts = (list: { text: string }[]): string[] => list.map((item) => item.text);
 
+  it('drops sound descriptions in parentheses', () => {
+    const input = [
+      '(birds',
+      'chirping)',
+      'You',
+      'jerk.',
+      '(music)',
+      '(dramatic',
+      'music)',
+      'Tom',
+    ].map(word);
+    expect(texts(dropMarkers(input))).toEqual(['You', 'jerk.', 'Tom']);
+  });
+
   it('removes bracketed markers split across words and lone dashes', () => {
     const input = [
       'Olha',
@@ -75,6 +89,17 @@ describe('dropMarkers', () => {
       'bom',
     ].map(word);
     expect(texts(dropMarkers(input))).toEqual(['Olha', 'isso', 'tá', 'bom']);
+  });
+  it('drops leftover brackets and underscores from captions', () => {
+    const words = ['__', 'Tá?', ']', 'Muito', ']Então', 'assim,', 'GTA', '6', '>>'].map(word);
+    expect(dropMarkers(words).map((item) => item.text)).toEqual([
+      'Tá?',
+      'Muito',
+      'Então',
+      'assim,',
+      'GTA',
+      '6',
+    ]);
   });
 
   it('never swallows speech after an unclosed bracket', () => {

@@ -13,6 +13,12 @@ export interface FinishedClip {
   account: string | null;
 }
 
+export interface CameraTimeline {
+  duration: number;
+  at: number;
+  strip: { name: string; at: number }[];
+}
+
 export interface PipelineContext {
   job: JobRow;
   request: JobRequest;
@@ -22,7 +28,11 @@ export interface PipelineContext {
   tracker: StepTracker;
   signal: AbortSignal;
   log(level: 'info' | 'warn' | 'error', message: string): void;
-  waitForCamera(frame: string, suggestion: PercentRect): Promise<PercentRect>;
+  waitForCamera(
+    frame: string,
+    suggestion: PercentRect,
+    timeline?: CameraTimeline,
+  ): Promise<PercentRect>;
   setWaiting(data: Record<string, unknown> | null): Promise<void>;
   addClip(clip: FinishedClip): Promise<void>;
   listen(handler: (name: string, data: Record<string, unknown>) => void): void;

@@ -10,8 +10,13 @@ export interface Preset {
   niche: string;
   camera: 'ask' | 'none' | 'fixed';
   bottom: 'source' | 'niche';
+  sources: ('file' | 'youtube' | 'vod' | 'live')[];
+  group: 'filmes' | 'series' | null;
+  variant: 'react' | 'cena' | null;
+  frame: 'split' | 'fit';
   top: string;
   below: string;
+  example: string | null;
 }
 
 export interface PercentRect {
@@ -26,6 +31,12 @@ export type JobSource =
   | { type: 'youtube'; url: string }
   | { type: 'vod'; platform: PlatformId; url: string; from?: number; to?: number }
   | { type: 'live'; platform: PlatformId; url: string };
+
+export type JobBottom =
+  | { type: 'default' }
+  | { type: 'source' }
+  | { type: 'url'; url: string }
+  | { type: 'file'; uploadId: string };
 
 export type JobTargets =
   { mode: 'count'; count: number } | { mode: 'duration'; minSeconds: number; maxSeconds: number };
@@ -43,6 +54,7 @@ export interface JobRequest {
   targets: JobTargets;
   selector: JobSelector;
   accounts?: string[];
+  bottom?: JobBottom;
 }
 
 export type StepStatus = 'pending' | 'running' | 'waiting' | 'done' | 'skipped' | 'failed';
@@ -59,8 +71,14 @@ export interface StepState {
   remainingSeconds: number | null;
 }
 
+export interface CameraTimeline {
+  duration: number;
+  at: number;
+  strip: { name: string; at: number }[];
+}
+
 export type Waiting =
-  | { kind: 'camera'; frame: string; suggestion: PercentRect }
+  | ({ kind: 'camera'; frame: string; suggestion: PercentRect } & Partial<CameraTimeline>)
   | {
       kind: 'agent';
       agent: 'claude' | 'codex';
@@ -83,11 +101,12 @@ export interface JobView {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+  batchId: string | null;
 }
 
 export interface ClipView {
   id: string;
-  jobId: string;
+  jobId: string | null;
   day: string;
   title: string;
   hook: string | null;
@@ -132,4 +151,15 @@ export type JobEvent =
   | { type: 'job'; jobId: string; job: JobView }
   | { type: 'steps'; jobId: string; steps: StepState[]; remainingSeconds: number | null }
   | { type: 'log'; jobId: string; level: LogLine['level']; message: string; at: string }
-  | { type: 'clip'; jobId: string; clip: ClipView };
+  | { type: 'clip'; jobId: string; clip: ClipView }
+  | { type: 'removed'; jobId: string };
+
+export interface BatchView {
+  id: string;
+  title: string;
+  preset: string;
+  createdAt: string;
+  total: number;
+  finished: number;
+  active: number;
+}

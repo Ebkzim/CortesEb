@@ -1,0 +1,56 @@
+name: install
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: install-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24]
+    env:
+      CORTES_EB_HOME: ${{ github.workspace }}/../cortes-eb-home
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: instalar
+        run: npm run instalar -- --sem-ollama --whisper=tiny
+      - name: conferir a instalação
+        shell: bash
+        run: |
+          cortes-eb doctor > doctor.json
+          node -e "const r=require('./doctor.json'); if(!r.ready||!r.ytdlp){console.error(r);process.exit(1)}"
+          cortes-eb db status
+      - name: abrir o painel
+        shell: bash
+        run: |
+          cortes-eb ui --port 4318 --no-open > ui.log 2>&1 &
+          for i in $(seq 1 60); do grep -q "acesso=" ui.log && break; sleep 1; done
+          cat ui.log | sed 's/acesso=.*/acesso=***/'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4318/api/jobs)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4318/)" = "200"
+      - name: transcrever um vídeo curto
+        shell: bash
+        run: |
+          ffmpeg -v error -f lavfi -i testsrc=size=640x360:rate=30:duration=5 -f lavfi -i sine=frequency=440:duration=5 -shortest -c:v libx264 -pix_fmt yuv420p -c:a aac teste.mp4
+          cortes-eb fetch teste.mp4 --work trabalho
+          cortes-eb transcribe --work trabalho --lang pt

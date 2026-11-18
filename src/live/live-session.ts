@@ -87,7 +87,7 @@ export class LiveSession {
   private readonly epochs: Epoch[] = [];
   private readonly removed = new Set<string>();
   private readonly queue: PreparedClip[] = [];
-  private readonly acceptedAt: number[] = [];
+  private readonly producedAt: number[] = [];
   private chain: Promise<void> = Promise.resolve();
   private worker: Promise<void> | null = null;
   private recording: Recording | null = null;
@@ -148,7 +148,8 @@ export class LiveSession {
       clearInterval(timer);
       this.deps.chat?.stop();
     }
-    for (const window of this.detector.flush()) this.schedule(window);
+    if (this.signal.aborted) this.queue.length = 0;
+    else for (const window of this.detector.flush()) this.schedule(window);
     await this.chain;
     await this.worker;
     this.emit({ event: 'end', ...this.summary });
@@ -253,10 +254,10 @@ export class LiveSession {
     stamp: { emittedAt: number; emittedStream: number },
   ): Promise<void> {
     const at = clock(window.peakAt);
-    if (this.request.maxClips > 0 && this.summary.accepted >= this.request.maxClips) return;
+    if (this.request.maxClips > 0 && this.summary.produced >= this.request.maxClips) return;
     const cutoff = Date.now() - HOUR_SECONDS * 1000;
-    while ((this.acceptedAt[0] ?? Infinity) < cutoff) this.acceptedAt.shift();
-    if (this.acceptedAt.length >= this.request.maxPerHour) {
+    while ((this.producedAt[0] ?? Infinity) < cutoff) this.producedAt.shift();
+    if (this.producedAt.length >= this.request.maxPerHour) {
       this.skip(at, 'limite de cortes por hora');
       return;
     }
@@ -272,15 +273,10 @@ export class LiveSession {
       this.bottomFile,
       stamp,
     );
-    this.acceptedAt.push(Date.now());
     this.summary.accepted += 1;
     this.queue.push(job);
     await this.trimQueue();
     this.kick();
-    if (this.request.maxClips > 0 && this.summary.accepted >= this.request.maxClips) {
-      this.stopping = true;
-      this.recording?.stop();
-    }
   }
 
   private async trimQueue(): Promise<void> {
@@ -307,6 +303,7 @@ export class LiveSession {
   private async drain(): Promise<void> {
     for (let job = this.queue.shift(); job !== undefined; job = this.queue.shift()) {
       try {
+        this.emit({ event: 'moment', at: clock(job.window.peakAt), queued: this.queue.length });
         const done = await this.deps.factory.produce(job, this.options());
         if (!done.ok) {
           this.skip(clock(job.window.peakAt), done.reason);
@@ -323,6 +320,12 @@ export class LiveSession {
           continue;
         }
         this.summary.produced += 1;
+        this.producedAt.push(Date.now());
+        if (this.request.maxClips > 0 && this.summary.produced >= this.request.maxClips) {
+          this.stopping = true;
+          this.queue.length = 0;
+          this.recording?.stop();
+        }
         const queued = await this.enqueue(done);
         this.emit({
           event: 'clip',

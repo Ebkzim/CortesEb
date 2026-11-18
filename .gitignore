@@ -17,6 +17,7 @@ secrets*.json
 /cortes/
 work/
 *.mp4
+!web/public/examples/*.mp4
 *.mov
 *.mkv
 *.webm
@@ -32,9 +33,13 @@ Thumbs.db
 *.swp
 
 README.md
-.dev-db/
 src/generated/
 web/.next/
 web/out/
 web/tsconfig.tsbuildinfo
 web/next-env.d.ts
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+.dev-db/

@@ -1,44 +1,114 @@
 'use client';
 
-import { ArrowRight, ArrowUpRight } from 'lucide-react';
-import { motion } from 'motion/react';
+import { ArrowRight, ArrowUpRight, Film, Layers, Trash2 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Progress } from '@/components/ui';
-import { api } from '@/lib/api';
+import { ClipTile } from '@/components/clip-tile';
+import { Profiles } from '@/components/profiles';
+import { useToast } from '@/components/toast';
+import { Button, EASE, Progress } from '@/components/ui';
+import { api, remove } from '@/lib/api';
 import { useJobEvents } from '@/lib/events';
-import { STATUS_LABEL, clock, dayLabel } from '@/lib/format';
-import type { JobView, StepState } from '@/lib/types';
+import { PRESET_LABEL, STATUS_LABEL, ago } from '@/lib/format';
+import type { BatchView, ClipView, DaySummary, JobView, StepState } from '@/lib/types';
 
-interface Health {
-  database: boolean;
-  ffmpeg: boolean;
-  ytdlp: boolean;
-  whisper: boolean;
-  ollama: boolean;
-}
+const ACTIVE = ['queued', 'running', 'waiting'];
+
+type Covers = Record<string, { clipId: string; count: number }>;
 
 export default function HomePage() {
   const [jobs, setJobs] = useState<JobView[] | null>(null);
-  const [health, setHealth] = useState<Health | null>(null);
+  const [covers, setCovers] = useState<Covers>({});
+  const [clips, setClips] = useState<ClipView[] | null>(null);
+  const [days, setDays] = useState<DaySummary[]>([]);
+  const [batches, setBatches] = useState<BatchView[]>([]);
+  const toast = useToast();
+
+  const loadClips = (): void => {
+    void api<ClipView[]>('/clips/recent?limit=6')
+      .then(setClips)
+      .catch(() => {
+        setClips([]);
+      });
+    void api<DaySummary[]>('/library/days')
+      .then(setDays)
+      .catch(() => undefined);
+  };
 
   useEffect(() => {
-    void api<{ jobs: JobView[] }>('/jobs?limit=12').then((data) => {
+    void api<{ jobs: JobView[]; covers: Covers }>('/jobs?limit=8').then((data) => {
       setJobs(data.jobs);
+      setCovers(data.covers);
     });
-    void api<Health>('/health')
-      .then(setHealth)
-      .catch(() => undefined);
+    loadClips();
+    loadBatches();
   }, []);
 
+  function loadBatches(): void {
+    void api<BatchView[]>('/batches?limit=4')
+      .then(setBatches)
+      .catch(() => undefined);
+  }
+
+  async function forget(job: JobView): Promise<void> {
+    if (!window.confirm(`Apagar “${job.title}” do histórico? Os cortes continuam em Meus clipes.`))
+      return;
+    try {
+      await remove(`/jobs/${job.id}`);
+      setJobs((current) => current?.filter((item) => item.id !== job.id) ?? null);
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'não consegui apagar');
+    }
+  }
+
+  async function clearHistory(): Promise<void> {
+    if (
+      !window.confirm(
+        'Apagar todas as tarefas terminadas do histórico? Os cortes continuam em Meus clipes.',
+      )
+    )
+      return;
+    try {
+      const result = await remove<{ removed: number }>('/jobs');
+      setJobs((current) => current?.filter((item) => ACTIVE.includes(item.status)) ?? null);
+      toast(
+        `${String(result.removed)} ${result.removed === 1 ? 'tarefa apagada' : 'tarefas apagadas'} do histórico.`,
+      );
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'não consegui limpar');
+    }
+  }
+
   useJobEvents((event) => {
+    if (event.type === 'job' && event.job.batchId !== null) loadBatches();
+    if (event.type === 'removed') {
+      setJobs((current) => current?.filter((item) => item.id !== event.jobId) ?? null);
+      return;
+    }
+    if (event.type === 'clip') {
+      loadClips();
+      setCovers((current) => {
+        const known = current[event.jobId];
+        return {
+          ...current,
+          [event.jobId]:
+            known === undefined
+              ? { clipId: event.clip.id, count: 1 }
+              : { ...known, count: known.count + 1 },
+        };
+      });
+      return;
+    }
     setJobs((current) => {
       if (current === null) return current;
       if (event.type === 'job') {
         const exists = current.some((job) => job.id === event.jobId);
         return exists
           ? current.map((job) =>
-              job.id === event.jobId ? { ...event.job, steps: job.steps } : job,
+              job.id === event.jobId
+                ? { ...event.job, steps: job.steps.length > 0 ? job.steps : event.job.steps }
+                : job,
             )
           : [event.job, ...current];
       }
@@ -51,130 +121,257 @@ export default function HomePage() {
     });
   });
 
-  const active = (jobs ?? []).filter((job) =>
-    ['queued', 'running', 'waiting'].includes(job.status),
-  );
-  const recent = (jobs ?? []).filter(
-    (job) => !['queued', 'running', 'waiting'].includes(job.status),
-  );
+  const today = localToday();
+  const todayCount = days.find((item) => item.day === today)?.clips ?? 0;
+  const total = days.reduce((sum, item) => sum + item.clips, 0);
 
   return (
-    <div className="stack" style={{ gap: 56 }}>
-      <section className="hero">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
+    <div className="home">
+      <section className="home__hero">
+        <motion.h1
+          className="title-xl"
+          initial={{ opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-          className="stack"
-          style={{ gap: 22 }}
+          transition={{ duration: 0.9, ease: EASE }}
         >
-          <span className="eyebrow">Cortes verticais</span>
-          <h1 className="title-xl">
-            Vídeo longo entra.
-            <br />
-            <span className="muted">Corte pronto sai.</span>
-          </h1>
-          <p className="lead">
-            Escolha o tipo, a quantidade e a origem. O painel baixa, transcreve, escolhe os melhores
-            ganchos e entrega tudo organizado por dia.
-          </p>
-          <div className="row wrap">
-            <Link href="/novo/" className="button button--dark">
-              Novo corte <ArrowRight />
-            </Link>
-            <Link href="/clipes/" className="button button--light">
-              Meus clipes
-            </Link>
-          </div>
+          Vídeo longo entra.
+          <br />
+          <span className="muted">Corte pronto sai.</span>
+        </motion.h1>
+        <motion.p
+          className="lead"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.25, duration: 0.6 }}
+        >
+          Escolha o tipo, a quantidade e a origem. O painel baixa, transcreve, escolhe os melhores
+          ganchos e entrega tudo organizado por dia.
+        </motion.p>
+        <motion.div
+          className="row wrap"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35, duration: 0.6, ease: EASE }}
+        >
+          <Button href="/novo/" icon={<ArrowRight />}>
+            Novo corte
+          </Button>
+          <Button href="/clipes/" variant="light">
+            Meus clipes
+          </Button>
         </motion.div>
-        {health !== null && (
+        {total > 0 && (
           <motion.div
-            className="health"
+            className="home__stats"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.5 }}
           >
-            {(
-              [
-                ['Banco', health.database],
-                ['FFmpeg', health.ffmpeg],
-                ['yt-dlp', health.ytdlp],
-                ['Transcrição', health.whisper],
-                ['IA local', health.ollama],
-              ] as const
-            ).map(([label, ok]) => (
-              <span key={label} className={`chip ${ok ? '' : 'chip--off'}`}>
-                <span className={`health__dot ${ok ? 'is-ok' : ''}`} />
-                {label}
-              </span>
-            ))}
+            <Stat value={todayCount} label={todayCount === 1 ? 'corte hoje' : 'cortes hoje'} />
+            <Stat value={total} label="no total" />
+            <Stat
+              value={days.length}
+              label={days.length === 1 ? 'dia de cortes' : 'dias de cortes'}
+            />
           </motion.div>
         )}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6, duration: 0.6, ease: EASE }}
+        >
+          <Profiles />
+        </motion.div>
       </section>
 
-      {active.length > 0 && (
-        <section className="stack">
-          <h2 className="title-md">Em andamento</h2>
-          <div className="grid grid--2">
-            {active.map((job) => (
-              <JobCard key={job.id} job={job} />
-            ))}
+      <section className="home__side">
+        <div className="stack" style={{ gap: 14 }}>
+          <div className="spread">
+            <h2 className="title-md">Últimos cortes</h2>
+            {(clips?.length ?? 0) > 0 && (
+              <Link href="/clipes/" className="link-arrow">
+                ver todos <ArrowUpRight size={15} />
+              </Link>
+            )}
           </div>
-        </section>
-      )}
+          {clips === null ? (
+            <div className="tiles">
+              {[0, 1, 2].map((index) => (
+                <span key={index} className="tile tile--ghost" />
+              ))}
+            </div>
+          ) : clips.length === 0 ? (
+            <div className="empty">Os cortes que você fizer aparecem aqui.</div>
+          ) : (
+            <div className="tiles">
+              {clips.map((clip, index) => (
+                <ClipTile key={clip.id} clip={clip} index={index} />
+              ))}
+            </div>
+          )}
+        </div>
 
-      <section className="stack">
-        <h2 className="title-md">Recentes</h2>
-        {jobs === null ? (
-          <div className="row muted">
-            <span className="spinner" /> carregando
-          </div>
-        ) : recent.length === 0 ? (
-          <div className="empty">Nenhum corte ainda. Comece pelo botão Novo corte.</div>
-        ) : (
-          <div className="list">
-            {recent.map((job, index) => (
-              <motion.div
-                key={job.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.04 }}
-              >
-                <Link href={`/tarefa/?id=${job.id}`} className="list__row">
-                  <span className={`status status--${job.status}`}>
-                    {STATUS_LABEL[job.status] ?? job.status}
-                  </span>
-                  <span className="list__title">{job.title}</span>
-                  <span className="muted small">
-                    {dayLabel(job.createdAt.slice(0, 10))} · {clock(job.createdAt)}
-                  </span>
-                  <ArrowUpRight size={18} className="list__arrow" />
-                </Link>
-              </motion.div>
-            ))}
+        {batches.length > 0 && (
+          <div className="stack" style={{ gap: 14 }}>
+            <h2 className="title-md">Filas</h2>
+            <div className="activity">
+              {batches.map((batch, index) => (
+                <motion.div
+                  key={batch.id}
+                  initial={{ opacity: 0, x: 18 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 + index * 0.05, duration: 0.5, ease: EASE }}
+                  whileTap={{ scale: 0.985 }}
+                >
+                  <Link
+                    href={`/fila/?id=${batch.id}`}
+                    className={`activity__item ${batch.active > 0 ? 'activity__item--live' : ''}`}
+                  >
+                    <span className="activity__cover">
+                      <Layers size={16} />
+                    </span>
+                    <span className="activity__body">
+                      <span className="activity__title">{batch.title}</span>
+                      <span className="activity__meta">
+                        {batch.finished} de {batch.total} {batch.total === 1 ? 'vídeo' : 'vídeos'}
+                        {` · ${ago(batch.createdAt)}`}
+                      </span>
+                      {batch.finished < batch.total && (
+                        <Progress value={batch.finished / Math.max(1, batch.total)} active />
+                      )}
+                    </span>
+                    <span className="activity__status">
+                      <span className={`dot ${batch.finished < batch.total ? 'dot--live' : ''}`} />
+                      {batch.finished < batch.total ? 'Rodando' : 'Concluída'}
+                    </span>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
           </div>
         )}
+
+        <div className="stack" style={{ gap: 14 }}>
+          <div className="spread">
+            <h2 className="title-md">Atividade</h2>
+            {(jobs ?? []).some((job) => !ACTIVE.includes(job.status)) && (
+              <button
+                type="button"
+                className="link-arrow"
+                onClick={() => {
+                  void clearHistory();
+                }}
+              >
+                limpar histórico
+              </button>
+            )}
+          </div>
+          {jobs === null ? (
+            <div className="row muted">
+              <span className="spinner" /> carregando
+            </div>
+          ) : jobs.length === 0 ? (
+            <div className="empty">Nenhuma tarefa ainda.</div>
+          ) : (
+            <motion.div className="activity" layout>
+              <AnimatePresence initial={false}>
+                {jobs.map((job, index) => (
+                  <ActivityCard
+                    key={job.id}
+                    job={job}
+                    cover={covers[job.id]}
+                    index={index}
+                    onRemove={() => {
+                      void forget(job);
+                    }}
+                  />
+                ))}
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </div>
       </section>
     </div>
   );
 }
 
-function JobCard({ job }: { job: JobView }) {
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="stat">
+      <span className="stat__value">{value}</span>
+      <span className="stat__label">{label}</span>
+    </div>
+  );
+}
+
+function ActivityCard({
+  job,
+  cover,
+  index,
+  onRemove,
+}: {
+  job: JobView;
+  cover: { clipId: string; count: number } | undefined;
+  index: number;
+  onRemove: () => void;
+}) {
+  const running = ACTIVE.includes(job.status);
   const current = job.steps.find((step) => step.status === 'running' || step.status === 'waiting');
   return (
-    <Link href={`/tarefa/?id=${job.id}`} className="choice">
-      <span className="spread">
-        <span className={`status status--${job.status}`}>
-          <span className="status__dot" />
-          {STATUS_LABEL[job.status] ?? job.status}
+    <motion.div
+      className="activity__row"
+      layout
+      initial={{ opacity: 0, x: 18 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -18, transition: { duration: 0.3 } }}
+      transition={{ delay: 0.15 + index * 0.05, duration: 0.5, ease: EASE }}
+      whileTap={{ scale: 0.985 }}
+    >
+      <Link
+        href={`/tarefa/?id=${job.id}`}
+        className={`activity__item ${running ? 'activity__item--live' : ''}`}
+      >
+        <span className="activity__cover">
+          {cover !== undefined ? (
+            <img src={`/api/clips/${cover.clipId}/thumb`} alt="" loading="lazy" />
+          ) : (
+            <Film size={16} />
+          )}
         </span>
-        <ArrowUpRight size={18} />
-      </span>
-      <span className="choice__title">{job.title}</span>
-      <span className="choice__text">{current?.label ?? 'na fila'}</span>
-      <Progress value={fraction(job.steps)} active={job.status === 'running'} />
-    </Link>
+        <span className="activity__body">
+          <span className="activity__title">{job.title}</span>
+          <span className="activity__meta">
+            {PRESET_LABEL[job.preset] ?? job.preset}
+            {cover !== undefined
+              ? ` · ${String(cover.count)} ${cover.count === 1 ? 'corte' : 'cortes'}`
+              : ''}
+            {` · ${ago(job.createdAt)}`}
+          </span>
+          {running && <Progress value={fraction(job.steps)} active={job.status === 'running'} />}
+        </span>
+        <span className={`activity__status activity__status--${job.status}`}>
+          <span className={`dot ${running ? 'dot--live' : ''}`} />
+          {running ? (current?.label ?? 'Na fila') : (STATUS_LABEL[job.status] ?? job.status)}
+        </span>
+      </Link>
+      {!running && (
+        <motion.button
+          type="button"
+          className="activity__remove"
+          aria-label="apagar do histórico"
+          whileTap={{ scale: 0.85 }}
+          onClick={onRemove}
+        >
+          <Trash2 size={14} />
+        </motion.button>
+      )}
+    </motion.div>
   );
+}
+
+function localToday(): string {
+  const now = new Date();
+  return `${String(now.getFullYear())}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 function fraction(steps: StepState[]): number {

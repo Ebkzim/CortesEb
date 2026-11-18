@@ -38,7 +38,7 @@ export async function startServer(port: number, webDir: string): Promise<Running
       await reply.status(421).send({ error: 'endereço não permitido' });
       return reply;
     }
-    const url = request.url.split('?')[0] ?? '';
+    const url = routePath(request);
     if (!url.startsWith('/api/')) return undefined;
     const origin = typeof request.headers.origin === 'string' ? request.headers.origin : undefined;
     if (!SAFE_METHODS.has(request.method) && !gate.allowedOrigin(origin)) {
@@ -78,6 +78,24 @@ export async function startServer(port: number, webDir: string): Promise<Running
     token: gate.token,
     close: () => app.close(),
   };
+}
+
+export function routePath(request: FastifyRequest): string {
+  const route = request.routeOptions.url ?? '';
+  if (route.toLowerCase().startsWith('/api/')) return route;
+  const raw = request.url.split('?')[0] ?? '';
+  let decoded = raw;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    return '/api/';
+  }
+  return decoded
+    .toLowerCase()
+    .replace(/\/{2,}/g, '/')
+    .startsWith('/api/')
+    ? '/api/'
+    : decoded;
 }
 
 export function readCookie(header: string | undefined, name: string): string | undefined {

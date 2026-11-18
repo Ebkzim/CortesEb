@@ -60,18 +60,22 @@ export class RenderService {
     outDir: string,
     requested: readonly string[] | undefined,
     engineName: EngineName = 'fast',
+    only: readonly string[] | null = null,
   ): Promise<ClipResult[]> {
     const engine: RenderEngine = engineName === 'fast' ? this.fast : this.remotion;
     const cuts = await readJson(workspace.cuts, cutsSchema);
     const layout = await this.layouts.effective(workspace);
     const frame = await readJson(workspace.meta, sourceMetaSchema);
-    const clips = cuts.clips.map((clip) => applyLayout(clip, layout, frame));
+    const clips = cuts.clips
+      .filter((clip) => only === null || only.includes(clip.id))
+      .map((clip) => applyLayout(clip, layout, frame));
     const plan = await this.planTargets(clips, requested, workspace);
     const context = await this.buildContext(
       workspace,
-      clips.some((clip) => clip.bottom === 'video'),
+      clips.some((clip) => clip.bottom === 'video' && clip.frame !== 'fit'),
     );
-    await this.targets.assert(workspace);
+    if (only === null) await this.targets.assert(workspace);
+    else await this.targets.assertSeparate(workspace);
     const base = path.resolve(outDir);
     const session = await engine.open(workspace.root);
     const results: ClipResult[] = [];
@@ -81,7 +85,8 @@ export class RenderService {
     );
     let done = 0;
     try {
-      for (const [index, clip] of clips.entries()) {
+      for (const clip of clips) {
+        const index = cuts.clips.findIndex((item) => item.id === clip.id);
         const composed = await this.composer.compose(clip, index, context);
         const seconds = Number(composed.props.totalSeconds.toFixed(1));
         for (const target of plan.get(clip.id) ?? []) {

@@ -11,7 +11,12 @@ import {
   type SplitCutProps,
 } from '../../contracts/render.js';
 import type { RenderEngine, RenderSession } from '../render-engine.js';
-import { buildAssCaptions, type AssCredit, type AssStyle } from './ass-captions.js';
+import {
+  buildAssCaptions,
+  type AssCredit,
+  type AssHeadline,
+  type AssStyle,
+} from './ass-captions.js';
 import { buildGraph } from './filter-graph.js';
 import { cellHeightRatio } from './text-metrics.js';
 import { planWatermark, writeTextFile } from './watermark-image.js';
@@ -19,6 +24,9 @@ import { planWatermark, writeTextFile } from './watermark-image.js';
 const FONT_FILE = 'Montserrat-Black.ttf';
 const FONT_NAME = 'Montserrat Black';
 const CAPTION_SIZE = 96;
+const HEADLINE_SIZE = 64;
+const HEADLINE_TOP = 400;
+const FIT_CAPTION_Y = 1440;
 const CREDIT_SIZE = 34;
 const CREDIT_BOTTOM = 60;
 const DIVIDER_HEIGHT = 340;
@@ -51,7 +59,12 @@ export class FfmpegEngine implements RenderEngine {
     await this.ensureDivider(root);
     await fs.writeFile(
       path.join(root, assFile),
-      buildAssCaptions(props.pages, this.assStyle(fontFile), this.credit(props, fontFile)),
+      buildAssCaptions(
+        props.pages,
+        this.assStyle(fontFile, props.frame === 'fit'),
+        this.credit(props, fontFile),
+        this.headline(props, fontFile),
+      ),
     );
     const watermark = await this.buildWatermark(root, props, fontFile, tag);
     const hasAudio = await this.hasAudio(root, props.sourceFile);
@@ -130,7 +143,20 @@ export class FfmpegEngine implements RenderEngine {
     };
   }
 
-  private assStyle(fontFile: string): AssStyle {
+  private headline(props: SplitCutProps, fontFile: string): AssHeadline | null {
+    if (props.frame !== 'fit' || props.headline === undefined || props.headline === null)
+      return null;
+    const text = props.headline.trim();
+    if (text === '') return null;
+    return {
+      text,
+      totalMs: Math.round(props.totalSeconds * 1000),
+      fontSize: Math.round(HEADLINE_SIZE * cellHeightRatio(fontFile)),
+      top: HEADLINE_TOP,
+    };
+  }
+
+  private assStyle(fontFile: string, fit = false): AssStyle {
     return {
       fontName: FONT_NAME,
       fontSize: Math.round(CAPTION_SIZE * cellHeightRatio(fontFile)),
@@ -139,7 +165,7 @@ export class FfmpegEngine implements RenderEngine {
       base: '#FFFFFF',
       width: RENDER_WIDTH,
       height: RENDER_HEIGHT,
-      centerY: RENDER_HEIGHT / 2,
+      centerY: fit ? FIT_CAPTION_Y : RENDER_HEIGHT / 2,
       sideMargin: 50,
       shadowY: 7,
       shadowAlpha: 0.35,

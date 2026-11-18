@@ -14,6 +14,13 @@ export interface AssStyle {
   shadowAlpha: number;
 }
 
+export interface AssHeadline {
+  text: string;
+  totalMs: number;
+  fontSize: number;
+  top: number;
+}
+
 export interface AssCredit {
   text: string;
   totalMs: number;
@@ -21,6 +28,7 @@ export interface AssCredit {
   bottomY: number;
 }
 
+const HEAD_MARGIN = 70;
 const FORBIDDEN = /[{}\\\r\n]/g;
 
 export function assColor(hex: string): string {
@@ -44,6 +52,7 @@ export function buildAssCaptions(
   pages: readonly CaptionPage[],
   style: AssStyle,
   credit: AssCredit | null = null,
+  headline: AssHeadline | null = null,
 ): string {
   const lines = [
     '[Script Info]',
@@ -56,6 +65,11 @@ export function buildAssCaptions(
     '[V4+ Styles]',
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
     `Style: Cap,${style.fontName},${style.fontSize},${assColor(style.base)},${assColor(style.base)},&H00000000&,&H00000000&,0,0,0,0,100,100,0,0,1,${style.outline},0,5,${style.sideMargin},${style.sideMargin},0,1`,
+    ...(headline === null
+      ? []
+      : [
+          `Style: Head,${style.fontName},${headline.fontSize},&H00FFFFFF&,&H00FFFFFF&,&H00000000&,&H00000000&,0,0,0,0,100,100,0,0,1,5,0,8,${HEAD_MARGIN},${HEAD_MARGIN},${headline.top},1`,
+        ]),
     ...(credit === null
       ? []
       : [
@@ -71,6 +85,11 @@ export function buildAssCaptions(
         `Dialogue: 0,${assTime(slice.from)},${assTime(slice.to)},Cap,,0,0,0,,${text(page, slice.active, style)}`,
       );
     }
+  }
+  if (headline !== null) {
+    lines.push(
+      `Dialogue: 1,${assTime(0)},${assTime(headline.totalMs)},Head,,0,0,0,,${headline.text.replace(FORBIDDEN, '').toUpperCase()}`,
+    );
   }
   if (credit !== null) {
     lines.push(
