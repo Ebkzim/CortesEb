@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import opentype from 'opentype.js';
 
 const cache = new Map<string, opentype.Font>();
@@ -5,7 +6,7 @@ const cache = new Map<string, opentype.Font>();
 function load(fontFile: string): opentype.Font {
   const cached = cache.get(fontFile);
   if (cached !== undefined) return cached;
-  const font = opentype.loadSync(fontFile);
+  const font = opentype.parse(readFileSync(fontFile));
   cache.set(fontFile, font);
   return font;
 }
