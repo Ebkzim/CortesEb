@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SplitCutProps } from '../../contracts/render.js';
 import { assColor, assTime, buildAssCaptions, type AssStyle } from './ass-captions.js';
 import { buildGraph, clampCrop, cover, escapeValue, type GraphFiles } from './filter-graph.js';
+import { cellHeightRatio, measureWidth } from './text-metrics.js';
 
 const style: AssStyle = {
   fontName: 'Montserrat Black',
@@ -213,5 +214,14 @@ describe('credit line', () => {
 
   it('keeps captions unchanged without a credit', () => {
     expect(buildAssCaptions([], style)).not.toContain('Credit');
+  });
+});
+
+describe('text metrics', () => {
+  const font = 'assets/fonts/Montserrat-Black.ttf';
+
+  it('measures text with the bundled font', () => {
+    expect(measureWidth(font, 'Teste', 80)).toBeCloseTo(238.8, 1);
+    expect(cellHeightRatio(font)).toBeCloseTo(1.562, 3);
   });
 });
