@@ -64,9 +64,11 @@ export class UiCommand extends GuardedCommand {
 const CLOSE_TIMEOUT_MS = 15_000;
 
 function openBrowser(link: string): void {
-  const opener =
-    process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer' : 'xdg-open';
-  const child = spawn(opener, [link], { stdio: 'ignore', detached: true, shell: false });
+  const [opener, args] =
+    process.platform === 'win32'
+      ? ['rundll32', ['url.dll,FileProtocolHandler', link]]
+      : [process.platform === 'darwin' ? 'open' : 'xdg-open', [link]];
+  const child = spawn(opener, args, { stdio: 'ignore', detached: true, shell: false });
   child.on('error', () => undefined);
   child.unref();
 }

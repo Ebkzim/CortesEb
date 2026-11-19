@@ -60,9 +60,9 @@ export async function startServer(port: number, webDir: string): Promise<Running
     }
     if (url === '/api/session' && request.method === 'POST') return undefined;
     if (!gate.matches(readCookie(request.headers.cookie, SESSION_COOKIE))) {
-      await reply
-        .status(401)
-        .send({ error: 'sessão expirada: abra o painel pelo comando cortes-eb ui' });
+      await reply.status(401).send({
+        error: 'abra o painel pelo link de acesso que o comando cortes-eb ui mostra no terminal',
+      });
       return reply;
     }
     return undefined;

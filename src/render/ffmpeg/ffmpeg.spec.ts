@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { SplitCutProps } from '../../contracts/render.js';
 import { assColor, assTime, buildAssCaptions, type AssStyle } from './ass-captions.js';
-import { buildGraph, clampCrop, cover, escapeValue, type GraphFiles } from './filter-graph.js';
+import {
+  buildGraph,
+  clampCrop,
+  cover,
+  escapeValue,
+  scriptOption,
+  type GraphFiles,
+} from './filter-graph.js';
 import { cellHeightRatio, measureWidth } from './text-metrics.js';
 
 const style: AssStyle = {
@@ -189,7 +196,18 @@ describe('cover and crop helpers', () => {
   });
 
   it('escapes characters that break filter values', () => {
-    expect(escapeValue("C:\\a'b")).toBe("C\\:\\\\a\\'b");
+    expect(escapeValue("C:\\Users\\a'b")).toBe("C\\\\:/Users/a\\\\\\'b");
+    expect(escapeValue('/home/x/fonts')).toBe('/home/x/fonts');
+    expect(escapeValue('/a,b[c];d')).toBe('/a\\,b\\[c\\]\\;d');
+  });
+
+  it('picks the filter script option by ffmpeg version', () => {
+    expect(scriptOption('ffmpeg version 6.1.1-3ubuntu5 Copyright')).toBe('-filter_complex_script');
+    expect(scriptOption('ffmpeg version n6.0 Copyright')).toBe('-filter_complex_script');
+    expect(scriptOption('ffmpeg version 7.1 Copyright')).toBe('-/filter_complex');
+    expect(scriptOption('ffmpeg version 9.0.2-full_build-www.gyan.dev')).toBe('-/filter_complex');
+    expect(scriptOption('ffmpeg version N-118000-gabc Copyright')).toBe('-/filter_complex');
+    expect(scriptOption('')).toBe('-/filter_complex');
   });
 });
 
