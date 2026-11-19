@@ -17,7 +17,7 @@ import {
   type AssHeadline,
   type AssStyle,
 } from './ass-captions.js';
-import { buildGraph } from './filter-graph.js';
+import { buildGraph, scriptOption } from './filter-graph.js';
 import { cellHeightRatio } from './text-metrics.js';
 import { planWatermark, writeTextFile } from './watermark-image.js';
 
@@ -40,6 +40,19 @@ export class FfmpegEngine implements RenderEngine {
     private readonly paths: AppPaths,
     private readonly runner: ProcessRunner,
   ) {}
+
+  private scriptFlag: Promise<string> | null = null;
+
+  private filterScriptFlag(): Promise<string> {
+    this.scriptFlag ??= this.runner
+      .exec('ffmpeg', ['-hide_banner', '-version'])
+      .then((result) => scriptOption(result.stdout))
+      .catch(() => {
+        this.scriptFlag = null;
+        return scriptOption('');
+      });
+    return this.scriptFlag;
+  }
 
   open(publicDir: string): Promise<RenderSession> {
     return Promise.resolve({ serveUrl: publicDir, dispose: () => Promise.resolve() });
@@ -76,6 +89,7 @@ export class FfmpegEngine implements RenderEngine {
       hasAudio,
     });
     await fs.writeFile(path.join(root, scriptFile), plan.script, 'utf8');
+    const scriptFlag = await this.filterScriptFlag();
     try {
       await this.runner.exec(
         'ffmpeg',
@@ -88,7 +102,7 @@ export class FfmpegEngine implements RenderEngine {
           '-progress',
           'pipe:1',
           ...plan.inputs,
-          '-filter_complex_script',
+          scriptFlag,
           scriptFile,
           '-map',
           `[${plan.video}]`,

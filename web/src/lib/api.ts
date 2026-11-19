@@ -28,7 +28,10 @@ async function openSession(): Promise<void> {
     });
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
     if (!response.ok) throw new ApiError(await messageOf(response), response.status);
+    return;
   }
+  const response = await fetch('/api/session', { credentials: 'same-origin' });
+  if (!response.ok) throw new ApiError(await messageOf(response), response.status);
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {

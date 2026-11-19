@@ -242,7 +242,13 @@ export function clampCrop(crop: Crop, width: number, height: number): Crop {
 }
 
 export function escapeValue(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/'/g, "\\'");
+  const option = value.replace(/\\/g, '/').replace(/[:']/g, (char) => `\\${char}`);
+  return option.replace(/[\\'[\],;]/g, (char) => `\\${char}`);
+}
+
+export function scriptOption(version: string): string {
+  const major = /ffmpeg version n?(\d+)\./.exec(version)?.[1];
+  return major !== undefined && Number(major) < 7 ? '-filter_complex_script' : '-/filter_complex';
 }
 
 function punchFactor(index: number): number {
