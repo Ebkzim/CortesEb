@@ -3,6 +3,7 @@ import { Output } from '../common/output.js';
 import type { Job } from '../contracts/publish.js';
 import { OutboxPublisher } from './outbox-publisher.js';
 import { CredentialVault } from './credential-vault.js';
+import { InstagramPublisher } from './instagram-publisher.js';
 import { evaluatePolicy, POLICY_DEFAULTS, type PolicyLimits } from './publish-policy.js';
 import { PublishError, type Publisher } from './publisher.js';
 import { QueueStore } from './queue-store.js';
@@ -47,6 +48,9 @@ export class PublishWorker {
     if (options?.mode !== 'live') return this.outbox.for(platform);
     if (platform === 'youtube' && this.vault !== undefined) {
       return new YoutubePublisher(this.vault, options.privacy ?? 'private');
+    }
+    if (platform === 'instagram' && this.vault !== undefined) {
+      return new InstagramPublisher(this.vault);
     }
     return {
       platform,
