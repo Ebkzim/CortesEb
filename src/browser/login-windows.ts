@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
 import { BrowserSessions, type BrowserPlatform } from './browser-sessions.js';
-import { isLoggedIn, TIKTOK_LOGIN } from './tiktok.js';
+import { isLoggedIn, SITES } from './sites.js';
 
 export type LoginPhase = 'open' | 'checking' | 'connected' | 'failed';
 
@@ -92,7 +92,7 @@ export class LoginWindows {
     }
     const dir = this.sessions.profileDir(platform, account);
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    const child = spawn(chrome, loginArgs(dir, TIKTOK_LOGIN), {
+    const child = spawn(chrome, loginArgs(dir, SITES[platform].login), {
       stdio: 'ignore',
       shell: false,
       detached: false,
@@ -127,13 +127,13 @@ export class LoginWindows {
     this.finish(key, 'checking', null);
     try {
       const ok = await this.sessions.with(platform, account, (_page, context) =>
-        isLoggedIn(context),
+        isLoggedIn(SITES[platform], context),
       );
       await this.sessions.markConnected(platform, account, ok);
       this.finish(
         key,
         ok ? 'connected' : 'failed',
-        ok ? null : 'a janela fechou sem login no TikTok; tente de novo',
+        ok ? null : `a janela fechou sem login no ${SITES[platform].label}; tente de novo`,
       );
     } catch (error) {
       this.finish(
