@@ -163,6 +163,13 @@ export interface BatchView {
 }
 
 export type PublishPlatform = 'instagram' | 'youtube' | 'tiktok';
+export type PublishMethod = 'api' | 'browser';
+
+export interface PublishingSettings {
+  instagram: PublishMethod;
+  youtube: PublishMethod;
+  youtubeVisibility: 'public' | 'unlisted' | 'private';
+}
 
 export interface PublishTarget {
   account: string;
@@ -174,6 +181,7 @@ export interface PublishStatus {
   service: { supported: boolean; installed: boolean; active: boolean; unitFile: string | null };
   targets: PublishTarget[];
   accounts: string[];
+  methods: Record<PublishPlatform, PublishMethod>;
 }
 
 export interface PublishOutcome {
@@ -184,7 +192,7 @@ export interface PublishOutcome {
 export interface DeskState {
   id: string;
   reason: 'captcha' | 'login' | 'verify';
-  platform: 'tiktok';
+  platform: PublishPlatform;
   account: string;
   message: string;
   since: string;
@@ -198,7 +206,7 @@ export interface DeskSnapshot {
 }
 
 export interface LoginWindowView {
-  platform: 'tiktok';
+  platform: PublishPlatform;
   account: string;
   phase: 'open' | 'checking' | 'connected' | 'failed';
   startedAt: string;

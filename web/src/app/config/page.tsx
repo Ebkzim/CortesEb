@@ -6,6 +6,7 @@ import {
   ImagePlus,
   KeyRound,
   Plus,
+  Send,
   Star,
   Trash2,
   UserRound,
@@ -18,13 +19,14 @@ import { ImageDrop } from '@/components/image-drop';
 import { useToast } from '@/components/toast';
 import { Button, fade } from '@/components/ui';
 import { api, patch, post, remove, upload } from '@/lib/api';
-import type { AccountView, ApiKeyView } from '@/lib/types';
+import type { AccountView, ApiKeyView, PublishingSettings } from '@/lib/types';
 
 interface Settings {
   whisperModel: string;
   language: string;
   whisperModels: { model: string; ready: boolean }[];
   installing: string | null;
+  publishing: PublishingSettings;
 }
 
 interface Health {
@@ -55,6 +57,7 @@ const SECTIONS = [
   { id: 'ollama', label: 'IA local', icon: Cpu },
   { id: 'transcription', label: 'Transcrição', icon: Waves },
   { id: 'accounts', label: 'Contas', icon: UserRound },
+  { id: 'publishing', label: 'Postagem', icon: Send },
   { id: 'system', label: 'Sistema', icon: Database },
 ] as const;
 
@@ -93,6 +96,7 @@ export default function SettingsPage() {
           {section === 'ollama' && <Ollama />}
           {section === 'transcription' && <Transcription />}
           {section === 'accounts' && <Accounts />}
+          {section === 'publishing' && <Publishing />}
           {section === 'system' && <System />}
         </motion.div>
       </AnimatePresence>
@@ -407,6 +411,104 @@ function Transcription() {
             </option>
           ))}
         </select>
+      </Row>
+    </Section>
+  );
+}
+
+const METHOD_OPTIONS = [
+  { value: 'browser', label: 'Navegador · entra na sua conta pelo Chrome, igual ao TikTok' },
+  { value: 'api', label: 'API oficial · usa o token do app da Meta ou do Google' },
+] as const;
+
+const VISIBILITY_OPTIONS = [
+  { value: 'public', label: 'Público' },
+  { value: 'unlisted', label: 'Não listado' },
+  { value: 'private', label: 'Privado' },
+] as const;
+
+function Publishing() {
+  const toast = useToast();
+  const [settings, setSettings] = useState<Settings | null>(null);
+  useEffect(() => {
+    void api<Settings>('/settings').then(setSettings);
+  }, []);
+  if (settings === null)
+    return (
+      <div className="row muted">
+        <span className="spinner" /> carregando
+      </div>
+    );
+  async function save(change: Partial<PublishingSettings>): Promise<void> {
+    setSettings(await patch<Settings>('/settings', { publishing: change }));
+    toast('Salvo. Vale para as próximas postagens.');
+  }
+  const { publishing } = settings;
+  return (
+    <Section
+      title="Postagem"
+      text="Escolha como cada rede recebe os clipes. Pelo navegador, você conecta a conta uma vez em Publicar e, se pedirem verificação, resolve no pop-up do painel."
+    >
+      <Row
+        title="Instagram"
+        text="A API oficial precisa do token do app da Meta. Pelo navegador basta entrar na conta."
+      >
+        <select
+          className="input"
+          style={{ maxWidth: 520 }}
+          value={publishing.instagram}
+          onChange={(event) => {
+            void save({ instagram: event.target.value as PublishingSettings['instagram'] });
+          }}
+        >
+          {METHOD_OPTIONS.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </Row>
+      <Row
+        title="YouTube Shorts"
+        text="Pela API oficial o vídeo sai privado até o Google aprovar o app."
+      >
+        <select
+          className="input"
+          style={{ maxWidth: 520 }}
+          value={publishing.youtube}
+          onChange={(event) => {
+            void save({ youtube: event.target.value as PublishingSettings['youtube'] });
+          }}
+        >
+          {METHOD_OPTIONS.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </Row>
+      {publishing.youtube === 'browser' && (
+        <Row title="Visibilidade no YouTube" text="Como o Short aparece quando termina de subir.">
+          <select
+            className="input"
+            style={{ maxWidth: 320 }}
+            value={publishing.youtubeVisibility}
+            onChange={(event) => {
+              void save({
+                youtubeVisibility: event.target.value as PublishingSettings['youtubeVisibility'],
+              });
+            }}
+          >
+            {VISIBILITY_OPTIONS.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </Row>
+      )}
+      <Row title="TikTok" text="Sempre pelo navegador.">
+        <span className="muted small">Navegador</span>
       </Row>
     </Section>
   );
