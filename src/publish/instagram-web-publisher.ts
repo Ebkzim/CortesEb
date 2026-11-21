@@ -5,14 +5,18 @@ import type { PublishResult } from './publisher.js';
 
 export const INSTAGRAM_HOME = 'https://www.instagram.com/';
 
-const NEW_POST = 'svg[aria-label="Nova publicação"], svg[aria-label="New post"]';
+const NEW_POST =
+  'svg[aria-label="Novo post"], svg[aria-label="Nova publicação"], svg[aria-label="New post"]';
 const CREATE_LINK = /^(criar|create)$/i;
-const POST_ITEM = /^(publicação|post)$/i;
+const POST_ITEM = /^(postar|publicação|post)$/i;
 const NEXT_BUTTON = /^(avançar|next)$/i;
 const SHARE_BUTTON = /^(compartilhar|share)$/i;
 const CROP_BUTTON = 'svg[aria-label="Selecionar corte"], svg[aria-label="Select crop"]';
-const CAPTION_BOX =
-  'div[role="textbox"][aria-label^="Escreva uma legenda" i], div[role="textbox"][aria-label^="Write a caption" i]';
+const CAPTION_BOX = [
+  'div[role="textbox"][aria-label^="Adicione uma legenda" i]',
+  'div[role="textbox"][aria-label^="Escreva uma legenda" i]',
+  'div[role="textbox"][aria-label^="Write a caption" i]',
+].join(', ');
 const DONE_TEXT =
   /(seu reel foi compartilhado|your reel has been shared|reel compartilhado|reel shared|sua publicação foi compartilhada|your post has been shared|publicação compartilhada|post shared)/i;
 const PROFILE_LINK = /^(perfil|profile)$/i;
@@ -73,6 +77,7 @@ export class InstagramWebPublisher extends BrowserPublisher {
     const item = page
       .getByRole('link', { name: POST_ITEM })
       .or(page.getByRole('menuitem', { name: POST_ITEM }))
+      .or(page.getByText(POST_ITEM))
       .first();
     const dialog = page.locator('[role="dialog"] input[type="file"]').first();
     await flow.until(timing.editorMs, 'o menu Criar do Instagram', async () => {
@@ -97,7 +102,7 @@ export class InstagramWebPublisher extends BrowserPublisher {
 }
 
 async function profileName(page: Page): Promise<string | null> {
-  const link = page.getByRole('link', { name: PROFILE_LINK }).first();
+  const link = page.locator('a[href]').filter({ hasText: PROFILE_LINK }).first();
   const href = await link.getAttribute('href', { timeout: 5_000 }).catch(() => null);
   const match = href === null ? null : /^\/([a-z0-9._]{1,30})\/?$/i.exec(href);
   return match?.[1] ?? null;
