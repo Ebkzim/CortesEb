@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
 import { exists, readJson, writeJson } from '../common/json-file.js';
 import { Progress } from '../common/progress.js';
-import { cutsSchema, type Clip } from '../contracts/cuts.js';
+import { cleanHashtags, cutsSchema, type Clip } from '../contracts/cuts.js';
 import { captionsSchema } from '../contracts/media.js';
 import { LlmService, type LlmSettings } from '../llm/llm.service.js';
 import { extractJson, type LlmClient } from '../llm/llm-client.js';
@@ -366,6 +366,10 @@ export function parseAnswer(text: string, chunk: TranscriptChunk): Candidate[] {
         hook: opening.slice(0, HOOK_CHARS),
         title: pick.title,
         ...(pick.topic === undefined || pick.topic === '' ? {} : { topic: pick.topic }),
+        ...(pick.description === undefined || pick.description === ''
+          ? {}
+          : { description: pick.description }),
+        ...(pick.hashtags === undefined ? {} : { hashtags: cleanHashtags(pick.hashtags) }),
       },
     ];
   });

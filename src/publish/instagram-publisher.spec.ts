@@ -105,7 +105,7 @@ describe('InstagramPublisher', () => {
     const body = create?.init?.body as URLSearchParams;
     expect(body.get('media_type')).toBe('REELS');
     expect(body.get('upload_type')).toBe('resumable');
-    expect(body.get('caption')).toBe('Meu corte\n\nolha isso\n\n#gta6 #rockstar');
+    expect(body.get('caption')).toBe('olha isso\n\n#gta6 #rockstar');
     const upload = script.calls[1]?.init?.headers as Record<string, string>;
     expect(upload.Authorization).toBe(`OAuth ${TOKEN}`);
     expect(upload.offset).toBe('0');
@@ -193,9 +193,12 @@ describe('InstagramPublisher', () => {
     expect(script.calls).toHaveLength(0);
   });
 
-  it('builds captions without repeating hashtags and within the limit', () => {
+  it('builds captions from the post text without repeating hashtags and within the limit', () => {
     expect(captionOf(job({ description: 'veja #gta6', tags: ['gta6', 'rockstar'] }))).toBe(
-      'Meu corte\n\nveja #gta6\n\n#rockstar',
+      'veja #gta6\n\n#rockstar',
+    );
+    expect(captionOf(job({ description: 'mapa #gta6mapa', tags: ['gta6'] }))).toBe(
+      'mapa #gta6mapa\n\n#gta6',
     );
     expect(captionOf(job({ description: '', tags: [] }))).toBe('Meu corte');
     expect(captionOf(job({ description: 'x'.repeat(2200) })).length).toBe(2200);

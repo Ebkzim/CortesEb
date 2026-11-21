@@ -1,8 +1,9 @@
 import path from 'node:path';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { AccountService } from '../accounts/account.service.js';
 import { AppError } from '../common/app-error.js';
 import { PLATFORMS, type Job, type JobStatus, type Platform } from '../contracts/publish.js';
+import { LibraryPostText, type PostTextLookup } from './post-text.js';
 import { QueueStore } from './queue-store.js';
 
 export interface EnqueueRequest {
@@ -25,6 +26,7 @@ export class QueueService {
   constructor(
     private readonly store: QueueStore,
     private readonly accounts: AccountService,
+    @Inject(LibraryPostText) private readonly postText: PostTextLookup,
   ) {}
 
   async enqueue(request: EnqueueRequest): Promise<Job[]> {
@@ -38,6 +40,9 @@ export class QueueService {
     const platforms = request.platforms ?? [...PLATFORMS];
     const jobs: Job[] = [];
     for (const file of request.files) {
+      const text = await this.postText.find(file);
+      const description = request.description ?? text?.description ?? undefined;
+      const tags = request.tags.length > 0 ? request.tags : (text?.hashtags ?? []);
       for (const account of accounts) {
         for (const platform of platforms) {
           jobs.push(
@@ -45,9 +50,9 @@ export class QueueService {
               file,
               account: account.id,
               platform,
-              title: request.title ?? titleFrom(file),
-              ...(request.description === undefined ? {} : { description: request.description }),
-              tags: request.tags,
+              title: (request.title ?? text?.title ?? titleFrom(file)).slice(0, 100),
+              ...(description === undefined ? {} : { description }),
+              tags,
               ...(request.scheduledAt === undefined ? {} : { scheduledAt: request.scheduledAt }),
             }),
           );

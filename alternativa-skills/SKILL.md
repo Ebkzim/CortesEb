@@ -309,8 +309,9 @@ O usuário não escolhe os trechos. Você decide, seguindo `references/ganchos.m
 3. Comece cada corte na frase de gancho e termine na frase que entrega a resposta.
 4. Dê nota de 0 a 10 a cada gancho. Se não houver `count` ganchos com nota 6 ou mais, diga ao usuário quantos bons existem e pergunte se ele prefere menos cortes ou aceitar os mais fracos. Para reduzir, rode `plan` de novo com `--count`.
 5. Confira o enquadramento com `cortes-eb frame --work cortes/<slug>/work --at 5`, olhe a imagem gerada e ajuste `focus`.
-6. Grave `work/cuts.json`.
-7. Rode `cortes-eb refine --work cortes/<slug>/work` se a transcrição veio da legenda do YouTube, e depois `cortes-eb check --work cortes/<slug>/work`. O `check` mostra a duração final de cada corte e o que está fora do plano, sem renderizar. Ajuste `start` e `end` até `ok` ser `true`. Como as pausas saem, o corte pronto fica mais curto que `end - start`.
+6. Escreva `description` e `hashtags` de cada corte (veja a tabela abaixo). A fila de postagem usa esses textos sozinha.
+7. Grave `work/cuts.json`.
+8. Rode `cortes-eb refine --work cortes/<slug>/work` se a transcrição veio da legenda do YouTube, e depois `cortes-eb check --work cortes/<slug>/work`. O `check` mostra a duração final de cada corte e o que está fora do plano, sem renderizar. Ajuste `start` e `end` até `ok` ser `true`. Como as pausas saem, o corte pronto fica mais curto que `end - start`.
 
 ```json
 {
@@ -324,6 +325,8 @@ O usuário não escolhe os trechos. Você decide, seguindo `references/ganchos.m
       "hook": "O mapa novo é a soma de três mapas.",
       "score": 8,
       "title": "O mapa é três vezes maior",
+      "description": "Tamanho não é tudo, mas esse mapa impressiona. Ele explica de onde vem a conta das três cidades. Você acha que vai dar tempo de explorar tudo?",
+      "hashtags": ["gta6", "mapadogta6", "rockstargames"],
       "turns": [331.0],
       "images": [{ "file": "/caminho/mapa.png", "at": 318.0, "dur": 2.2 }]
     }
@@ -331,22 +334,24 @@ O usuário não escolhe os trechos. Você decide, seguindo `references/ganchos.m
 }
 ```
 
-| Campo                             | Regra                                                                                                                                        |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                              | Obrigatório. Minúsculas, números e hífen, até 64 caracteres. Vira o nome do arquivo.                                                         |
-| `start`, `end`                    | Obrigatórios, em segundos do vídeo de origem.                                                                                                |
-| `focus`                           | `x` e `y` de 0 a 100. Posiciona o rosto na metade de cima. Padrão `50, 35`.                                                                  |
-| `crop`                            | `{x, y, w, h}` em pixels do vídeo de origem. Use quando a câmera de quem fala é pequena no quadro. Proporção perto de 1,125:1.               |
-| `pace`                            | `jump` (padrão): jump cut seco a cada ~2,8 s. `steady`: só remove pausas. `flash`: flash e whoosh em todo corte.                             |
-| `cutEvery`                        | Intervalo dos jump cuts em segundos.                                                                                                         |
-| `turns`                           | Segundos em que o assunto vira. Só nesses pontos entram flash e whoosh. De 3 a 5 por corte.                                                  |
-| `images`                          | Até 10. Cada uma com `file` ou `query`, `at` em segundos do vídeo de origem e `dur` opcional.                                                |
-| `bottom`                          | `video` (padrão): a metade de baixo mostra o `bottom.mp4`. `source`: mostra o próprio vídeo de origem, sincronizado com a fala.              |
-| `bottomCrop`                      | Só com `bottom: source`. `{x, y, w, h}` em pixels do vídeo de origem, com a região que aparece embaixo. Sem ele, o quadro é centralizado.    |
-| `bottomStart`                     | Só com `bottom: video`. Segundo em que o vídeo de baixo começa.                                                                              |
-| `frame`                           | `split` (padrão): tela dividida. `fit`: a cena inteira no meio, fundo desfocado, `title` em cima e legenda embaixo (cenas de filme e série). |
-| `accounts`                        | Opcional. Ids das contas que recebem este corte. Sem ele, valem as contas do `--account` do render.                                          |
-| `topic`, `hook`, `score`, `title` | Texto de apoio para a entrega.                                                                                                               |
+| Campo                             | Regra                                                                                                                                                                   |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                              | Obrigatório. Minúsculas, números e hífen, até 64 caracteres. Vira o nome do arquivo.                                                                                    |
+| `start`, `end`                    | Obrigatórios, em segundos do vídeo de origem.                                                                                                                           |
+| `focus`                           | `x` e `y` de 0 a 100. Posiciona o rosto na metade de cima. Padrão `50, 35`.                                                                                             |
+| `crop`                            | `{x, y, w, h}` em pixels do vídeo de origem. Use quando a câmera de quem fala é pequena no quadro. Proporção perto de 1,125:1.                                          |
+| `pace`                            | `jump` (padrão): jump cut seco a cada ~2,8 s. `steady`: só remove pausas. `flash`: flash e whoosh em todo corte.                                                        |
+| `cutEvery`                        | Intervalo dos jump cuts em segundos.                                                                                                                                    |
+| `turns`                           | Segundos em que o assunto vira. Só nesses pontos entram flash e whoosh. De 3 a 5 por corte.                                                                             |
+| `images`                          | Até 10. Cada uma com `file` ou `query`, `at` em segundos do vídeo de origem e `dur` opcional.                                                                           |
+| `bottom`                          | `video` (padrão): a metade de baixo mostra o `bottom.mp4`. `source`: mostra o próprio vídeo de origem, sincronizado com a fala.                                         |
+| `bottomCrop`                      | Só com `bottom: source`. `{x, y, w, h}` em pixels do vídeo de origem, com a região que aparece embaixo. Sem ele, o quadro é centralizado.                               |
+| `bottomStart`                     | Só com `bottom: video`. Segundo em que o vídeo de baixo começa.                                                                                                         |
+| `frame`                           | `split` (padrão): tela dividida. `fit`: a cena inteira no meio, fundo desfocado, `title` em cima e legenda embaixo (cenas de filme e série).                            |
+| `accounts`                        | Opcional. Ids das contas que recebem este corte. Sem ele, valem as contas do `--account` do render.                                                                     |
+| `topic`, `hook`, `score`, `title` | Texto de apoio para a entrega.                                                                                                                                          |
+| `description`                     | Texto do post nas redes. 2 ou 3 frases curtas, até 300 caracteres: curiosidade sem entregar o final, quem fala e sobre o quê, e uma pergunta. Só fatos ditos no trecho. |
+| `hashtags`                        | De 3 a 8, sem `#`: primeiro as do assunto do corte, depois as do nicho. Nada genérico como `fyp` ou `viral`.                                                            |
 
 ### React e gameplay com câmera pequena
 

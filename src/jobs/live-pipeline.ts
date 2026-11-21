@@ -93,6 +93,8 @@ export class LivePipeline implements Pipeline {
             clipId: id,
             title: hook ?? id,
             hook,
+            description: null,
+            hashtags: [],
             score: typeof data.judgeScore === 'number' ? Math.round(data.judgeScore) : null,
             account: accountOf(file, context.outDir),
           });
