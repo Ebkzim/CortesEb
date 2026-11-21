@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { z } from 'zod';
+import { AccountService } from '../accounts/account.service.js';
+import { BrowserSessions } from '../browser/browser-sessions.js';
 import { AppError } from '../common/app-error.js';
 import { ACCOUNT_REF_PATTERN } from '../contracts/cuts.js';
 import type { Platform } from '../contracts/publish.js';
@@ -10,7 +12,11 @@ import { PublishService, type ServiceStatus } from '../publish/publish-service.j
 import { QueueService } from '../publish/queue.service.js';
 import { QueueStore } from '../publish/queue-store.js';
 
-export const LIVE_PLATFORMS = ['instagram', 'youtube'] as const satisfies readonly Platform[];
+export const LIVE_PLATFORMS = [
+  'instagram',
+  'youtube',
+  'tiktok',
+] as const satisfies readonly Platform[];
 export const MAX_SELECTION = 50;
 
 const publishSchema = z.strictObject({
@@ -29,6 +35,7 @@ export interface PublishStatus {
   worker: { running: boolean; pid: number | null };
   service: ServiceStatus;
   targets: PublishTarget[];
+  accounts: string[];
 }
 
 export interface PublishOutcome {
@@ -45,6 +52,8 @@ export class PublishController {
     private readonly service: PublishService,
     private readonly jobs: JobRepository,
     private readonly library: LibraryService,
+    private readonly browsers: BrowserSessions,
+    private readonly accounts: AccountService,
   ) {}
 
   @Get('status')
@@ -54,6 +63,7 @@ export class PublishController {
       worker: { running: pid !== null, pid },
       service: await this.service.status(),
       targets: await this.targets(),
+      accounts: (await this.accounts.list()).map((account) => account.id),
     };
   }
 
@@ -100,9 +110,16 @@ export class PublishController {
 
   private async targets(): Promise<PublishTarget[]> {
     const byAccount = new Map<string, Platform[]>();
+    const add = (account: string, platform: Platform): void => {
+      const list = byAccount.get(account) ?? [];
+      if (!list.includes(platform)) byAccount.set(account, [...list, platform]);
+    };
     for (const entry of await this.vault.list()) {
-      if (!(LIVE_PLATFORMS as readonly Platform[]).includes(entry.platform)) continue;
-      byAccount.set(entry.account, [...(byAccount.get(entry.account) ?? []), entry.platform]);
+      if (entry.platform === 'tiktok') continue;
+      add(entry.account, entry.platform);
+    }
+    for (const profile of await this.browsers.profiles()) {
+      if (profile.connected) add(profile.account, profile.platform);
     }
     return [...byAccount.entries()]
       .map(([account, platforms]) => ({ account, platforms }))

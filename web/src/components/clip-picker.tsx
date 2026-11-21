@@ -4,7 +4,7 @@ import { CalendarClock, Check, Download, Send, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, post } from '@/lib/api';
-import type { PublishOutcome, PublishPlatform, PublishStatus } from '@/lib/types';
+import type { LoginWindowView, PublishOutcome, PublishPlatform, PublishStatus } from '@/lib/types';
 import { useToast } from './toast';
 import { Button, Choice, EASE, Segmented } from './ui';
 
@@ -161,31 +161,85 @@ export function PublishDialog({
   const [sending, setSending] = useState(false);
   const open = clipIds !== null && clipIds.length > 0;
 
+  const [connecting, setConnecting] = useState(false);
+  const [loginPhase, setLoginPhase] = useState<LoginWindowView['phase'] | null>(null);
+
+  const load = useCallback(
+    (quiet: boolean) =>
+      api<PublishStatus>('/publish/status')
+        .then((data) => {
+          setStatus(data);
+          const names = accountsOf(data);
+          const first = data.targets[0]?.account ?? names[0] ?? '';
+          setAccount((current) => (names.includes(current) ? current : first));
+        })
+        .catch((caught: unknown) => {
+          if (!quiet)
+            toast(caught instanceof Error ? caught.message : 'não consegui ler as contas');
+        }),
+    [toast],
+  );
+
   useEffect(() => {
     if (!open) return;
     setWhen('now');
     setAt(defaultLater());
-    void api<PublishStatus>('/publish/status')
-      .then((data) => {
-        setStatus(data);
-        const first = data.targets[0];
-        setAccount((current) =>
-          data.targets.some((item) => item.account === current) ? current : (first?.account ?? ''),
-        );
-      })
-      .catch((caught: unknown) => {
-        toast(caught instanceof Error ? caught.message : 'não consegui ler as contas');
-      });
-  }, [open, toast]);
+    setConnecting(false);
+    void load(false);
+  }, [open, load]);
 
   const target = useMemo(
     () => status?.targets.find((item) => item.account === account) ?? null,
     [status, account],
   );
+  const hasTikTok = target?.platforms.includes('tiktok') === true;
 
   useEffect(() => {
-    setPlatforms(target?.platforms.filter((item) => item === 'instagram') ?? []);
+    if (!connecting || !open) return;
+    if (hasTikTok) {
+      setConnecting(false);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void load(true);
+      void api<LoginWindowView[]>('/desk/logins')
+        .then((windows) => {
+          const mine = windows.find(
+            (item) => item.platform === 'tiktok' && item.account === account,
+          );
+          if (mine === undefined) return;
+          setLoginPhase(mine.phase);
+          if (mine.phase === 'failed') {
+            setConnecting(false);
+            toast(mine.message ?? 'o login no TikTok não foi concluído');
+          }
+        })
+        .catch(() => undefined);
+    }, 3000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [connecting, open, hasTikTok, load, account, toast]);
+
+  useEffect(() => {
+    setPlatforms(
+      target?.platforms.filter((item) => item === 'instagram' || item === 'tiktok') ?? [],
+    );
   }, [target]);
+
+  async function connectTikTok(): Promise<void> {
+    try {
+      if ('Notification' in window && Notification.permission === 'default') {
+        void Notification.requestPermission();
+      }
+      await post('/desk/connect', { platform: 'tiktok', account });
+      setConnecting(true);
+      setLoginPhase('open');
+      toast('Abri uma janela do Chrome. Entre no TikTok por lá e feche a janela quando terminar.');
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'não consegui abrir o TikTok');
+    }
+  }
 
   const count = clipIds?.length ?? 0;
   const laterDate = new Date(at);
@@ -254,9 +308,9 @@ export function PublishDialog({
               <div className="row muted">
                 <span className="spinner" /> carregando
               </div>
-            ) : status.targets.length === 0 ? (
+            ) : accountsOf(status).length === 0 ? (
               <div className="empty">
-                Nenhuma conta tem credenciais de postagem. Cadastre com cortes-eb credentials set.
+                Cadastre uma conta antes de publicar (cortes-eb account add).
               </div>
             ) : (
               <>
@@ -269,9 +323,9 @@ export function PublishDialog({
                       setAccount(event.target.value);
                     }}
                   >
-                    {status.targets.map((item) => (
-                      <option key={item.account} value={item.account}>
-                        {item.account}
+                    {accountsOf(status).map((name) => (
+                      <option key={name} value={name}>
+                        {name}
                       </option>
                     ))}
                   </select>
@@ -295,7 +349,27 @@ export function PublishDialog({
                         }}
                       />
                     ))}
+                    {!hasTikTok && (
+                      <Choice
+                        active={false}
+                        disabled={connecting}
+                        title={connecting ? 'Conectando TikTok' : 'Conectar TikTok'}
+                        text={
+                          !connecting
+                            ? 'abre uma janela do Chrome para o login'
+                            : loginPhase === 'checking'
+                              ? 'conferindo a sessão'
+                              : 'entre na janela do Chrome e feche ao terminar'
+                        }
+                        onClick={() => {
+                          void connectTikTok();
+                        }}
+                      />
+                    )}
                   </div>
+                  {(target?.platforms.length ?? 0) === 0 && (
+                    <span className="field__hint">Esta conta ainda não tem rede conectada.</span>
+                  )}
                 </div>
 
                 <div className="field">
@@ -359,6 +433,10 @@ export function PublishDialog({
       )}
     </AnimatePresence>
   );
+}
+
+function accountsOf(status: PublishStatus): string[] {
+  return [...new Set([...status.accounts, ...status.targets.map((item) => item.account)])].sort();
 }
 
 function defaultLater(): string {

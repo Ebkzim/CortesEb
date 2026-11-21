@@ -6,11 +6,13 @@ import { DatabaseModule } from '../database/database.module.js';
 import { JobsModule } from '../jobs/jobs.module.js';
 import { LlmModule } from '../llm/llm.module.js';
 import { PublishModule } from '../publish/publish.module.js';
+import { BrowserModule } from '../browser/browser.module.js';
 import { TranscriptionModule } from '../transcription/transcription.module.js';
 import { FilesController } from './files.controller.js';
 import { JobsController } from './jobs.controller.js';
 import { LibraryController } from './library.controller.js';
 import { PublishController } from './publish.controller.js';
+import { DeskController } from './desk.controller.js';
 import { SESSION_GATE, SessionController } from './session.controller.js';
 import type { SessionGate } from './session.js';
 import { SettingsController } from './settings.controller.js';
@@ -29,6 +31,7 @@ export class ServerModule {
         AccountsModule,
         TranscriptionModule,
         PublishModule,
+        BrowserModule,
       ],
       controllers: [
         SessionController,
@@ -37,6 +40,7 @@ export class ServerModule {
         SettingsController,
         FilesController,
         PublishController,
+        DeskController,
       ],
       providers: [{ provide: SESSION_GATE, useValue: gate }],
     };

@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import type { Job, Platform } from '../contracts/publish.js';
 import type { CredentialVault } from './credential-vault.js';
+import { captionOf } from './caption.js';
 import { PublishError, type Publisher, type PublishResult } from './publisher.js';
 import type { FetchLike } from './youtube-publisher.js';
 
@@ -19,8 +20,6 @@ const GRAPH_URL = 'https://graph.facebook.com/v27.0';
 const UPLOAD_HOST = 'rupload.facebook.com';
 const API_TIMEOUT_MS = 30_000;
 const UPLOAD_TIMEOUT_MS = 20 * 60_000;
-const MAX_CAPTION = 2200;
-const MAX_HASHTAGS = 30;
 const RETRYABLE_CODES = new Set([1, 2, 4, 9, 17, 32, 341, 613]);
 const ID_PATTERN = /^[0-9]{5,30}$/;
 const FALLBACK_URL = 'https://www.instagram.com/';
@@ -160,21 +159,7 @@ export class InstagramPublisher implements Publisher {
   }
 }
 
-export function captionOf(job: Job): string {
-  const hashtags = job.tags
-    .map((tag) => tag.replace(/^#+/, '').replace(/\s+/g, ''))
-    .filter((tag) => tag !== '')
-    .slice(0, MAX_HASHTAGS)
-    .map((tag) => `#${tag}`);
-  const text = job.description.trim() === '' ? job.title.trim() : job.description.trim();
-  const present = new Set(
-    [...text.matchAll(/#([\p{L}\p{N}_]+)/gu)].map((match) => `#${match[1] ?? ''}`.toLowerCase()),
-  );
-  const missing = hashtags.filter((tag) => !present.has(tag.toLowerCase()));
-  const tail = missing.join(' ');
-  const full = [text, tail].filter((part) => part !== '').join('\n\n');
-  return full.slice(0, MAX_CAPTION);
-}
+export { captionOf };
 
 export function isInstagramUpload(location: string): boolean {
   try {
