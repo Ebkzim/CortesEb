@@ -5,6 +5,7 @@ import type { Page } from 'playwright-core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AppPaths } from '../config/app-paths.js';
 import { BrowserSessions } from './browser-sessions.js';
+import { identityFromUrl } from './identity.js';
 import { chromeCandidates, loginArgs } from './login-windows.js';
 import { DESK_HEADER, DeskServer, deskFile } from './desk-server.js';
 import { RemoteDesk, deskInputSchema } from './remote-desk.js';
@@ -154,8 +155,8 @@ describe('BrowserSessions', () => {
     await sessions.markConnected('tiktok', 'main', true);
     expect(await sessions.profiles()).toEqual(
       expect.arrayContaining([
-        { platform: 'tiktok', account: 'main', connected: true },
-        { platform: 'tiktok', account: 'outra', connected: false },
+        expect.objectContaining({ platform: 'tiktok', account: 'main', connected: true }),
+        expect.objectContaining({ platform: 'tiktok', account: 'outra', connected: false }),
       ]),
     );
     await fs.rm(dir, { recursive: true, force: true });
@@ -176,5 +177,53 @@ describe('login window', () => {
     expect(loginArgs('/p', 'u', 'win32')).not.toContain('--password-store=basic');
     expect(chromeCandidates('linux')).toContain('/usr/bin/google-chrome');
     expect(chromeCandidates('darwin')[0]).toMatch(/Google Chrome$/);
+  });
+});
+
+describe('network identity', () => {
+  it('reads the handle from each profile address', () => {
+    expect(identityFromUrl('tiktok', 'https://www.tiktok.com/@cortes_eb7?lang=pt-BR')).toEqual({
+      handle: 'cortes_eb7',
+      url: 'https://www.tiktok.com/@cortes_eb7',
+    });
+    expect(identityFromUrl('instagram', '/ebs2developer/')).toEqual({
+      handle: 'ebs2developer',
+      url: 'https://www.instagram.com/ebs2developer/',
+    });
+    expect(
+      identityFromUrl('youtube', 'https://studio.youtube.com/channel/UClagX49Ga7_RF6vygUJkt2A'),
+    ).toEqual({
+      handle: 'UClagX49Ga7_RF6vygUJkt2A',
+      url: 'https://www.youtube.com/channel/UClagX49Ga7_RF6vygUJkt2A',
+    });
+    expect(identityFromUrl('tiktok', 'https://www.tiktok.com/login')).toBeNull();
+    expect(identityFromUrl('instagram', '/explore/tags/x/')).toBeNull();
+  });
+
+  it('keeps the handle with the connection and forgets the whole profile', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-identity-'));
+    const sessions = new BrowserSessions({ home: dir } as AppPaths);
+    await fs.mkdir(sessions.profileDir('instagram', 'main'), { recursive: true });
+    await sessions.markConnected('instagram', 'main', true, {
+      handle: 'perfil',
+      url: 'https://www.instagram.com/perfil/',
+    });
+    await sessions.markConnected('instagram', 'main', true);
+    expect(await sessions.profiles()).toEqual([
+      expect.objectContaining({ platform: 'instagram', connected: true, handle: 'perfil' }),
+    ]);
+    await fs.mkdir(sessions.profileDir('tiktok', 'main'), { recursive: true });
+    await fs.writeFile(
+      path.join(sessions.profileDir('tiktok', 'main'), '.cortes-eb-connected'),
+      '2026-11-21T10:00:00.000Z',
+    );
+    expect(await sessions.profiles()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ platform: 'tiktok', connected: true, handle: null }),
+      ]),
+    );
+    await sessions.forget('instagram', 'main');
+    await expect(fs.access(sessions.profileDir('instagram', 'main'))).rejects.toThrow();
+    await fs.rm(dir, { recursive: true, force: true });
   });
 });

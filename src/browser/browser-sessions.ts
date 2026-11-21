@@ -5,7 +5,9 @@ import { chromium, type BrowserContext, type Page } from 'playwright-core';
 import { AppError } from '../common/app-error.js';
 import { resolveInside } from '../common/safe-path.js';
 import { AppPaths } from '../config/app-paths.js';
+import { z } from 'zod';
 import { ACCOUNT_REF_PATTERN } from '../contracts/cuts.js';
+import type { Identity } from './identity.js';
 
 export const BROWSER_PLATFORMS = ['tiktok', 'instagram', 'youtube'] as const;
 export type BrowserPlatform = (typeof BROWSER_PLATFORMS)[number];
@@ -20,7 +22,16 @@ export interface BrowserProfile {
   platform: BrowserPlatform;
   account: string;
   connected: boolean;
+  handle: string | null;
+  url: string | null;
+  connectedAt: string | null;
 }
+
+const markSchema = z.object({
+  connectedAt: z.string().max(40),
+  handle: z.string().max(80).nullable().default(null),
+  url: z.url().max(300).nullable().default(null),
+});
 
 @Injectable()
 export class BrowserSessions {
@@ -61,10 +72,31 @@ export class BrowserSessions {
     platform: BrowserPlatform,
     account: string,
     connected: boolean,
+    identity?: Identity | null,
   ): Promise<void> {
     const mark = path.join(this.profileDir(platform, account), CONNECTED_MARK);
-    if (connected) await fs.writeFile(mark, new Date().toISOString(), { mode: 0o600 });
-    else await fs.rm(mark, { force: true });
+    if (!connected) {
+      await fs.rm(mark, { force: true });
+      return;
+    }
+    const previous = await readMark(mark);
+    const next = {
+      connectedAt: new Date().toISOString(),
+      handle: identity?.handle ?? previous?.handle ?? null,
+      url: identity?.url ?? previous?.url ?? null,
+    };
+    await fs.writeFile(mark, JSON.stringify(next), { mode: 0o600 });
+  }
+
+  async forget(platform: BrowserPlatform, account: string): Promise<void> {
+    const dir = this.profileDir(platform, account);
+    const previous = this.locks.get(dir) ?? Promise.resolve();
+    const run = previous.then(() => fs.rm(dir, { recursive: true, force: true }));
+    this.locks.set(
+      dir,
+      run.catch(() => undefined),
+    );
+    await run;
   }
 
   async profiles(): Promise<BrowserProfile[]> {
@@ -75,11 +107,15 @@ export class BrowserSessions {
       const match = /^([a-z]+)-([a-z0-9][a-z0-9-]{0,31})$/.exec(name);
       const platform = BROWSER_PLATFORMS.find((item) => item === match?.[1]);
       if (match === null || platform === undefined || match[2] === undefined) continue;
-      const connected = await fs
-        .access(path.join(root, name, CONNECTED_MARK))
-        .then(() => true)
-        .catch(() => false);
-      found.push({ platform, account: match[2], connected });
+      const mark = await readMark(path.join(root, name, CONNECTED_MARK));
+      found.push({
+        platform,
+        account: match[2],
+        connected: mark !== null,
+        handle: mark?.handle ?? null,
+        url: mark?.url ?? null,
+        connectedAt: mark?.connectedAt ?? null,
+      });
     }
     return found;
   }
@@ -104,4 +140,16 @@ export class BrowserSessions {
       );
     }
   }
+}
+
+async function readMark(file: string): Promise<z.infer<typeof markSchema> | null> {
+  const text = await fs.readFile(file, 'utf8').catch(() => null);
+  if (text === null) return null;
+  try {
+    const parsed = markSchema.safeParse(JSON.parse(text));
+    if (parsed.success) return parsed.data;
+  } catch {
+    return { connectedAt: text.trim().slice(0, 40), handle: null, url: null };
+  }
+  return { connectedAt: text.trim().slice(0, 40), handle: null, url: null };
 }

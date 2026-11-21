@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
 import { BrowserSessions, type BrowserPlatform } from './browser-sessions.js';
+import { readIdentity } from './identity.js';
 import { isLoggedIn, SITES } from './sites.js';
 
 export type LoginPhase = 'open' | 'checking' | 'connected' | 'failed';
@@ -126,10 +127,12 @@ export class LoginWindows {
   private async check(key: string, platform: BrowserPlatform, account: string): Promise<void> {
     this.finish(key, 'checking', null);
     try {
-      const ok = await this.sessions.with(platform, account, (_page, context) =>
-        isLoggedIn(SITES[platform], context),
-      );
-      await this.sessions.markConnected(platform, account, ok);
+      const found = await this.sessions.with(platform, account, async (page, context) => {
+        if (!(await isLoggedIn(SITES[platform], context))) return null;
+        return { identity: await readIdentity(platform, page) };
+      });
+      const ok = found !== null;
+      await this.sessions.markConnected(platform, account, ok, found?.identity);
       this.finish(
         key,
         ok ? 'connected' : 'failed',
