@@ -2,7 +2,7 @@
 
 import { ImagePlus, Plus, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import Link from 'next/link';
+import { AppLink as Link } from '@/components/navigation';
 import { useEffect, useState } from 'react';
 import { api, patch, upload } from '@/lib/api';
 import type { AccountView } from '@/lib/types';
@@ -104,7 +104,7 @@ export function Profiles() {
     <div className="profiles">
       <div className="spread">
         <h2 className="title-md">Perfis</h2>
-        <Link href="/config/" className="link-arrow">
+        <Link href="/contas/" className="link-arrow">
           gerenciar
         </Link>
       </div>
