@@ -173,9 +173,34 @@ export interface PublishStatus {
   worker: { running: boolean; pid: number | null };
   service: { supported: boolean; installed: boolean; active: boolean; unitFile: string | null };
   targets: PublishTarget[];
+  accounts: string[];
 }
 
 export interface PublishOutcome {
   queued: { id: string; platform: PublishPlatform; scheduledAt: string | null }[];
   workerRunning: boolean;
+}
+
+export interface DeskState {
+  id: string;
+  reason: 'captcha' | 'login' | 'verify';
+  platform: 'tiktok';
+  account: string;
+  message: string;
+  since: string;
+  width: number;
+  height: number;
+}
+
+export interface DeskSnapshot {
+  available: boolean;
+  state: DeskState | null;
+}
+
+export interface LoginWindowView {
+  platform: 'tiktok';
+  account: string;
+  phase: 'open' | 'checking' | 'connected' | 'failed';
+  startedAt: string;
+  message: string | null;
 }

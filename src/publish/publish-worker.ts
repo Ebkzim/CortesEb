@@ -1,10 +1,13 @@
+import path from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
 import { Output } from '../common/output.js';
 import type { Job } from '../contracts/publish.js';
 import { OutboxPublisher } from './outbox-publisher.js';
 import { CredentialVault } from './credential-vault.js';
+import { BrowserTools } from './browser-tools.js';
 import { InstagramPublisher } from './instagram-publisher.js';
+import { TikTokPublisher } from './tiktok-publisher.js';
 import { evaluatePolicy, POLICY_DEFAULTS, type PolicyLimits } from './publish-policy.js';
 import { PublishError, type Publisher } from './publisher.js';
 import { QueueStore } from './queue-store.js';
@@ -43,6 +46,7 @@ export class PublishWorker {
     private readonly outbox: OutboxPublisher,
     private readonly output: Output,
     private readonly vault?: CredentialVault,
+    private readonly browser?: BrowserTools,
   ) {}
 
   publisherFor(platform: Job['platform'], options?: WorkerOptions): Publisher {
@@ -52,6 +56,13 @@ export class PublishWorker {
     }
     if (platform === 'instagram' && this.vault !== undefined) {
       return new InstagramPublisher(this.vault);
+    }
+    if (platform === 'tiktok' && this.browser !== undefined) {
+      return new TikTokPublisher(
+        this.browser.sessions,
+        this.browser.tiktok,
+        path.join(this.browser.paths.home, 'browser', 'debug'),
+      );
     }
     return {
       platform,
@@ -69,9 +80,12 @@ export class PublishWorker {
         `já existe um worker de postagem rodando${pid === null ? '' : ` (pid ${String(pid)})`}`,
       );
     }
+    const desk = options.mode === 'live' ? this.browser?.server : undefined;
     try {
+      await desk?.start();
       return await this.loop(options, signal);
     } finally {
+      await desk?.stop().catch(() => undefined);
       await lock.release();
     }
   }

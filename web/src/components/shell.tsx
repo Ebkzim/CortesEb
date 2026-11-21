@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ensureSession } from '@/lib/api';
 import { useJobEvents } from '@/lib/events';
+import { DeskWatcher } from './desk-watcher';
 import { ToastProvider, useToast } from './toast';
 import { Splash } from './splash';
 
@@ -47,6 +48,7 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <ToastProvider>
       {ready && error === null && <ClipNotifier pathname={pathname} />}
+      {ready && error === null && <DeskWatcher />}
       <Splash done={ready} />
       <div className="app">
         <header className="topbar">
