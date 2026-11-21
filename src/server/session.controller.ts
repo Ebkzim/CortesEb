@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Inject, Post, Req, Res } from '@nestjs/common';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import { Body, Controller, Get, Inject, Post, Res } from '@nestjs/common';
+import type { FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { AppError } from '../common/app-error.js';
 import { JobEvents, type JobEvent } from '../jobs/job-events.js';
@@ -38,7 +38,7 @@ export class SessionController {
   }
 
   @Get('events')
-  stream(@Req() request: FastifyRequest, @Res() reply: FastifyReply): void {
+  stream(@Res() reply: FastifyReply): void {
     reply.hijack();
     const raw = reply.raw;
     raw.writeHead(200, {
@@ -55,7 +55,7 @@ export class SessionController {
     const heartbeat = setInterval(() => {
       raw.write(': ping\n\n');
     }, HEARTBEAT_MS);
-    request.raw.on('close', () => {
+    raw.once('close', () => {
       clearInterval(heartbeat);
       unsubscribe();
     });

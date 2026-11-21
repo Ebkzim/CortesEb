@@ -1,18 +1,16 @@
 'use client';
 
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-  }
-}
+import { ApiError, fetchWithDeadline } from './request';
+export { ApiError } from './request';
+export const SESSION_EXPIRED_EVENT = 'cortes:session-expired';
 
 let session: Promise<void> | null = null;
 
 export function ensureSession(): Promise<void> {
-  session ??= openSession();
+  session ??= openSession().catch((error: unknown) => {
+    session = null;
+    throw error;
+  });
   return session;
 }
 
@@ -20,17 +18,21 @@ async function openSession(): Promise<void> {
   const hash = typeof window === 'undefined' ? '' : window.location.hash;
   const match = /acesso=([A-Za-z0-9_-]+)/.exec(hash);
   if (match?.[1] !== undefined) {
-    const response = await fetch('/api/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: match[1] }),
-      credentials: 'same-origin',
-    });
-    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    const response = await fetchWithDeadline(
+      '/api/session',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: match[1] }),
+        credentials: 'same-origin',
+      },
+      8000,
+    );
     if (!response.ok) throw new ApiError(await messageOf(response), response.status);
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
     return;
   }
-  const response = await fetch('/api/session', { credentials: 'same-origin' });
+  const response = await fetchWithDeadline('/api/session', { credentials: 'same-origin' }, 8000);
   if (!response.ok) throw new ApiError(await messageOf(response), response.status);
 }
 
@@ -40,7 +42,19 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (init.body !== undefined && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  const response = await fetch(`/api${path}`, { ...init, headers, credentials: 'same-origin' });
+  const response = await fetchWithDeadline(
+    `/api${path}`,
+    { ...init, headers, credentials: 'same-origin' },
+    ['GET', 'HEAD'].includes(init.method ?? 'GET') ? 15_000 : 120_000,
+  );
+  if (response.status === 401) {
+    session = null;
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    throw new ApiError(
+      'A sessão expirou após reiniciar o servidor. Abra o painel pelo link de acesso da execução atual no terminal.',
+      401,
+    );
+  }
   if (!response.ok) throw new ApiError(await messageOf(response), response.status);
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
