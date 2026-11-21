@@ -13,13 +13,21 @@ import {
   Waves,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { KeyForm } from '@/components/key-form';
 import { ImageDrop } from '@/components/image-drop';
 import { useToast } from '@/components/toast';
 import { Button, fade } from '@/components/ui';
 import { api, patch, post, remove, upload } from '@/lib/api';
-import type { AccountView, ApiKeyView, PublishingSettings } from '@/lib/types';
+import type {
+  AccountView,
+  ApiKeyView,
+  LoginWindowView,
+  NetworksOverview,
+  NetworkView,
+  PublishingSettings,
+  PublishPlatform,
+} from '@/lib/types';
 
 interface Settings {
   whisperModel: string;
@@ -514,15 +522,62 @@ function Publishing() {
   );
 }
 
+const NETWORK_NAME: Record<PublishPlatform, string> = {
+  tiktok: 'TikTok',
+  instagram: 'Instagram',
+  youtube: 'YouTube',
+};
+
+const NETWORK_ORDER: PublishPlatform[] = ['tiktok', 'instagram', 'youtube'];
+
 function Accounts() {
   const toast = useToast();
   const [accounts, setAccounts] = useState<AccountView[]>([]);
+  const [overview, setOverview] = useState<NetworksOverview | null>(null);
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [stamp, setStamp] = useState(0);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  const refresh = useCallback(async (): Promise<NetworksOverview | null> => {
+    try {
+      const data = await api<NetworksOverview>('/networks');
+      setOverview(data);
+      return data;
+    } catch {
+      return null;
+    }
+  }, []);
+
   useEffect(() => {
     void api<AccountView[]>('/accounts').then(setAccounts);
-  }, []);
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (waiting === null) return;
+    const [account, platform] = waiting.split(':');
+    const timer = window.setInterval(() => {
+      void refresh().then((data) => {
+        const login = data?.logins.find(
+          (item) => item.account === account && item.platform === platform,
+        );
+        if (login === undefined || login.phase === 'open' || login.phase === 'checking') return;
+        setWaiting(null);
+        toast(
+          login.phase === 'connected'
+            ? `${NETWORK_NAME[login.platform]} conectado na conta ${account ?? ''}.`
+            : (login.message ?? 'o login não foi concluído'),
+        );
+      });
+    }, 3000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [waiting, refresh, toast]);
+
   async function create(): Promise<void> {
     try {
       const account = await patch<AccountView>(`/accounts/${id.trim()}`, {
@@ -531,11 +586,13 @@ function Accounts() {
       setAccounts((current) => [...current.filter((item) => item.id !== account.id), account]);
       setId('');
       setName('');
-      toast('Conta salva.');
+      toast('Conta criada. Agora conecte as redes dela.');
+      void refresh();
     } catch (caught) {
       toast(caught instanceof Error ? caught.message : 'não consegui salvar');
     }
   }
+
   async function logo(account: AccountView, file: File): Promise<void> {
     try {
       const saved = await upload<AccountView>(
@@ -549,80 +606,303 @@ function Accounts() {
       toast(caught instanceof Error ? caught.message : 'não consegui enviar a logo');
     }
   }
+
+  async function connect(account: string, platform: PublishPlatform): Promise<void> {
+    try {
+      await post('/desk/connect', { platform, account });
+      setWaiting(`${account}:${platform}`);
+      toast(
+        `Abri uma janela do Chrome. Entre no ${NETWORK_NAME[platform]} e feche a janela quando terminar.`,
+      );
+      void refresh();
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'não consegui abrir o Chrome');
+    }
+  }
+
+  async function check(account: string, platform: PublishPlatform): Promise<void> {
+    const key = `${account}:${platform}`;
+    setBusy(key);
+    try {
+      const data = await post<NetworksOverview>(`/networks/${account}/${platform}/check`);
+      setOverview(data);
+      const network = data.accounts
+        .find((item) => item.id === account)
+        ?.networks.find((item) => item.platform === platform);
+      toast(
+        network?.connected === true
+          ? `Sessão ativa${network.handle !== null ? ` como ${network.handle}` : ''}.`
+          : `A sessão do ${NETWORK_NAME[platform]} caiu. Conecte de novo.`,
+      );
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'não consegui conferir');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function disconnect(account: string, platform: PublishPlatform): Promise<void> {
+    const key = `${account}:${platform}`;
+    setBusy(key);
+    setConfirming(null);
+    try {
+      setOverview(await remove<NetworksOverview>(`/networks/${account}/${platform}`));
+      toast(`${NETWORK_NAME[platform]} desconectado da conta ${account}.`);
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'não consegui desconectar');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function networksOf(account: string): NetworkView[] {
+    const found = overview?.accounts.find((item) => item.id === account)?.networks ?? [];
+    return NETWORK_ORDER.map(
+      (platform) =>
+        found.find((item) => item.platform === platform) ?? {
+          platform,
+          method: 'browser',
+          connected: false,
+          handle: null,
+          url: null,
+          connectedAt: null,
+        },
+    );
+  }
+
+  function loginOf(account: string, platform: PublishPlatform): LoginWindowView | undefined {
+    return overview?.logins.find(
+      (item) =>
+        item.account === account &&
+        item.platform === platform &&
+        (item.phase === 'open' || item.phase === 'checking'),
+    );
+  }
+
   return (
     <Section
       title="Contas"
-      text="Nome e logo opcionais, usados na marca d’água. Sem conta, o corte sai limpo."
+      text="Cada conta tem a sua marca d’água e as redes onde os clipes dela são postados."
     >
       <Row
         title="Suas contas"
-        text="Clique na foto ou arraste uma imagem para trocar a logo. A estrela marca a conta padrão."
+        text="Clique na foto para trocar a logo. A estrela marca a conta padrão. Conecte cada rede uma vez; o @ aparece sozinho."
       >
         {accounts.length === 0 ? (
-          <p className="muted small">Nenhuma conta ainda.</p>
+          <p className="muted small">Nenhuma conta ainda. Crie a primeira logo abaixo.</p>
         ) : (
           accounts.map((account) => (
             <motion.div
               key={account.id}
-              className="key-row"
+              className="account-card"
               layout
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <ImageDrop
-                className="account__logo"
-                title="Trocar a logo: clique ou arraste uma imagem"
-                onFile={(file) => {
-                  void logo(account, file);
-                }}
-              >
-                {account.logo !== null ? (
-                  <img src={`/api/accounts/${account.id}/logo?v=${String(stamp)}`} alt="" />
-                ) : (
-                  <ImagePlus size={16} />
-                )}
-              </ImageDrop>
-              <span className="stack" style={{ gap: 2 }}>
-                <span className="key-row__name">{account.name ?? account.id}</span>
-                <span className="muted small">
-                  @{account.id}
-                  {account.isDefault ? ' · padrão' : ''}
+              <div className="account-card__head">
+                <ImageDrop
+                  className="account__logo"
+                  title="Trocar a logo: clique ou arraste uma imagem"
+                  onFile={(file) => {
+                    void logo(account, file);
+                  }}
+                >
+                  {account.logo !== null ? (
+                    <img src={`/api/accounts/${account.id}/logo?v=${String(stamp)}`} alt="" />
+                  ) : (
+                    <ImagePlus size={16} />
+                  )}
+                </ImageDrop>
+                <span className="stack" style={{ gap: 2 }}>
+                  <span className="key-row__name">{account.name ?? account.id}</span>
+                  <span className="muted small">
+                    {account.id}
+                    {account.isDefault ? ' · padrão' : ''}
+                  </span>
                 </span>
-              </span>
-              <span className="row" style={{ gap: 6 }}>
-                {!account.isDefault && (
+                <span className="row" style={{ gap: 6 }}>
+                  {!account.isDefault && (
+                    <motion.button
+                      whileTap={{ scale: 0.9 }}
+                      type="button"
+                      className="clip__action"
+                      aria-label="tornar padrão"
+                      onClick={() => {
+                        void post<AccountView>(`/accounts/${account.id}/default`)
+                          .then(() => api<AccountView[]>('/accounts'))
+                          .then(setAccounts);
+                      }}
+                    >
+                      <Star size={15} />
+                    </motion.button>
+                  )}
                   <motion.button
                     whileTap={{ scale: 0.9 }}
                     type="button"
                     className="clip__action"
-                    aria-label="tornar padrão"
+                    aria-label="apagar"
                     onClick={() => {
-                      void post<AccountView>(`/accounts/${account.id}/default`)
-                        .then(() => api<AccountView[]>('/accounts'))
-                        .then(setAccounts);
+                      if (window.confirm(`Apagar a conta ${account.id}?`))
+                        void remove<AccountView[]>(`/accounts/${account.id}`).then(setAccounts);
                     }}
                   >
-                    <Star size={15} />
+                    <Trash2 size={15} />
                   </motion.button>
-                )}
-                <motion.button
-                  whileTap={{ scale: 0.9 }}
-                  type="button"
-                  className="clip__action"
-                  aria-label="apagar"
-                  onClick={() => {
-                    if (window.confirm(`Apagar a conta ${account.id}?`))
-                      void remove<AccountView[]>(`/accounts/${account.id}`).then(setAccounts);
-                  }}
-                >
-                  <Trash2 size={15} />
-                </motion.button>
-              </span>
+                </span>
+              </div>
+              <div className="networks">
+                {networksOf(account.id).map((network) => {
+                  const key = `${account.id}:${network.platform}`;
+                  const login = loginOf(account.id, network.platform);
+                  const viaApi = network.method === 'api';
+                  const working = busy === key || login !== undefined || waiting === key;
+                  return (
+                    <div
+                      key={network.platform}
+                      className={`network ${network.connected ? 'network--on' : ''}`}
+                    >
+                      <div className="network__top">
+                        <span className="network__name">{NETWORK_NAME[network.platform]}</span>
+                        <span className="network__status">
+                          <span className="network__dot" />
+                          {login !== undefined
+                            ? login.phase === 'checking'
+                              ? 'conferindo'
+                              : 'janela aberta'
+                            : network.connected
+                              ? 'conectado'
+                              : 'desconectado'}
+                        </span>
+                      </div>
+                      <span className="network__handle">
+                        {viaApi ? (
+                          network.connected ? (
+                            'pela API oficial'
+                          ) : (
+                            'API oficial sem token'
+                          )
+                        ) : network.connected ? (
+                          network.url !== null ? (
+                            <a href={network.url} target="_blank" rel="noreferrer noopener">
+                              {network.platform === 'youtube'
+                                ? network.handle
+                                : `@${network.handle ?? ''}`}
+                            </a>
+                          ) : (
+                            'perfil ainda não identificado'
+                          )
+                        ) : (
+                          'nenhum perfil ligado'
+                        )}
+                      </span>
+                      <div className="network__actions">
+                        {viaApi ? (
+                          network.connected ? (
+                            confirming === key ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="network__link"
+                                  onClick={() => {
+                                    void disconnect(account.id, network.platform);
+                                  }}
+                                >
+                                  Apagar o token
+                                </button>
+                                <button
+                                  type="button"
+                                  className="network__link network__link--danger"
+                                  onClick={() => {
+                                    setConfirming(null);
+                                  }}
+                                >
+                                  Manter
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                className="network__link network__link--danger"
+                                disabled={working}
+                                onClick={() => {
+                                  setConfirming(key);
+                                }}
+                              >
+                                Desconectar
+                              </button>
+                            )
+                          ) : (
+                            <span className="muted small">troque para Navegador em Postagem</span>
+                          )
+                        ) : confirming === key ? (
+                          <>
+                            <button
+                              type="button"
+                              className="network__link"
+                              onClick={() => {
+                                void disconnect(account.id, network.platform);
+                              }}
+                            >
+                              Sair e apagar a sessão
+                            </button>
+                            <button
+                              type="button"
+                              className="network__link network__link--danger"
+                              onClick={() => {
+                                setConfirming(null);
+                              }}
+                            >
+                              Manter
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="network__link"
+                              disabled={working}
+                              onClick={() => {
+                                void connect(account.id, network.platform);
+                              }}
+                            >
+                              {network.connected ? 'Trocar perfil' : 'Conectar'}
+                            </button>
+                            {network.connected && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="network__link"
+                                  disabled={working}
+                                  onClick={() => {
+                                    void check(account.id, network.platform);
+                                  }}
+                                >
+                                  {busy === key ? 'Conferindo…' : 'Conferir'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="network__link network__link--danger"
+                                  disabled={working}
+                                  onClick={() => {
+                                    setConfirming(key);
+                                  }}
+                                >
+                                  Desconectar
+                                </button>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </motion.div>
           ))
         )}
       </Row>
-      <Row title="Nova conta">
+      <Row title="Nova conta" text="Crie a conta aqui e depois conecte as redes nela.">
         <div className="grid grid--2">
           <label className="field">
             <span className="field__label">Identificador</span>
@@ -658,7 +938,7 @@ function Accounts() {
               void create();
             }}
           >
-            Adicionar conta
+            Criar conta
           </Button>
         </div>
       </Row>
