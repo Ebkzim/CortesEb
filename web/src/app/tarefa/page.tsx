@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { CameraPicker } from '@/components/camera-picker';
 import { ClipCard } from '@/components/clip-card';
+import { PublishDialog, SelectionBar, useClipSelection } from '@/components/clip-picker';
 import { useToast } from '@/components/toast';
 import { Button, EASE, Progress, fade } from '@/components/ui';
 import { api, post } from '@/lib/api';
@@ -36,6 +37,8 @@ function JobScreen() {
   const [remainingSeconds, setRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showLogs, setShowLogs] = useState(false);
+  const selection = useClipSelection();
+  const [publishing, setPublishing] = useState<string[] | null>(null);
 
   const load = useCallback(() => {
     if (id === null) return;
@@ -179,10 +182,32 @@ function JobScreen() {
             ) : (
               <div className="clips">
                 {clips.map((clip) => (
-                  <ClipCard key={clip.id} clip={clip} />
+                  <ClipCard
+                    key={clip.id}
+                    clip={clip}
+                    selected={selection.has(clip.id)}
+                    onSelect={(item) => {
+                      selection.toggle(item.id);
+                    }}
+                    onPublish={(item) => {
+                      setPublishing([item.id]);
+                    }}
+                  />
                 ))}
               </div>
             )}
+            <SelectionBar
+              all={clips.map((clip) => clip.id)}
+              selection={selection}
+              onPublish={setPublishing}
+            />
+            <PublishDialog
+              clipIds={publishing}
+              onClose={() => {
+                setPublishing(null);
+              }}
+              onDone={selection.clear}
+            />
           </section>
         )}
 

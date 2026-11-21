@@ -161,3 +161,21 @@ export interface BatchView {
   finished: number;
   active: number;
 }
+
+export type PublishPlatform = 'instagram' | 'youtube' | 'tiktok';
+
+export interface PublishTarget {
+  account: string;
+  platforms: PublishPlatform[];
+}
+
+export interface PublishStatus {
+  worker: { running: boolean; pid: number | null };
+  service: { supported: boolean; installed: boolean; active: boolean; unitFile: string | null };
+  targets: PublishTarget[];
+}
+
+export interface PublishOutcome {
+  queued: { id: string; platform: PublishPlatform; scheduledAt: string | null }[];
+  workerRunning: boolean;
+}

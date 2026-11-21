@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { ClipCard } from '@/components/clip-card';
+import { PublishDialog, SelectionBar, useClipSelection } from '@/components/clip-picker';
 import { useToast } from '@/components/toast';
 import { Button } from '@/components/ui';
 import { api, remove } from '@/lib/api';
@@ -76,6 +77,8 @@ function Days() {
 function Day({ day }: { day: string }) {
   const toast = useToast();
   const [clips, setClips] = useState<ClipView[] | null>(null);
+  const selection = useClipSelection();
+  const [publishing, setPublishing] = useState<string[] | null>(null);
   useEffect(() => {
     void api<ClipView[]>(`/library/days/${day}`).then(setClips);
   }, [day]);
@@ -130,6 +133,13 @@ function Day({ day }: { day: string }) {
             <ClipCard
               key={clip.id}
               clip={clip}
+              selected={selection.has(clip.id)}
+              onSelect={(item) => {
+                selection.toggle(item.id);
+              }}
+              onPublish={(item) => {
+                setPublishing([item.id]);
+              }}
               onDelete={(item) => {
                 void drop(item);
               }}
@@ -137,6 +147,18 @@ function Day({ day }: { day: string }) {
           ))}
         </div>
       )}
+      <SelectionBar
+        all={clips?.map((clip) => clip.id) ?? []}
+        selection={selection}
+        onPublish={setPublishing}
+      />
+      <PublishDialog
+        clipIds={publishing}
+        onClose={() => {
+          setPublishing(null);
+        }}
+        onDone={selection.clear}
+      />
     </div>
   );
 }

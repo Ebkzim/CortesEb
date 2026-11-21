@@ -5,9 +5,20 @@ import { useRef, useState } from 'react';
 import { duration } from '@/lib/format';
 import type { ClipView } from '@/lib/types';
 import { ClipLightbox } from './clip-lightbox';
+import { SelectBox } from './clip-picker';
 import { EASE } from './ui';
 
-export function ClipTile({ clip, index }: { clip: ClipView; index: number }) {
+export function ClipTile({
+  clip,
+  index,
+  selected,
+  onSelect,
+}: {
+  clip: ClipView;
+  index: number;
+  selected?: boolean;
+  onSelect?: (clip: ClipView) => void;
+}) {
   const video = useRef<HTMLVideoElement>(null);
   const [hover, setHover] = useState(false);
   const [open, setOpen] = useState(false);
@@ -15,7 +26,7 @@ export function ClipTile({ clip, index }: { clip: ClipView; index: number }) {
     <>
       <motion.button
         type="button"
-        className="tile"
+        className={`tile ${selected === true ? 'tile--selected' : ''}`}
         initial={{ opacity: 0, y: 18, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ delay: 0.1 + index * 0.05, duration: 0.55, ease: EASE }}
@@ -52,6 +63,14 @@ export function ClipTile({ clip, index }: { clip: ClipView; index: number }) {
           <span className="tile__meta">{duration(clip.seconds)}</span>
         </span>
       </motion.button>
+      {onSelect !== undefined && (
+        <SelectBox
+          checked={selected === true}
+          onToggle={() => {
+            onSelect(clip);
+          }}
+        />
+      )}
       <ClipLightbox
         clip={clip}
         open={open}

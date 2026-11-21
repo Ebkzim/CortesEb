@@ -1,18 +1,25 @@
 'use client';
 
-import { Download, Trash2 } from 'lucide-react';
+import { Download, Send, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useRef, useState } from 'react';
 import { bytes, duration } from '@/lib/format';
 import type { ClipView } from '@/lib/types';
 import { ClipLightbox } from './clip-lightbox';
+import { SelectBox } from './clip-picker';
 
 export function ClipCard({
   clip,
   onDelete,
+  selected,
+  onSelect,
+  onPublish,
 }: {
   clip: ClipView;
   onDelete?: (clip: ClipView) => void;
+  selected?: boolean;
+  onSelect?: (clip: ClipView) => void;
+  onPublish?: (clip: ClipView) => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const [hover, setHover] = useState(false);
@@ -20,7 +27,7 @@ export function ClipCard({
   return (
     <>
       <motion.article
-        className="clip"
+        className={`clip ${selected === true ? 'clip--selected' : ''}`}
         layout
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -61,6 +68,14 @@ export function ClipCard({
           />
           <span className="clip__time">{duration(clip.seconds)}</span>
         </button>
+        {onSelect !== undefined && (
+          <SelectBox
+            checked={selected === true}
+            onToggle={() => {
+              onSelect(clip);
+            }}
+          />
+        )}
         <div className="clip__body">
           <p className="clip__title" title={clip.title}>
             {clip.title}
@@ -82,6 +97,19 @@ export function ClipCard({
                   aria-label="apagar"
                 >
                   <Trash2 size={16} />
+                </button>
+              )}
+              {onPublish !== undefined && (
+                <button
+                  type="button"
+                  className="clip__action"
+                  onClick={() => {
+                    onPublish(clip);
+                  }}
+                  aria-label="publicar"
+                  title="Postar agora ou agendar"
+                >
+                  <Send size={16} />
                 </button>
               )}
               <a
