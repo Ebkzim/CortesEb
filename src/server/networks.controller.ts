@@ -16,6 +16,7 @@ export interface NetworkView {
   platform: Platform;
   method: PublishMethod;
   connected: boolean;
+  browserConnected: boolean;
   handle: string | null;
   url: string | null;
   connectedAt: string | null;
@@ -56,6 +57,9 @@ export class NetworksController {
       name: account.name,
       networks: PLATFORMS.map((platform): NetworkView => {
         const method = methodOf(publishing, platform);
+        const profile = profiles.find(
+          (item) => item.platform === platform && item.account === account.id,
+        );
         if (method === 'api') {
           const saved = credentials.some(
             (entry) => entry.platform === platform && entry.account === account.id,
@@ -64,18 +68,17 @@ export class NetworksController {
             platform,
             method,
             connected: saved,
+            browserConnected: profile?.connected === true,
             handle: null,
             url: null,
             connectedAt: null,
           };
         }
-        const profile = profiles.find(
-          (item) => item.platform === platform && item.account === account.id,
-        );
         return {
           platform,
           method,
           connected: profile?.connected === true,
+          browserConnected: profile?.connected === true,
           handle: profile?.handle ?? null,
           url: profile?.url ?? null,
           connectedAt: profile?.connectedAt ?? null,
@@ -106,6 +109,17 @@ export class NetworksController {
       found !== null,
       found?.identity,
     );
+    return this.overview();
+  }
+
+  @Delete(':account/:platform/browser')
+  async disconnectBrowser(
+    @Param('account') account: string,
+    @Param('platform') platform: string,
+  ): Promise<NetworksOverview> {
+    const target = await this.target(account, platform);
+    await this.idle(target.account, target.platform);
+    await this.sessions.forget(target.platform, target.account);
     return this.overview();
   }
 
