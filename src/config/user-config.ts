@@ -29,6 +29,17 @@ export const llmSettingsSchema = z.strictObject({
   baseUrl: z.string().max(300).optional(),
 });
 
+export const PUBLISH_METHODS = ['api', 'browser'] as const;
+export const YOUTUBE_VISIBILITIES = ['public', 'unlisted', 'private'] as const;
+
+export const publishingSchema = z.strictObject({
+  instagram: z.enum(PUBLISH_METHODS).default('api'),
+  youtube: z.enum(PUBLISH_METHODS).default('browser'),
+  youtubeVisibility: z.enum(YOUTUBE_VISIBILITIES).default('public'),
+});
+
+export const PUBLISHING_DEFAULTS = publishingSchema.parse({});
+
 export const userConfigSchema = z.strictObject({
   accounts: z.record(accountId, accountSchema).default({}),
   defaultAccount: accountId.optional(),
@@ -43,10 +54,13 @@ export const userConfigSchema = z.strictObject({
     .default('gameplay'),
   llm: llmSettingsSchema.default({ provider: 'agent' }),
   layout: layoutSchema.default({}),
+  publishing: publishingSchema.default(PUBLISHING_DEFAULTS),
 });
 
 export type Account = z.infer<typeof accountSchema>;
 export type UserConfig = z.infer<typeof userConfigSchema>;
+export type Publishing = z.infer<typeof publishingSchema>;
+export type PublishMethod = (typeof PUBLISH_METHODS)[number];
 
 const CONFIG_MODE = 0o600;
 

@@ -2,12 +2,16 @@ import path from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
 import { Output } from '../common/output.js';
+import { PUBLISHING_DEFAULTS, UserConfigStore, type Publishing } from '../config/user-config.js';
 import type { Job } from '../contracts/publish.js';
 import { OutboxPublisher } from './outbox-publisher.js';
 import { CredentialVault } from './credential-vault.js';
 import { BrowserTools } from './browser-tools.js';
 import { InstagramPublisher } from './instagram-publisher.js';
 import { TikTokPublisher } from './tiktok-publisher.js';
+import { InstagramWebPublisher } from './instagram-web-publisher.js';
+import { YoutubeWebPublisher } from './youtube-web-publisher.js';
+import { methodOf } from './publish-method.js';
 import { evaluatePolicy, POLICY_DEFAULTS, type PolicyLimits } from './publish-policy.js';
 import { PublishError, type Publisher } from './publisher.js';
 import { QueueStore } from './queue-store.js';
@@ -47,22 +51,34 @@ export class PublishWorker {
     private readonly output: Output,
     private readonly vault?: CredentialVault,
     private readonly browser?: BrowserTools,
+    private readonly config?: UserConfigStore,
   ) {}
 
-  publisherFor(platform: Job['platform'], options?: WorkerOptions): Publisher {
+  publisherFor(
+    platform: Job['platform'],
+    options?: WorkerOptions,
+    publishing: Publishing = PUBLISHING_DEFAULTS,
+  ): Publisher {
     if (options?.mode !== 'live') return this.outbox.for(platform);
+    const browser = this.browser;
+    if (methodOf(publishing, platform) === 'browser' && browser !== undefined) {
+      const debug = path.join(browser.paths.home, 'browser', 'debug');
+      if (platform === 'tiktok') return new TikTokPublisher(browser.sessions, browser.site, debug);
+      if (platform === 'instagram') {
+        return new InstagramWebPublisher(browser.sessions, browser.site, debug);
+      }
+      return new YoutubeWebPublisher(
+        browser.sessions,
+        browser.site,
+        debug,
+        publishing.youtubeVisibility,
+      );
+    }
     if (platform === 'youtube' && this.vault !== undefined) {
       return new YoutubePublisher(this.vault, options.privacy ?? 'private');
     }
     if (platform === 'instagram' && this.vault !== undefined) {
       return new InstagramPublisher(this.vault);
-    }
-    if (platform === 'tiktok' && this.browser !== undefined) {
-      return new TikTokPublisher(
-        this.browser.sessions,
-        this.browser.tiktok,
-        path.join(this.browser.paths.home, 'browser', 'debug'),
-      );
     }
     return {
       platform,
@@ -129,7 +145,8 @@ export class PublishWorker {
       return;
     }
     try {
-      const result = await this.publisherFor(job.platform, options).publish(job);
+      const publishing = (await this.config?.load())?.publishing ?? PUBLISHING_DEFAULTS;
+      const result = await this.publisherFor(job.platform, options, publishing).publish(job);
       await this.store.transition(job.id, 'published', { publishedUrl: result.url });
       summary.published += 1;
       this.event({ event: 'published', id: job.id, platform: job.platform, url: result.url });

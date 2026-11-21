@@ -7,7 +7,7 @@ import { resolveInside } from '../common/safe-path.js';
 import { AppPaths } from '../config/app-paths.js';
 import { ACCOUNT_REF_PATTERN } from '../contracts/cuts.js';
 
-export const BROWSER_PLATFORMS = ['tiktok'] as const;
+export const BROWSER_PLATFORMS = ['tiktok', 'instagram', 'youtube'] as const;
 export type BrowserPlatform = (typeof BROWSER_PLATFORMS)[number];
 
 export const VIEWPORT = { width: 1280, height: 800 };

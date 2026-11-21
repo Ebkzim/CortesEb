@@ -7,7 +7,9 @@ import { ACCOUNT_REF_PATTERN } from '../contracts/cuts.js';
 import type { Platform } from '../contracts/publish.js';
 import { JobRepository } from '../database/job.repository.js';
 import { LibraryService } from '../jobs/library.service.js';
+import { UserConfigStore, type PublishMethod } from '../config/user-config.js';
 import { CredentialVault } from '../publish/credential-vault.js';
+import { methodOf, methodsOf } from '../publish/publish-method.js';
 import { PublishService, type ServiceStatus } from '../publish/publish-service.js';
 import { QueueService } from '../publish/queue.service.js';
 import { QueueStore } from '../publish/queue-store.js';
@@ -36,6 +38,7 @@ export interface PublishStatus {
   service: ServiceStatus;
   targets: PublishTarget[];
   accounts: string[];
+  methods: Record<Platform, PublishMethod>;
 }
 
 export interface PublishOutcome {
@@ -54,6 +57,7 @@ export class PublishController {
     private readonly library: LibraryService,
     private readonly browsers: BrowserSessions,
     private readonly accounts: AccountService,
+    private readonly config: UserConfigStore,
   ) {}
 
   @Get('status')
@@ -64,6 +68,7 @@ export class PublishController {
       service: await this.service.status(),
       targets: await this.targets(),
       accounts: (await this.accounts.list()).map((account) => account.id),
+      methods: methodsOf((await this.config.load()).publishing),
     };
   }
 
@@ -77,7 +82,7 @@ export class PublishController {
     if (missing.length > 0) {
       throw new AppError(
         'NOT_CONFIGURED',
-        `a conta ${request.account} não tem credenciais de ${missing.join(', ')}`,
+        `a conta ${request.account} não está conectada a ${missing.join(', ')}`,
       );
     }
     const files: string[] = [];
@@ -114,12 +119,14 @@ export class PublishController {
       const list = byAccount.get(account) ?? [];
       if (!list.includes(platform)) byAccount.set(account, [...list, platform]);
     };
+    const { publishing } = await this.config.load();
     for (const entry of await this.vault.list()) {
-      if (entry.platform === 'tiktok') continue;
-      add(entry.account, entry.platform);
+      if (methodOf(publishing, entry.platform) === 'api') add(entry.account, entry.platform);
     }
     for (const profile of await this.browsers.profiles()) {
-      if (profile.connected) add(profile.account, profile.platform);
+      if (profile.connected && methodOf(publishing, profile.platform) === 'browser') {
+        add(profile.account, profile.platform);
+      }
     }
     return [...byAccount.entries()]
       .map(([account, platforms]) => ({ account, platforms }))

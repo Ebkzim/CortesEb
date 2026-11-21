@@ -3,12 +3,13 @@ import type { FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { AccountService } from '../accounts/account.service.js';
 import { AppError } from '../common/app-error.js';
+import { BROWSER_PLATFORMS } from '../browser/browser-sessions.js';
 import { DeskClient, type DeskReply } from '../browser/desk-client.js';
 import { LoginWindows, type LoginWindow } from '../browser/login-windows.js';
 import { deskInputSchema } from '../browser/remote-desk.js';
 
 const connectSchema = z.strictObject({
-  platform: z.literal('tiktok'),
+  platform: z.enum(BROWSER_PLATFORMS),
   account: z.string().min(1).max(32),
 });
 

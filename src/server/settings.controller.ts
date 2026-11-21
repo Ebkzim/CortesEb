@@ -14,7 +14,9 @@ import { AppError } from '../common/app-error.js';
 import { ProcessRunner } from '../common/process-runner.js';
 import {
   LANGUAGE_PATTERN,
+  PUBLISH_METHODS,
   UserConfigStore,
+  YOUTUBE_VISIBILITIES,
   WHISPER_MODELS,
   type UserConfig,
 } from '../config/user-config.js';
@@ -53,6 +55,13 @@ const keySchema = z
 const settingsSchema = z.strictObject({
   whisperModel: z.enum(WHISPER_MODELS).optional(),
   language: z.string().regex(LANGUAGE_PATTERN).optional(),
+  publishing: z
+    .strictObject({
+      instagram: z.enum(PUBLISH_METHODS).optional(),
+      youtube: z.enum(PUBLISH_METHODS).optional(),
+      youtubeVisibility: z.enum(YOUTUBE_VISIBILITIES).optional(),
+    })
+    .optional(),
 });
 
 const ollamaSchema = z.strictObject({
@@ -101,6 +110,7 @@ export class SettingsController {
       language: settings.language,
       whisperModels: installed,
       installing: this.installing,
+      publishing: settings.publishing,
     };
   }
 
@@ -111,6 +121,15 @@ export class SettingsController {
     const patch: Partial<UserConfig> = {};
     if (parsed.data.whisperModel !== undefined) patch.whisperModel = parsed.data.whisperModel;
     if (parsed.data.language !== undefined) patch.language = parsed.data.language;
+    const publishing = parsed.data.publishing;
+    if (publishing !== undefined) {
+      const current = (await this.config.load()).publishing;
+      patch.publishing = {
+        instagram: publishing.instagram ?? current.instagram,
+        youtube: publishing.youtube ?? current.youtube,
+        youtubeVisibility: publishing.youtubeVisibility ?? current.youtubeVisibility,
+      };
+    }
     await this.config.update(patch);
     return this.settings();
   }
