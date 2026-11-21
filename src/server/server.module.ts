@@ -1,4 +1,5 @@
 import { type DynamicModule, Module } from '@nestjs/common';
+import { WarmingModule } from '../warming/warming.module.js';
 import { AccountsModule } from '../accounts/accounts.module.js';
 import { CommonModule } from '../common/common.module.js';
 import { ConfigModule } from '../config/config.module.js';
@@ -33,6 +34,7 @@ export class ServerModule {
         TranscriptionModule,
         PublishModule,
         BrowserModule,
+        WarmingModule,
       ],
       controllers: [
         SessionController,
