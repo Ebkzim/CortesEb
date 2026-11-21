@@ -26,6 +26,9 @@ const NOT_FOR_KIDS = 'tp-yt-paper-radio-button[name="VIDEO_MADE_FOR_KIDS_NOT_MFK
 const UPLOADING = /(enviando|uploading|carregando|carregado|enviado\s+\d|upload em andamento)/i;
 const DONE_TEXT =
   /(vídeo publicado|video published|vídeo salvo|video saved|vídeo programado|video scheduled|shorts publicado)/i;
+const DONE_DIALOGS = 'ytcp-video-share-dialog, ytcp-uploads-still-processing-dialog';
+const PROCESSING_TITLE =
+  /^(video processing|processamento do vídeo|processamento de vídeo|vídeo em processamento)$/i;
 const VIDEO_LINK = /(?:youtu\.be\/|\/shorts\/|watch\?v=)([A-Za-z0-9_-]{6,20})/;
 
 export function youtubeText(text: string, limit: number): string {
@@ -42,6 +45,7 @@ export class YoutubeWebPublisher extends BrowserPublisher {
   protected readonly prompts: PromptRules = {
     inDialogs: null,
     anywhere: /^(agora não|not now|dispensar|dismiss|entendi|got it)$/i,
+    texts: /^(skip to youtube studio|pular para o youtube studio|ir para o youtube studio)$/i,
   };
 
   constructor(
@@ -90,7 +94,8 @@ export class YoutubeWebPublisher extends BrowserPublisher {
     flow.posted = true;
     await flow.clickWhenReady(done, 'o botão Publicar do YouTube');
     await flow.until(timing.confirmMs, 'a confirmação do YouTube', async () => {
-      if (await visible(page.locator('ytcp-video-share-dialog'))) return true;
+      if (await visible(page.locator(DONE_DIALOGS))) return true;
+      if (await visible(page.getByText(PROCESSING_TITLE))) return true;
       return visible(page.getByText(DONE_TEXT));
     });
     return { url: link ?? shortsUrl(await this.videoLink(page)) ?? YOUTUBE_STUDIO };
