@@ -18,8 +18,10 @@ import { useToast } from './toast';
 import { Button, EASE } from './ui';
 
 const POLL_MS = 3000;
-const FRAME_MS = 450;
-const MOVE_MS = 40;
+export const DESK_REQUIRED_EVENT = 'cortes:desk-required';
+const FRAME_MS = 1200;
+const DRAG_FRAME_MS = 600;
+const MOVE_MS = 50;
 const SPECIAL = new Set([
   'Enter',
   'Backspace',
@@ -40,22 +42,21 @@ const TITLE: Record<DeskState['reason'], (site: string) => string> = {
   verify: (site) => `O ${site} pediu uma confirmação`,
 };
 
-export function DeskWatcher() {
+export function DeskWatcher({ base = '/desk' }: { base?: string }) {
   const toast = useToast();
   const [state, setState] = useState<DeskState | null>(null);
   const seen = useRef<string | null>(null);
 
   const refresh = useCallback(() => {
     if (document.visibilityState !== 'visible') return;
-    void api<DeskSnapshot>('/desk/state')
+    void api<DeskSnapshot>(`${base}/state`)
       .then((snapshot) => {
+        if (snapshot.state !== null && snapshot.state.mode !== 'browser') {
+          window.dispatchEvent(new Event(DESK_REQUIRED_EVENT));
+        }
         setState((current) => {
           if (current !== null && snapshot.state === null) {
-            toast(
-              current.reason === 'login'
-                ? 'Conta conectada.'
-                : 'Verificação resolvida. A postagem continua.',
-            );
+            toast('A janela de verificação foi encerrada. Confira o status da tarefa.');
           }
           return snapshot.state;
         });
@@ -68,7 +69,7 @@ export function DeskWatcher() {
         }
       })
       .catch(() => undefined);
-  }, [toast]);
+  }, [toast, base]);
 
   useEffect(() => {
     refresh();
@@ -80,32 +81,83 @@ export function DeskWatcher() {
 
   return (
     <AnimatePresence>
-      {state !== null && (
-        <DeskDialog
-          key={state.id}
-          state={state}
-          onCancel={() => {
-            void post('/desk/cancel').catch(() => undefined);
-          }}
-        />
-      )}
+      {state !== null &&
+        (state.mode === 'browser' ? (
+          <motion.div
+            key={state.id}
+            className="desk-local"
+            role="status"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <strong>
+              <ShieldAlert size={16} /> Verificação no Chrome
+            </strong>
+            <p>{state.message}</p>
+            <Button
+              size="small"
+              variant="ghost"
+              onClick={() => {
+                void post(`${base}/cancel`).catch(() => undefined);
+              }}
+            >
+              Cancelar espera
+            </Button>
+          </motion.div>
+        ) : (
+          <DeskDialog
+            key={state.id}
+            state={state}
+            base={base}
+            onCancel={() => {
+              void post(`${base}/cancel`).catch(() => undefined);
+            }}
+          />
+        ))}
     </AnimatePresence>
   );
 }
 
-function DeskDialog({ state, onCancel }: { state: DeskState; onCancel: () => void }) {
+function DeskDialog({
+  state,
+  onCancel,
+  base,
+}: {
+  state: DeskState;
+  onCancel: () => void;
+  base: string;
+}) {
   const [frame, setFrame] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const screen = useRef<HTMLDivElement>(null);
   const pressed = useRef(false);
   const lastMove = useRef(0);
+  const commands = useRef<Record<string, unknown>[]>([]);
+  const sending = useRef(false);
+  const active = useRef(true);
 
   useEffect(() => {
     let alive = true;
+    active.current = true;
     let current: string | null = null;
+    let fetching = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const abort = new AbortController();
     async function load(): Promise<void> {
+      if (fetching || !alive) return;
+      if (document.visibilityState !== 'visible') {
+        timer = setTimeout(() => {
+          void load();
+        }, FRAME_MS);
+        return;
+      }
+      fetching = true;
       try {
-        const response = await fetch('/api/desk/frame', { credentials: 'same-origin' });
+        const response = await fetch(`/api${base}/frame`, {
+          credentials: 'same-origin',
+          signal: abort.signal,
+        });
         if (!response.ok) throw new Error('sem imagem');
         const url = URL.createObjectURL(await response.blob());
         if (!alive) {
@@ -118,22 +170,50 @@ function DeskDialog({ state, onCancel }: { state: DeskState; onCancel: () => voi
         setFailed(false);
       } catch {
         if (alive) setFailed(true);
+      } finally {
+        fetching = false;
+        if (alive)
+          timer = setTimeout(
+            () => {
+              void load();
+            },
+            pressed.current ? DRAG_FRAME_MS : FRAME_MS,
+          );
       }
     }
     void load();
-    const timer = window.setInterval(() => {
-      void load();
-    }, FRAME_MS);
     screen.current?.focus();
     return () => {
       alive = false;
-      window.clearInterval(timer);
+      active.current = false;
+      clearTimeout(timer);
+      abort.abort();
+      commands.current = [];
       if (current !== null) URL.revokeObjectURL(current);
     };
-  }, []);
+  }, [base]);
 
   function send(body: Record<string, unknown>): void {
-    void post('/desk/input', body).catch(() => undefined);
+    if (!active.current) return;
+    const last = commands.current.at(-1);
+    // Keep only the newest pending human mouse movement. Down/up are never discarded.
+    if (body.type === 'move' && last?.type === 'move')
+      commands.current[commands.current.length - 1] = body;
+    else commands.current.push(body);
+    void flush();
+  }
+
+  async function flush(): Promise<void> {
+    if (sending.current) return;
+    sending.current = true;
+    try {
+      while (active.current && commands.current.length > 0) {
+        const body = commands.current.shift();
+        await post(`${base}/input`, body).catch(() => undefined);
+      }
+    } finally {
+      sending.current = false;
+    }
   }
 
   function point(event: PointerEvent<HTMLElement>): { x: number; y: number } {
@@ -245,7 +325,7 @@ function DeskDialog({ state, onCancel }: { state: DeskState; onCancel: () => voi
         <div className="spread">
           <span className="muted small">
             {failed
-              ? 'A imagem parou de chegar. Confira se o serviço de postagem está ligado.'
+              ? 'A imagem parou de chegar. Confira se o serviço está ligado.'
               : 'Clique, arraste e digite aqui como se fosse o navegador. Quando terminar, a janela fecha sozinha.'}
           </span>
           <Button variant="ghost" size="small" onClick={onCancel}>
