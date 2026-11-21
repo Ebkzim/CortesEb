@@ -5,6 +5,12 @@ import { AnimatePresence, motion } from 'motion/react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  PublishDialog,
+  SelectionBar,
+  useClipSelection,
+  type ClipSelection,
+} from '@/components/clip-picker';
 import { ClipTile } from '@/components/clip-tile';
 import { Avatar } from '@/components/profiles';
 import { useToast } from '@/components/toast';
@@ -42,6 +48,8 @@ function BatchScreen({ id }: { id: string }) {
   const [accounts, setAccounts] = useState<AccountView[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
+  const selection = useClipSelection();
+  const [publishing, setPublishing] = useState<string[] | null>(null);
 
   const load = useCallback(() => {
     api<Detail>(`/batches/${id}`)
@@ -226,6 +234,7 @@ function BatchScreen({ id }: { id: string }) {
                     job={job}
                     index={index}
                     clips={detail.clips.filter((clip) => clip.jobId === job.id)}
+                    selection={selection}
                   />
                 ))}
               </div>
@@ -233,11 +242,33 @@ function BatchScreen({ id }: { id: string }) {
           );
         })}
       </div>
+      <SelectionBar
+        all={detail.clips.map((clip) => clip.id)}
+        selection={selection}
+        onPublish={setPublishing}
+      />
+      <PublishDialog
+        clipIds={publishing}
+        onClose={() => {
+          setPublishing(null);
+        }}
+        onDone={selection.clear}
+      />
     </div>
   );
 }
 
-function BatchJob({ job, index, clips }: { job: JobView; index: number; clips: ClipView[] }) {
+function BatchJob({
+  job,
+  index,
+  clips,
+  selection,
+}: {
+  job: JobView;
+  index: number;
+  clips: ClipView[];
+  selection: ClipSelection;
+}) {
   const active = ACTIVE.includes(job.status);
   const current = job.steps.find((step) => step.status === 'running' || step.status === 'waiting');
   const counted = job.steps.filter((step) => step.status !== 'skipped');
@@ -290,7 +321,14 @@ function BatchJob({ job, index, clips }: { job: JobView; index: number; clips: C
           >
             {clips.map((clip, position) => (
               <div key={clip.id} className="batch__clip">
-                <ClipTile clip={clip} index={position} />
+                <ClipTile
+                  clip={clip}
+                  index={position}
+                  selected={selection.has(clip.id)}
+                  onSelect={(item) => {
+                    selection.toggle(item.id);
+                  }}
+                />
                 <a
                   className="batch__download"
                   href={`/api/clips/${clip.id}/download`}
