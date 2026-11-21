@@ -257,7 +257,29 @@ Estados de cada item: `pending` (espera aprovação), `approved`, `publishing`, 
 
 Para a postagem rodar sozinha sempre que o computador liga (Linux), rode uma vez `cortes-eb service install` (aceita `--max-per-day` e `--min-gap`). `cortes-eb service status` mostra se está ativo e `cortes-eb service uninstall` desliga. Só um worker roda por vez: com o serviço ativo, `queue run` avisa e sai. No painel, cada clipe tem "Postar agora" ou "Agendar", e os clipes selecionados podem ser baixados em ZIP ou publicados juntos; tudo que sai do painel já entra aprovado.
 
-### Credenciais
+### Contas e redes
+
+Cada conta do sistema (a mesma da marca d’água) pode ter um perfil ligado em cada rede. Tudo isso fica no painel, em **Configurações → Contas**:
+
+- cada conta mostra TikTok, Instagram e YouTube com o status (conectado ou não) e o perfil ligado (`@usuario` ou o nome do canal), com link;
+- **Conectar** abre uma janela normal do Google Chrome numa pasta própria daquela conta e rede (`home/browser/<rede>-<conta>`). O usuário entra na rede e fecha a janela; o sistema confere a sessão e descobre o perfil sozinho;
+- **Trocar perfil** liga outro perfil no lugar, **Conferir** testa se a sessão ainda vale e **Desconectar** apaga a sessão salva daquela rede (pede confirmação e recusa se houver um post saindo);
+- **Nova conta** cria a conta ali mesmo.
+
+Cada rede publica de um destes dois jeitos, escolhidos em **Configurações → Postagem**:
+
+| Modo        | Como funciona                                                                                                             |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Navegador   | O serviço abre o Chrome com a sessão da conta, em segundo plano, e faz o post pela página da rede, como uma pessoa faria. |
+| API oficial | Usa o token guardado no cofre de credenciais (veja abaixo). O YouTube pela API sai privado até o Google aprovar o app.    |
+
+O TikTok é sempre pelo navegador. O Instagram e o YouTube podem usar os dois; no YouTube pelo navegador também se escolhe a visibilidade (público, não listado ou privado).
+
+Se a rede pedir captcha ou confirmação durante um post, o serviço pausa, avisa no computador e abre um pop-up no painel com a tela do navegador; o usuário resolve ali e o post continua. Se a sessão cair, o post é marcado e o painel pede para reconectar. O sistema nunca tenta se passar por humano nem resolve verificações sozinho.
+
+O texto do post vem da IA: a legenda (`description`) e as hashtags de cada corte vão para o TikTok e o Instagram; no YouTube o título é o título do corte e a descrição leva o texto e as hashtags.
+
+### Credenciais (modo API oficial)
 
 As credenciais ficam em um arquivo privado (modo 600) e entram só pela entrada padrão, nunca como argumento nem no chat:
 
@@ -270,11 +292,11 @@ Campos: YouTube `clientId`, `clientSecret`, `refreshToken`; Instagram `accessTok
 
 ### O que funciona hoje
 
-| Rede      | Estado                                                                                                                                                                                                                   |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| YouTube   | Adaptador pronto (envio retomável pela API oficial, padrão `--privacy private`). Testado só com respostas simuladas; falta validar com uma conta real. Projetos novos do Google podem ficar limitados a vídeos privados. |
-| Instagram | Sem adaptador. Exige conta profissional e a API da Meta.                                                                                                                                                                 |
-| TikTok    | Sem adaptador. Apps não auditados só publicam em modo privado.                                                                                                                                                           |
+| Rede      | Estado                                                                                                                          |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| TikTok    | Pelo navegador, testado com conta real.                                                                                         |
+| Instagram | Pelo navegador e pela API oficial (Reels por envio retomável), os dois testados com conta real. A API exige conta profissional. |
+| YouTube   | Pelo navegador (YouTube Studio), testado com conta real. Pela API oficial, testado só com respostas simuladas.                  |
 
 Com `live --enqueue youtube,tiktok`, cada corte de uma live entra na fila como `pending`.
 
