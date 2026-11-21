@@ -1,51 +1,29 @@
 'use client';
 
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useState } from 'react';
 
 export function Splash({ done }: { done: boolean }) {
-  const [minimum, setMinimum] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setMinimum(true);
-    }, 650);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, []);
-  const visible = !(done && minimum);
   return (
     <AnimatePresence>
-      {visible && (
+      {!done && (
         <motion.div
           key="splash"
+          className="app-splash"
+          role="status"
+          aria-live="polite"
           initial={{ opacity: 1 }}
-          exit={{ opacity: 0, transition: { duration: 0.5, ease: [0.76, 0, 0.24, 1] } }}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 100,
-            display: 'grid',
-            placeItems: 'center',
-            background: 'var(--ink)',
-            color: '#fff',
-          }}
+          exit={{ opacity: 0, transition: { duration: 0.12 } }}
         >
-          <motion.div
-            initial={{ opacity: 0, y: 14, filter: 'blur(6px)' }}
-            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            className="brand"
-            style={{ fontSize: 46 }}
-          >
-            cortes
-            <motion.span
-              className="brand__dot"
-              style={{ background: '#fff', width: 11, height: 11 }}
-              animate={{ scale: [1, 1.5, 1] }}
-              transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
-            />
-          </motion.div>
+          <div className="app-splash__content">
+            <span className="brand" style={{ fontSize: 42 }}>
+              cortes
+              <span className="brand__dot" style={{ background: '#fff', width: 10, height: 10 }} />
+            </span>
+            <span className="app-splash__label">
+              <span className="spinner" aria-hidden="true" />
+              Abrindo painel…
+            </span>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

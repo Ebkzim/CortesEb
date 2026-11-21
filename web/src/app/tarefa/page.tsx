@@ -1,9 +1,12 @@
 'use client';
 
+import { PageLoading } from '@/components/page-loading';
+
 import { ArrowLeft, Check, Copy, FolderOpen, RotateCcw, Square } from 'lucide-react';
-import Link from 'next/link';
+import { AppLink as Link } from '@/components/navigation';
 import { AnimatePresence, motion, useSpring, useTransform } from 'motion/react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { usePanelRouter as useRouter } from '@/components/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { CameraPicker } from '@/components/camera-picker';
 import { ClipCard } from '@/components/clip-card';
@@ -23,7 +26,7 @@ interface Detail {
 
 export default function JobPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<PageLoading label="Carregando a tarefa…" />}>
       <JobScreen />
     </Suspense>
   );
@@ -85,7 +88,7 @@ function JobScreen() {
       };
     });
     if (event.type === 'steps') setRemaining(event.remainingSeconds);
-  });
+  }, load);
 
   const overall = useMemo(() => overallFraction(detail?.job.steps ?? []), [detail?.job.steps]);
 
@@ -93,11 +96,7 @@ function JobScreen() {
     return <div className="empty">{error ?? 'Nenhuma tarefa escolhida.'}</div>;
   }
   if (detail === null) {
-    return (
-      <div className="row muted">
-        <span className="spinner" /> carregando
-      </div>
-    );
+    return <PageLoading label="Carregando a tarefa…" />;
   }
 
   const { job, clips, logs } = detail;

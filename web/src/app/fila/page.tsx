@@ -1,8 +1,10 @@
 'use client';
 
+import { PageLoading } from '@/components/page-loading';
+
 import { Download, FolderOpen, Square } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import Link from 'next/link';
+import { AppLink as Link } from '@/components/navigation';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -31,7 +33,7 @@ const ACTIVE = ['queued', 'running', 'waiting'];
 
 export default function QueuePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<PageLoading label="Carregando a fila…" />}>
       <QueueScreen />
     </Suspense>
   );
@@ -101,7 +103,7 @@ function BatchScreen({ id }: { id: string }) {
       }
       return current;
     });
-  });
+  }, load);
 
   const groups = useMemo(() => {
     const list: { ref: string | null; jobs: JobView[] }[] = [];
@@ -116,11 +118,7 @@ function BatchScreen({ id }: { id: string }) {
 
   if (error !== null) return <div className="empty">{error}</div>;
   if (detail === null) {
-    return (
-      <div className="row muted">
-        <span className="spinner" /> carregando a fila
-      </div>
-    );
+    return <PageLoading label="Carregando a fila…" />;
   }
 
   const jobs = detail.jobs;

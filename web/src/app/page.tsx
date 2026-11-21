@@ -1,8 +1,10 @@
 'use client';
 
+import { PageLoading } from '@/components/page-loading';
+
 import { ArrowRight, ArrowUpRight, Film, Layers, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import Link from 'next/link';
+import { AppLink as Link } from '@/components/navigation';
 import { useEffect, useState } from 'react';
 import { ClipTile } from '@/components/clip-tile';
 import { Profiles } from '@/components/profiles';
@@ -18,6 +20,7 @@ const ACTIVE = ['queued', 'running', 'waiting'];
 type Covers = Record<string, { clipId: string; count: number }>;
 
 export default function HomePage() {
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<JobView[] | null>(null);
   const [covers, setCovers] = useState<Covers>({});
   const [clips, setClips] = useState<ClipView[] | null>(null);
@@ -36,11 +39,21 @@ export default function HomePage() {
       .catch(() => undefined);
   };
 
+  function loadJobs(): void {
+    setLoadError(null);
+    void api<{ jobs: JobView[]; covers: Covers }>('/jobs?limit=8')
+      .then((data) => {
+        setJobs(data.jobs);
+        setCovers(data.covers);
+      })
+      .catch((caught: unknown) =>
+        setLoadError(
+          caught instanceof Error ? caught.message : 'Não consegui carregar as tarefas.',
+        ),
+      );
+  }
   useEffect(() => {
-    void api<{ jobs: JobView[]; covers: Covers }>('/jobs?limit=8').then((data) => {
-      setJobs(data.jobs);
-      setCovers(data.covers);
-    });
+    loadJobs();
     loadClips();
     loadBatches();
   }, []);
@@ -80,46 +93,53 @@ export default function HomePage() {
     }
   }
 
-  useJobEvents((event) => {
-    if (event.type === 'job' && event.job.batchId !== null) loadBatches();
-    if (event.type === 'removed') {
-      setJobs((current) => current?.filter((item) => item.id !== event.jobId) ?? null);
-      return;
-    }
-    if (event.type === 'clip') {
-      loadClips();
-      setCovers((current) => {
-        const known = current[event.jobId];
-        return {
-          ...current,
-          [event.jobId]:
-            known === undefined
-              ? { clipId: event.clip.id, count: 1 }
-              : { ...known, count: known.count + 1 },
-        };
+  useJobEvents(
+    (event) => {
+      if (event.type === 'job' && event.job.batchId !== null) loadBatches();
+      if (event.type === 'removed') {
+        setJobs((current) => current?.filter((item) => item.id !== event.jobId) ?? null);
+        return;
+      }
+      if (event.type === 'clip') {
+        loadClips();
+        setCovers((current) => {
+          const known = current[event.jobId];
+          return {
+            ...current,
+            [event.jobId]:
+              known === undefined
+                ? { clipId: event.clip.id, count: 1 }
+                : { ...known, count: known.count + 1 },
+          };
+        });
+        return;
+      }
+      setJobs((current) => {
+        if (current === null) return current;
+        if (event.type === 'job') {
+          const exists = current.some((job) => job.id === event.jobId);
+          return exists
+            ? current.map((job) =>
+                job.id === event.jobId
+                  ? { ...event.job, steps: job.steps.length > 0 ? job.steps : event.job.steps }
+                  : job,
+              )
+            : [event.job, ...current];
+        }
+        if (event.type === 'steps') {
+          return current.map((job) =>
+            job.id === event.jobId ? { ...job, steps: event.steps } : job,
+          );
+        }
+        return current;
       });
-      return;
-    }
-    setJobs((current) => {
-      if (current === null) return current;
-      if (event.type === 'job') {
-        const exists = current.some((job) => job.id === event.jobId);
-        return exists
-          ? current.map((job) =>
-              job.id === event.jobId
-                ? { ...event.job, steps: job.steps.length > 0 ? job.steps : event.job.steps }
-                : job,
-            )
-          : [event.job, ...current];
-      }
-      if (event.type === 'steps') {
-        return current.map((job) =>
-          job.id === event.jobId ? { ...job, steps: event.steps } : job,
-        );
-      }
-      return current;
-    });
-  });
+    },
+    () => {
+      loadJobs();
+      loadClips();
+      loadBatches();
+    },
+  );
 
   const today = localToday();
   const todayCount = days.find((item) => item.day === today)?.clips ?? 0;
@@ -132,7 +152,7 @@ export default function HomePage() {
           className="title-xl"
           initial={{ opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, ease: EASE }}
+          transition={{ duration: 0.2, ease: EASE }}
         >
           Vídeo longo entra.
           <br />
@@ -142,7 +162,7 @@ export default function HomePage() {
           className="lead"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.25, duration: 0.6 }}
+          transition={{ delay: 0.04, duration: 0.18 }}
         >
           Escolha o tipo, a quantidade e a origem. O painel baixa, transcreve, escolhe os melhores
           ganchos e entrega tudo organizado por dia.
@@ -151,7 +171,7 @@ export default function HomePage() {
           className="row wrap"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35, duration: 0.6, ease: EASE }}
+          transition={{ delay: 0.06, duration: 0.18, ease: EASE }}
         >
           <Button href="/novo/" icon={<ArrowRight />}>
             Novo corte
@@ -165,7 +185,7 @@ export default function HomePage() {
             className="home__stats"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
+            transition={{ delay: 0.08, duration: 0.18 }}
           >
             <Stat value={todayCount} label={todayCount === 1 ? 'corte hoje' : 'cortes hoje'} />
             <Stat value={total} label="no total" />
@@ -178,7 +198,7 @@ export default function HomePage() {
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.6, ease: EASE }}
+          transition={{ delay: 0.08, duration: 0.18, ease: EASE }}
         >
           <Profiles />
         </motion.div>
@@ -220,7 +240,7 @@ export default function HomePage() {
                   key={batch.id}
                   initial={{ opacity: 0, x: 18 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 + index * 0.05, duration: 0.5, ease: EASE }}
+                  transition={{ delay: Math.min(index, 3) * 0.025, duration: 0.18, ease: EASE }}
                   whileTap={{ scale: 0.985 }}
                 >
                   <Link
@@ -266,10 +286,15 @@ export default function HomePage() {
               </button>
             )}
           </div>
-          {jobs === null ? (
-            <div className="row muted">
-              <span className="spinner" /> carregando
+          {loadError ? (
+            <div className="panel stack" role="alert">
+              <p>{loadError}</p>
+              <Button size="small" onClick={loadJobs}>
+                Tentar novamente
+              </Button>
             </div>
+          ) : jobs === null ? (
+            <PageLoading label="Carregando tarefas…" />
           ) : jobs.length === 0 ? (
             <div className="empty">Nenhuma tarefa ainda.</div>
           ) : (
@@ -324,7 +349,7 @@ function ActivityCard({
       initial={{ opacity: 0, x: 18 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -18, transition: { duration: 0.3 } }}
-      transition={{ delay: 0.15 + index * 0.05, duration: 0.5, ease: EASE }}
+      transition={{ delay: Math.min(index, 3) * 0.025, duration: 0.18, ease: EASE }}
       whileTap={{ scale: 0.985 }}
     >
       <Link

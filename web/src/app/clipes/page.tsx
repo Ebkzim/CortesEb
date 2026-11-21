@@ -1,8 +1,10 @@
 'use client';
 
+import { PageLoading } from '@/components/page-loading';
+
 import { ArrowLeft, Folder } from 'lucide-react';
 import { motion } from 'motion/react';
-import Link from 'next/link';
+import { AppLink as Link } from '@/components/navigation';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { ClipCard } from '@/components/clip-card';
@@ -16,7 +18,7 @@ import type { ClipView, DaySummary } from '@/lib/types';
 
 export default function LibraryPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<PageLoading label="Carregando seus clipes…" />}>
       <Library />
     </Suspense>
   );
@@ -32,10 +34,19 @@ function Days() {
   useEffect(() => {
     void api<DaySummary[]>('/library/days').then(setDays);
   }, []);
-  useJobEvents((event) => {
-    if (event.type !== 'clip') return;
-    void api<DaySummary[]>('/library/days').then(setDays);
-  });
+  useJobEvents(
+    (event) => {
+      if (event.type !== 'clip') return;
+      void api<DaySummary[]>('/library/days')
+        .then(setDays)
+        .catch(() => undefined);
+    },
+    () => {
+      void api<DaySummary[]>('/library/days')
+        .then(setDays)
+        .catch(() => undefined);
+    },
+  );
   return (
     <div className="stack" style={{ gap: 32 }}>
       <header className="stack" style={{ gap: 8 }}>
@@ -43,9 +54,7 @@ function Days() {
         <p className="lead">Uma pasta por dia, com todos os cortes prontos para baixar.</p>
       </header>
       {days === null ? (
-        <div className="row muted">
-          <span className="spinner" /> carregando
-        </div>
+        <PageLoading label="Carregando seus clipes…" />
       ) : days.length === 0 ? (
         <div className="empty">Ainda não há clipes. Os cortes prontos aparecem aqui sozinhos.</div>
       ) : (
@@ -55,7 +64,11 @@ function Days() {
               key={item.day}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              transition={{
+                delay: Math.min(index, 3) * 0.025,
+                duration: 0.18,
+                ease: [0.22, 1, 0.36, 1],
+              }}
             >
               <Link href={`/clipes/?dia=${item.day}`} className="folder">
                 <span className="folder__tab" />
@@ -82,15 +95,22 @@ function Day({ day }: { day: string }) {
   useEffect(() => {
     void api<ClipView[]>(`/library/days/${day}`).then(setClips);
   }, [day]);
-  useJobEvents((event) => {
-    if (event.type === 'clip' && event.clip.day === day) {
-      setClips((current) =>
-        current === null
-          ? current
-          : [event.clip, ...current.filter((clip) => clip.id !== event.clip.id)],
-      );
-    }
-  });
+  useJobEvents(
+    (event) => {
+      if (event.type === 'clip' && event.clip.day === day) {
+        setClips((current) =>
+          current === null
+            ? current
+            : [event.clip, ...current.filter((clip) => clip.id !== event.clip.id)],
+        );
+      }
+    },
+    () => {
+      void api<ClipView[]>(`/library/days/${day}`)
+        .then(setClips)
+        .catch(() => undefined);
+    },
+  );
   async function drop(clip: ClipView): Promise<void> {
     if (!window.confirm(`Apagar “${clip.title}”? O arquivo sai do computador.`)) return;
     try {
@@ -122,9 +142,7 @@ function Day({ day }: { day: string }) {
         )}
       </header>
       {clips === null ? (
-        <div className="row muted">
-          <span className="spinner" /> carregando
-        </div>
+        <PageLoading label="Carregando seus clipes…" />
       ) : clips.length === 0 ? (
         <div className="empty">Nenhum clipe neste dia.</div>
       ) : (

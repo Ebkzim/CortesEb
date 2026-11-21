@@ -2,7 +2,7 @@
 
 import { Check } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import Link from 'next/link';
+import { AppLink as Link } from '@/components/navigation';
 import { useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 
 export const EASE = [0.22, 1, 0.36, 1] as const;
@@ -219,8 +219,8 @@ export function Progress({ value, active }: { value: number | null; active?: boo
 }
 
 export const fade = {
-  initial: { opacity: 0, y: 16 },
+  initial: { opacity: 0, y: 6 },
   animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -10 },
-  transition: { duration: 0.45, ease: EASE },
+  exit: { opacity: 0, y: -4 },
+  transition: { duration: 0.16, ease: EASE },
 };

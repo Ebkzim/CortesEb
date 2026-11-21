@@ -22,7 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useRouter } from 'next/navigation';
+import { usePanelRouter as useRouter } from '@/components/navigation';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { PresetPreview } from '@/components/preset-preview';
 import { useToast } from '@/components/toast';
@@ -511,716 +511,714 @@ export function Wizard({ queue }: { queue: boolean }) {
             setStep(index);
           }}
         />
-        <AnimatePresence mode="wait">
-          <motion.section key={step} className="wizard__step" {...fade}>
-            {step === 0 && (
-              <>
-                <Heading
-                  title="Que tipo de corte?"
-                  text="Passe o mouse para ver como fica cada um."
-                />
-                <div className="grid grid--3">
-                  {entries.map((entry) =>
-                    entry.kind === 'preset' ? (
-                      <Choice
-                        key={entry.preset.id}
-                        active={preset === entry.preset.id}
-                        icon={PRESET_ICON[entry.preset.id]}
-                        title={entry.preset.label}
-                        text={entry.preset.description}
+        <section key={step} className="wizard__step page--enter">
+          {step === 0 && (
+            <>
+              <Heading
+                title="Que tipo de corte?"
+                text="Passe o mouse para ver como fica cada um."
+              />
+              <div className="grid grid--3">
+                {entries.map((entry) =>
+                  entry.kind === 'preset' ? (
+                    <Choice
+                      key={entry.preset.id}
+                      active={preset === entry.preset.id}
+                      icon={PRESET_ICON[entry.preset.id]}
+                      title={entry.preset.label}
+                      text={entry.preset.description}
+                      onClick={() => {
+                        setPreset(entry.preset.id);
+                        setOpenGroup(null);
+                      }}
+                      onHover={(inside) => {
+                        setHovered(inside ? entry.preset.id : null);
+                      }}
+                    />
+                  ) : (
+                    <Choice
+                      key={entry.group}
+                      active={chosenPreset?.group === entry.group || openGroup === entry.group}
+                      icon={entry.group === 'filmes' ? <Film size={20} /> : <Tv size={20} />}
+                      title={entry.group === 'filmes' ? 'Filmes' : 'Séries'}
+                      text="React ou só a cena. Clique para escolher."
+                      onClick={() => {
+                        setOpenGroup(entry.group);
+                        if (chosenPreset?.group !== entry.group)
+                          setPreset(mainVariant(entry.variants)?.id ?? null);
+                      }}
+                      onHover={(inside) => {
+                        setHovered(inside ? (mainVariant(entry.variants)?.id ?? null) : null);
+                      }}
+                    />
+                  ),
+                )}
+              </div>
+              <AnimatePresence>
+                {openGroup !== null && (
+                  <motion.div
+                    key={openGroup}
+                    className="variants"
+                    initial={{ opacity: 0, height: 0, y: -8 }}
+                    animate={{ opacity: 1, height: 'auto', y: 0 }}
+                    exit={{ opacity: 0, height: 0, y: -8 }}
+                    transition={{ duration: 0.45, ease: EASE }}
+                  >
+                    <span className="field__label">
+                      {openGroup === 'filmes'
+                        ? 'Que tipo de corte de filme?'
+                        : 'Que tipo de corte de série?'}
+                    </span>
+                    <div className="grid grid--2">
+                      {presets
+                        .filter((item) => item.group === openGroup)
+                        .map((item, index) => (
+                          <motion.div
+                            key={item.id}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.08 + index * 0.06, duration: 0.4, ease: EASE }}
+                          >
+                            <Choice
+                              active={preset === item.id}
+                              icon={
+                                item.variant === 'cena' ? (
+                                  <Clapperboard size={18} />
+                                ) : (
+                                  <ScanFace size={18} />
+                                )
+                              }
+                              title={item.variant === 'cena' ? 'Só a cena' : 'React'}
+                              text={item.description}
+                              onClick={() => {
+                                setPreset(item.id);
+                              }}
+                              onHover={(inside) => {
+                                setHovered(inside ? item.id : null);
+                              }}
+                            />
+                          </motion.div>
+                        ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          )}
+
+          {step === 1 && (
+            <>
+              <Heading
+                title="Quantos cortes?"
+                text="Pela quantidade ou pela duração de cada corte."
+              />
+              <Segmented
+                id="targets"
+                value={mode}
+                options={[
+                  { value: 'count', label: 'Quantidade' },
+                  { value: 'duration', label: 'Duração' },
+                ]}
+                onChange={setMode}
+              />
+              <AnimatePresence mode="wait">
+                {mode === 'count' ? (
+                  <motion.div key="count" className="panel counter" {...fade}>
+                    <div className="counter__row">
+                      <motion.button
+                        whileTap={{ scale: 0.88 }}
+                        type="button"
+                        className="counter__button"
                         onClick={() => {
-                          setPreset(entry.preset.id);
-                          setOpenGroup(null);
+                          setCount((value) => Math.max(1, value - 1));
                         }}
-                        onHover={(inside) => {
-                          setHovered(inside ? entry.preset.id : null);
+                        aria-label="menos"
+                      >
+                        <Minus size={20} />
+                      </motion.button>
+                      <div className="counter__value">
+                        <AnimatePresence mode="popLayout" initial={false}>
+                          <motion.span
+                            key={count}
+                            className="counter__number"
+                            initial={{ y: 24, opacity: 0, filter: 'blur(4px)' }}
+                            animate={{ y: 0, opacity: 1, filter: 'blur(0px)' }}
+                            exit={{ y: -24, opacity: 0, filter: 'blur(4px)' }}
+                            transition={{ duration: 0.35, ease: EASE }}
+                          >
+                            {count}
+                          </motion.span>
+                        </AnimatePresence>
+                        <span className="counter__unit">{count === 1 ? 'corte' : 'cortes'}</span>
+                      </div>
+                      <motion.button
+                        whileTap={{ scale: 0.88 }}
+                        type="button"
+                        className="counter__button"
+                        onClick={() => {
+                          setCount((value) => Math.min(20, value + 1));
+                        }}
+                        aria-label="mais"
+                      >
+                        <Plus size={20} />
+                      </motion.button>
+                    </div>
+                    <input
+                      className="counter__range"
+                      type="range"
+                      min={1}
+                      max={20}
+                      value={count}
+                      style={{ ['--fill' as string]: `${String(((count - 1) / 19) * 100)}%` }}
+                      onChange={(event) => {
+                        setCount(Number(event.target.value));
+                      }}
+                      aria-label="quantidade de cortes"
+                    />
+                    <p className="muted small">
+                      A duração de cada corte se ajusta ao tamanho do vídeo.
+                    </p>
+                  </motion.div>
+                ) : (
+                  <motion.div key="duration" className="panel stack" {...fade}>
+                    <div className="grid grid--2">
+                      <DurationInput label="Mínimo" value={minSeconds} onChange={setMinSeconds} />
+                      <DurationInput label="Máximo" value={maxSeconds} onChange={setMaxSeconds} />
+                    </div>
+                    <p className="small muted">
+                      {targets === null
+                        ? 'Cada corte vai de 10 s a 3 min, e o máximo não pode ser menor que o mínimo.'
+                        : `Cada corte terá entre ${duration(minSeconds)} e ${duration(maxSeconds)}. A quantidade sai do tamanho do vídeo.`}
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          )}
+
+          {step === 2 && queue && (
+            <>
+              <Heading
+                title="Que vídeos vão para cada conta?"
+                text="Adicione quantos quiser em cada conta. Tudo roda sozinho, e cada corte aparece assim que fica pronto."
+              />
+              <div className="queue">
+                {queueGroups.map((ref, index) => (
+                  <QueueAccount
+                    key={ref || 'sem-conta'}
+                    index={index}
+                    account={accounts.find((item) => item.id === ref) ?? null}
+                    items={queueItems[ref] ?? []}
+                    allowed={allowedSources}
+                    onAdd={(item) => {
+                      setQueueItems((current) => ({
+                        ...current,
+                        [ref]: [...(current[ref] ?? []), item],
+                      }));
+                    }}
+                    onRemove={(key) => {
+                      setQueueItems((current) => ({
+                        ...current,
+                        [ref]: (current[ref] ?? []).filter((item) => item.key !== key),
+                      }));
+                    }}
+                  />
+                ))}
+              </div>
+              {bottomSection}
+            </>
+          )}
+
+          {step === 2 && !queue && (
+            <>
+              <Heading
+                title="De onde vem o vídeo?"
+                text={
+                  allowedSources.includes('live')
+                    ? 'Um arquivo, um link ou uma live no ar agora.'
+                    : 'Um arquivo ou um link.'
+                }
+              />
+              <div className={`grid grid--${String(Math.max(2, allowedSources.length))}`}>
+                {SOURCE_OPTIONS.filter((option) => allowedSources.includes(option.kind)).map(
+                  (option) => (
+                    <Choice
+                      key={option.kind}
+                      active={sourceKind === option.kind}
+                      icon={option.icon}
+                      title={option.title}
+                      text={option.text}
+                      onClick={() => {
+                        setSourceKind(option.kind);
+                        if (option.kind === 'live' && selectorKind === 'agent')
+                          setSelectorKind(null);
+                        if (option.kind !== 'live' && selectorKind === 'rules')
+                          setSelectorKind(null);
+                      }}
+                    />
+                  ),
+                )}
+              </div>
+              <AnimatePresence mode="wait">
+                {sourceKind !== null && (
+                  <motion.div key={sourceKind} className="panel stack" {...fade}>
+                    {sourceKind === 'file' && (
+                      <Dropzone
+                        name={uploadState?.name ?? null}
+                        progress={uploadProgress}
+                        onFile={(file) => {
+                          void sendFile(file);
+                        }}
+                      />
+                    )}
+                    {(sourceKind === 'vod' || sourceKind === 'live') && (
+                      <Segmented
+                        id="platform"
+                        value={platform}
+                        options={(['twitch', 'kick', 'youtube'] as const).map((value) => ({
+                          value,
+                          label: PLATFORM_LABEL[value],
+                        }))}
+                        onChange={setPlatform}
+                      />
+                    )}
+                    {sourceKind !== 'file' && (
+                      <label className="field">
+                        <span className="field__label">
+                          {sourceKind === 'live'
+                            ? `Link da live na ${PLATFORM_LABEL[platform]}`
+                            : sourceKind === 'vod'
+                              ? `Link do VOD na ${PLATFORM_LABEL[platform]}`
+                              : 'Link do vídeo'}
+                        </span>
+                        <input
+                          className={`input ${link !== '' && sourceProblem !== null ? 'input--error' : ''}`}
+                          placeholder="https://"
+                          value={link}
+                          onChange={(event) => {
+                            setLink(event.target.value);
+                          }}
+                          autoFocus
+                        />
+                        <AnimatePresence>
+                          {link !== '' && sourceProblem !== null && (
+                            <motion.span
+                              className="field__hint"
+                              initial={{ opacity: 0, y: -4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0 }}
+                            >
+                              {sourceProblem}
+                            </motion.span>
+                          )}
+                        </AnimatePresence>
+                      </label>
+                    )}
+                    {sourceKind === 'vod' && (
+                      <div className="grid grid--2">
+                        <label className="field">
+                          <span className="field__label">Começar em (opcional)</span>
+                          <input
+                            className="input"
+                            placeholder="1:20:00"
+                            value={from}
+                            onChange={(event) => {
+                              setFrom(event.target.value);
+                            }}
+                          />
+                        </label>
+                        <label className="field">
+                          <span className="field__label">Terminar em (opcional)</span>
+                          <input
+                            className="input"
+                            placeholder="1:45:00"
+                            value={to}
+                            onChange={(event) => {
+                              setTo(event.target.value);
+                            }}
+                          />
+                        </label>
+                        <p className="field__hint" style={{ gridColumn: '1 / -1' }}>
+                          Em lives longas, baixar só um trecho é bem mais rápido.
+                        </p>
+                      </div>
+                    )}
+                    {sourceKind === 'live' && (
+                      <p className="field__hint">
+                        O painel acompanha a live e salva cada momento forte, até ela acabar ou você
+                        parar.
+                      </p>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              {bottomSection}
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              <Heading
+                title="Quem escolhe os cortes?"
+                text={
+                  queue
+                    ? 'A fila roda sozinha, então quem escolhe é uma chave de API ou a IA local.'
+                    : isLive
+                      ? 'Na live os momentos são detectados sozinhos. Uma IA pode avaliar cada um.'
+                      : 'Uma IA lê a transcrição e escolhe os melhores ganchos.'
+                }
+              />
+              <div className={`grid grid--${queue ? '2' : '3'}`}>
+                <Choice
+                  active={selectorKind === 'api'}
+                  icon={<KeyRound size={18} />}
+                  title="Chave de API"
+                  text="Claude, OpenAI ou compatível."
+                  onClick={() => {
+                    setSelectorKind('api');
+                  }}
+                />
+                <Choice
+                  active={selectorKind === 'ollama'}
+                  icon={<Cpu size={18} />}
+                  title="IA local"
+                  text="Ollama no seu computador."
+                  onClick={() => {
+                    setSelectorKind('ollama');
+                  }}
+                />
+                {queue ? null : isLive ? (
+                  <Choice
+                    active={selectorKind === 'rules'}
+                    icon={<Wand2 size={18} />}
+                    title="Só regras"
+                    text="Volume e chat, sem IA."
+                    onClick={() => {
+                      setSelectorKind('rules');
+                    }}
+                  />
+                ) : (
+                  <Choice
+                    active={selectorKind === 'agent'}
+                    icon={<Bot size={18} />}
+                    title="Claude ou Codex"
+                    text="Um prompt pronto no terminal."
+                    onClick={() => {
+                      setSelectorKind('agent');
+                    }}
+                  />
+                )}
+              </div>
+              <AnimatePresence mode="wait">
+                {selectorKind === 'api' && (
+                  <motion.div key="api" className="panel stack" {...fade}>
+                    {keys.length > 0 && !addingKey && (
+                      <div className="stack" style={{ gap: 8 }}>
+                        {keys.map((key) => (
+                          <motion.button
+                            whileTap={{ scale: 0.98 }}
+                            key={key.id}
+                            type="button"
+                            className={`key-row ${keyId === key.id ? 'key-row--active' : ''}`}
+                            onClick={() => {
+                              setKeyId(key.id);
+                            }}
+                          >
+                            <KeyRound size={16} />
+                            <span className="key-row__name">{key.label}</span>
+                            <span className="muted small">
+                              {providerLabel(key.provider)} · {key.model ?? 'modelo padrão'} ·{' '}
+                              {key.hint}
+                            </span>
+                          </motion.button>
+                        ))}
+                      </div>
+                    )}
+                    {addingKey ? (
+                      <KeyForm
+                        onCancel={() => {
+                          setAddingKey(false);
+                        }}
+                        onSaved={(key) => {
+                          setKeys((current) => [key, ...current]);
+                          setKeyId(key.id);
+                          setAddingKey(false);
+                          toast('Chave guardada com criptografia.');
                         }}
                       />
                     ) : (
-                      <Choice
-                        key={entry.group}
-                        active={chosenPreset?.group === entry.group || openGroup === entry.group}
-                        icon={entry.group === 'filmes' ? <Film size={20} /> : <Tv size={20} />}
-                        title={entry.group === 'filmes' ? 'Filmes' : 'Séries'}
-                        text="React ou só a cena. Clique para escolher."
+                      <Button
+                        variant="light"
+                        size="small"
+                        lead={<Plus />}
                         onClick={() => {
-                          setOpenGroup(entry.group);
-                          if (chosenPreset?.group !== entry.group)
-                            setPreset(mainVariant(entry.variants)?.id ?? null);
+                          setAddingKey(true);
                         }}
-                        onHover={(inside) => {
-                          setHovered(inside ? (mainVariant(entry.variants)?.id ?? null) : null);
-                        }}
-                      />
-                    ),
-                  )}
-                </div>
-                <AnimatePresence>
-                  {openGroup !== null && (
-                    <motion.div
-                      key={openGroup}
-                      className="variants"
-                      initial={{ opacity: 0, height: 0, y: -8 }}
-                      animate={{ opacity: 1, height: 'auto', y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: -8 }}
-                      transition={{ duration: 0.45, ease: EASE }}
-                    >
-                      <span className="field__label">
-                        {openGroup === 'filmes'
-                          ? 'Que tipo de corte de filme?'
-                          : 'Que tipo de corte de série?'}
-                      </span>
-                      <div className="grid grid--2">
-                        {presets
-                          .filter((item) => item.group === openGroup)
-                          .map((item, index) => (
-                            <motion.div
-                              key={item.id}
-                              initial={{ opacity: 0, x: -10 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: 0.08 + index * 0.06, duration: 0.4, ease: EASE }}
-                            >
-                              <Choice
-                                active={preset === item.id}
-                                icon={
-                                  item.variant === 'cena' ? (
-                                    <Clapperboard size={18} />
-                                  ) : (
-                                    <ScanFace size={18} />
-                                  )
-                                }
-                                title={item.variant === 'cena' ? 'Só a cena' : 'React'}
-                                text={item.description}
-                                onClick={() => {
-                                  setPreset(item.id);
-                                }}
-                                onHover={(inside) => {
-                                  setHovered(inside ? item.id : null);
-                                }}
-                              />
-                            </motion.div>
-                          ))}
+                      >
+                        Adicionar uma chave
+                      </Button>
+                    )}
+                  </motion.div>
+                )}
+                {selectorKind === 'ollama' && (
+                  <motion.div key="ollama" className="panel stack" {...fade}>
+                    {ollama === null ? (
+                      <div className="row muted">
+                        <span className="spinner" /> procurando o Ollama
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </>
-            )}
-
-            {step === 1 && (
-              <>
-                <Heading
-                  title="Quantos cortes?"
-                  text="Pela quantidade ou pela duração de cada corte."
-                />
-                <Segmented
-                  id="targets"
-                  value={mode}
-                  options={[
-                    { value: 'count', label: 'Quantidade' },
-                    { value: 'duration', label: 'Duração' },
-                  ]}
-                  onChange={setMode}
-                />
-                <AnimatePresence mode="wait">
-                  {mode === 'count' ? (
-                    <motion.div key="count" className="panel counter" {...fade}>
-                      <div className="counter__row">
-                        <motion.button
-                          whileTap={{ scale: 0.88 }}
-                          type="button"
-                          className="counter__button"
-                          onClick={() => {
-                            setCount((value) => Math.max(1, value - 1));
-                          }}
-                          aria-label="menos"
-                        >
-                          <Minus size={20} />
-                        </motion.button>
-                        <div className="counter__value">
-                          <AnimatePresence mode="popLayout" initial={false}>
-                            <motion.span
-                              key={count}
-                              className="counter__number"
-                              initial={{ y: 24, opacity: 0, filter: 'blur(4px)' }}
-                              animate={{ y: 0, opacity: 1, filter: 'blur(0px)' }}
-                              exit={{ y: -24, opacity: 0, filter: 'blur(4px)' }}
-                              transition={{ duration: 0.35, ease: EASE }}
-                            >
-                              {count}
-                            </motion.span>
-                          </AnimatePresence>
-                          <span className="counter__unit">{count === 1 ? 'corte' : 'cortes'}</span>
-                        </div>
-                        <motion.button
-                          whileTap={{ scale: 0.88 }}
-                          type="button"
-                          className="counter__button"
-                          onClick={() => {
-                            setCount((value) => Math.min(20, value + 1));
-                          }}
-                          aria-label="mais"
-                        >
-                          <Plus size={20} />
-                        </motion.button>
-                      </div>
-                      <input
-                        className="counter__range"
-                        type="range"
-                        min={1}
-                        max={20}
-                        value={count}
-                        style={{ ['--fill' as string]: `${String(((count - 1) / 19) * 100)}%` }}
-                        onChange={(event) => {
-                          setCount(Number(event.target.value));
-                        }}
-                        aria-label="quantidade de cortes"
-                      />
-                      <p className="muted small">
-                        A duração de cada corte se ajusta ao tamanho do vídeo.
-                      </p>
-                    </motion.div>
-                  ) : (
-                    <motion.div key="duration" className="panel stack" {...fade}>
-                      <div className="grid grid--2">
-                        <DurationInput label="Mínimo" value={minSeconds} onChange={setMinSeconds} />
-                        <DurationInput label="Máximo" value={maxSeconds} onChange={setMaxSeconds} />
-                      </div>
-                      <p className="small muted">
-                        {targets === null
-                          ? 'Cada corte vai de 10 s a 3 min, e o máximo não pode ser menor que o mínimo.'
-                          : `Cada corte terá entre ${duration(minSeconds)} e ${duration(maxSeconds)}. A quantidade sai do tamanho do vídeo.`}
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </>
-            )}
-
-            {step === 2 && queue && (
-              <>
-                <Heading
-                  title="Que vídeos vão para cada conta?"
-                  text="Adicione quantos quiser em cada conta. Tudo roda sozinho, e cada corte aparece assim que fica pronto."
-                />
-                <div className="queue">
-                  {queueGroups.map((ref, index) => (
-                    <QueueAccount
-                      key={ref || 'sem-conta'}
-                      index={index}
-                      account={accounts.find((item) => item.id === ref) ?? null}
-                      items={queueItems[ref] ?? []}
-                      allowed={allowedSources}
-                      onAdd={(item) => {
-                        setQueueItems((current) => ({
-                          ...current,
-                          [ref]: [...(current[ref] ?? []), item],
-                        }));
-                      }}
-                      onRemove={(key) => {
-                        setQueueItems((current) => ({
-                          ...current,
-                          [ref]: (current[ref] ?? []).filter((item) => item.key !== key),
-                        }));
-                      }}
-                    />
-                  ))}
-                </div>
-                {bottomSection}
-              </>
-            )}
-
-            {step === 2 && !queue && (
-              <>
-                <Heading
-                  title="De onde vem o vídeo?"
-                  text={
-                    allowedSources.includes('live')
-                      ? 'Um arquivo, um link ou uma live no ar agora.'
-                      : 'Um arquivo ou um link.'
-                  }
-                />
-                <div className={`grid grid--${String(Math.max(2, allowedSources.length))}`}>
-                  {SOURCE_OPTIONS.filter((option) => allowedSources.includes(option.kind)).map(
-                    (option) => (
-                      <Choice
-                        key={option.kind}
-                        active={sourceKind === option.kind}
-                        icon={option.icon}
-                        title={option.title}
-                        text={option.text}
-                        onClick={() => {
-                          setSourceKind(option.kind);
-                          if (option.kind === 'live' && selectorKind === 'agent')
-                            setSelectorKind(null);
-                          if (option.kind !== 'live' && selectorKind === 'rules')
-                            setSelectorKind(null);
-                        }}
-                      />
-                    ),
-                  )}
-                </div>
-                <AnimatePresence mode="wait">
-                  {sourceKind !== null && (
-                    <motion.div key={sourceKind} className="panel stack" {...fade}>
-                      {sourceKind === 'file' && (
-                        <Dropzone
-                          name={uploadState?.name ?? null}
-                          progress={uploadProgress}
-                          onFile={(file) => {
-                            void sendFile(file);
-                          }}
-                        />
-                      )}
-                      {(sourceKind === 'vod' || sourceKind === 'live') && (
-                        <Segmented
-                          id="platform"
-                          value={platform}
-                          options={(['twitch', 'kick', 'youtube'] as const).map((value) => ({
-                            value,
-                            label: PLATFORM_LABEL[value],
-                          }))}
-                          onChange={setPlatform}
-                        />
-                      )}
-                      {sourceKind !== 'file' && (
-                        <label className="field">
-                          <span className="field__label">
-                            {sourceKind === 'live'
-                              ? `Link da live na ${PLATFORM_LABEL[platform]}`
-                              : sourceKind === 'vod'
-                                ? `Link do VOD na ${PLATFORM_LABEL[platform]}`
-                                : 'Link do vídeo'}
-                          </span>
-                          <input
-                            className={`input ${link !== '' && sourceProblem !== null ? 'input--error' : ''}`}
-                            placeholder="https://"
-                            value={link}
-                            onChange={(event) => {
-                              setLink(event.target.value);
-                            }}
-                            autoFocus
-                          />
-                          <AnimatePresence>
-                            {link !== '' && sourceProblem !== null && (
-                              <motion.span
-                                className="field__hint"
-                                initial={{ opacity: 0, y: -4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0 }}
-                              >
-                                {sourceProblem}
-                              </motion.span>
-                            )}
-                          </AnimatePresence>
-                        </label>
-                      )}
-                      {sourceKind === 'vod' && (
-                        <div className="grid grid--2">
-                          <label className="field">
-                            <span className="field__label">Começar em (opcional)</span>
-                            <input
-                              className="input"
-                              placeholder="1:20:00"
-                              value={from}
-                              onChange={(event) => {
-                                setFrom(event.target.value);
-                              }}
-                            />
-                          </label>
-                          <label className="field">
-                            <span className="field__label">Terminar em (opcional)</span>
-                            <input
-                              className="input"
-                              placeholder="1:45:00"
-                              value={to}
-                              onChange={(event) => {
-                                setTo(event.target.value);
-                              }}
-                            />
-                          </label>
-                          <p className="field__hint" style={{ gridColumn: '1 / -1' }}>
-                            Em lives longas, baixar só um trecho é bem mais rápido.
-                          </p>
-                        </div>
-                      )}
-                      {sourceKind === 'live' && (
-                        <p className="field__hint">
-                          O painel acompanha a live e salva cada momento forte, até ela acabar ou
-                          você parar.
+                    ) : !ollama.reachable ? (
+                      <div className="stack">
+                        <p>O Ollama não respondeu.</p>
+                        <p className="muted small">
+                          Abra o Ollama ou rode <span className="kbd">ollama serve</span> num
+                          terminal.
                         </p>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                {bottomSection}
-              </>
-            )}
-
-            {step === 3 && (
-              <>
-                <Heading
-                  title="Quem escolhe os cortes?"
-                  text={
-                    queue
-                      ? 'A fila roda sozinha, então quem escolhe é uma chave de API ou a IA local.'
-                      : isLive
-                        ? 'Na live os momentos são detectados sozinhos. Uma IA pode avaliar cada um.'
-                        : 'Uma IA lê a transcrição e escolhe os melhores ganchos.'
-                  }
-                />
-                <div className={`grid grid--${queue ? '2' : '3'}`}>
-                  <Choice
-                    active={selectorKind === 'api'}
-                    icon={<KeyRound size={18} />}
-                    title="Chave de API"
-                    text="Claude, OpenAI ou compatível."
-                    onClick={() => {
-                      setSelectorKind('api');
-                    }}
-                  />
-                  <Choice
-                    active={selectorKind === 'ollama'}
-                    icon={<Cpu size={18} />}
-                    title="IA local"
-                    text="Ollama no seu computador."
-                    onClick={() => {
-                      setSelectorKind('ollama');
-                    }}
-                  />
-                  {queue ? null : isLive ? (
-                    <Choice
-                      active={selectorKind === 'rules'}
-                      icon={<Wand2 size={18} />}
-                      title="Só regras"
-                      text="Volume e chat, sem IA."
-                      onClick={() => {
-                        setSelectorKind('rules');
-                      }}
-                    />
-                  ) : (
-                    <Choice
-                      active={selectorKind === 'agent'}
-                      icon={<Bot size={18} />}
-                      title="Claude ou Codex"
-                      text="Um prompt pronto no terminal."
-                      onClick={() => {
-                        setSelectorKind('agent');
-                      }}
-                    />
-                  )}
-                </div>
-                <AnimatePresence mode="wait">
-                  {selectorKind === 'api' && (
-                    <motion.div key="api" className="panel stack" {...fade}>
-                      {keys.length > 0 && !addingKey && (
-                        <div className="stack" style={{ gap: 8 }}>
-                          {keys.map((key) => (
-                            <motion.button
-                              whileTap={{ scale: 0.98 }}
-                              key={key.id}
-                              type="button"
-                              className={`key-row ${keyId === key.id ? 'key-row--active' : ''}`}
-                              onClick={() => {
-                                setKeyId(key.id);
-                              }}
-                            >
-                              <KeyRound size={16} />
-                              <span className="key-row__name">{key.label}</span>
-                              <span className="muted small">
-                                {providerLabel(key.provider)} · {key.model ?? 'modelo padrão'} ·{' '}
-                                {key.hint}
-                              </span>
-                            </motion.button>
-                          ))}
-                        </div>
-                      )}
-                      {addingKey ? (
-                        <KeyForm
-                          onCancel={() => {
-                            setAddingKey(false);
-                          }}
-                          onSaved={(key) => {
-                            setKeys((current) => [key, ...current]);
-                            setKeyId(key.id);
-                            setAddingKey(false);
-                            toast('Chave guardada com criptografia.');
-                          }}
-                        />
-                      ) : (
                         <Button
                           variant="light"
                           size="small"
-                          lead={<Plus />}
                           onClick={() => {
-                            setAddingKey(true);
+                            setOllama(null);
                           }}
                         >
-                          Adicionar uma chave
+                          Procurar de novo
                         </Button>
-                      )}
-                    </motion.div>
-                  )}
-                  {selectorKind === 'ollama' && (
-                    <motion.div key="ollama" className="panel stack" {...fade}>
-                      {ollama === null ? (
-                        <div className="row muted">
-                          <span className="spinner" /> procurando o Ollama
-                        </div>
-                      ) : !ollama.reachable ? (
-                        <div className="stack">
-                          <p>O Ollama não respondeu.</p>
-                          <p className="muted small">
-                            Abra o Ollama ou rode <span className="kbd">ollama serve</span> num
-                            terminal.
-                          </p>
-                          <Button
-                            variant="light"
-                            size="small"
-                            onClick={() => {
-                              setOllama(null);
-                            }}
-                          >
-                            Procurar de novo
-                          </Button>
-                        </div>
-                      ) : ollama.models.length === 0 ? (
-                        <p className="muted">
-                          Sem modelos. Rode <span className="kbd">ollama pull qwen2.5:7b</span> e
-                          procure de novo.
-                        </p>
-                      ) : (
-                        <label className="field">
-                          <span className="field__label">Modelo</span>
-                          <select
-                            className="input"
-                            value={ollamaModel}
-                            onChange={(event) => {
-                              setOllamaModel(event.target.value);
-                            }}
-                          >
-                            {ollama.models.map((model) => (
-                              <option key={model} value={model}>
-                                {model}
-                              </option>
-                            ))}
-                          </select>
-                          <span className="field__hint">
-                            Modelos maiores escolhem melhor e demoram mais sem placa de vídeo.
-                          </span>
-                        </label>
-                      )}
-                    </motion.div>
-                  )}
-                  {selectorKind === 'agent' && (
-                    <motion.div key="agent" className="panel stack" {...fade}>
-                      <Segmented
-                        id="agent"
-                        value={agent}
-                        options={[
-                          { value: 'claude', label: 'Claude Code' },
-                          { value: 'codex', label: 'Codex' },
-                        ]}
-                        onChange={setAgent}
-                      />
-                      <p className="muted small" style={{ lineHeight: 1.6 }}>
-                        O painel baixa e transcreve o vídeo e mostra um prompt pronto. Você cola no{' '}
-                        {agent === 'claude' ? 'Claude Code' : 'Codex'}, ele escolhe os cortes e o
-                        painel termina sozinho. Usa a sua assinatura, sem chave de API.
+                      </div>
+                    ) : ollama.models.length === 0 ? (
+                      <p className="muted">
+                        Sem modelos. Rode <span className="kbd">ollama pull qwen2.5:7b</span> e
+                        procure de novo.
                       </p>
-                    </motion.div>
-                  )}
-                  {selectorKind === 'rules' && (
-                    <motion.div key="rules" className="panel" {...fade}>
-                      <p className="muted small" style={{ lineHeight: 1.6 }}>
-                        Os momentos saem do pico de volume e, na Twitch, da explosão do chat. É o
-                        mais rápido, mas não avalia o gancho.
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </>
-            )}
+                    ) : (
+                      <label className="field">
+                        <span className="field__label">Modelo</span>
+                        <select
+                          className="input"
+                          value={ollamaModel}
+                          onChange={(event) => {
+                            setOllamaModel(event.target.value);
+                          }}
+                        >
+                          {ollama.models.map((model) => (
+                            <option key={model} value={model}>
+                              {model}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="field__hint">
+                          Modelos maiores escolhem melhor e demoram mais sem placa de vídeo.
+                        </span>
+                      </label>
+                    )}
+                  </motion.div>
+                )}
+                {selectorKind === 'agent' && (
+                  <motion.div key="agent" className="panel stack" {...fade}>
+                    <Segmented
+                      id="agent"
+                      value={agent}
+                      options={[
+                        { value: 'claude', label: 'Claude Code' },
+                        { value: 'codex', label: 'Codex' },
+                      ]}
+                      onChange={setAgent}
+                    />
+                    <p className="muted small" style={{ lineHeight: 1.6 }}>
+                      O painel baixa e transcreve o vídeo e mostra um prompt pronto. Você cola no{' '}
+                      {agent === 'claude' ? 'Claude Code' : 'Codex'}, ele escolhe os cortes e o
+                      painel termina sozinho. Usa a sua assinatura, sem chave de API.
+                    </p>
+                  </motion.div>
+                )}
+                {selectorKind === 'rules' && (
+                  <motion.div key="rules" className="panel" {...fade}>
+                    <p className="muted small" style={{ lineHeight: 1.6 }}>
+                      Os momentos saem do pico de volume e, na Twitch, da explosão do chat. É o mais
+                      rápido, mas não avalia o gancho.
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          )}
 
-            {step === 4 && (
-              <>
-                <Heading
-                  title="Tudo certo?"
-                  text={
-                    queue
-                      ? 'A fila roda sozinha. Pode deixar o computador trabalhando.'
-                      : 'Confira e comece. Você acompanha cada etapa ao vivo.'
-                  }
-                />
-                <div className="panel stack">
-                  <label className="field">
-                    <span className="field__label">Nome (opcional)</span>
-                    <input
-                      className="input"
-                      maxLength={120}
-                      placeholder="Ex.: Live do sábado"
-                      value={title}
-                      onChange={(event) => {
-                        setTitle(event.target.value);
+          {step === 4 && (
+            <>
+              <Heading
+                title="Tudo certo?"
+                text={
+                  queue
+                    ? 'A fila roda sozinha. Pode deixar o computador trabalhando.'
+                    : 'Confira e comece. Você acompanha cada etapa ao vivo.'
+                }
+              />
+              <div className="panel stack">
+                <label className="field">
+                  <span className="field__label">Nome (opcional)</span>
+                  <input
+                    className="input"
+                    maxLength={120}
+                    placeholder="Ex.: Live do sábado"
+                    value={title}
+                    onChange={(event) => {
+                      setTitle(event.target.value);
+                    }}
+                  />
+                </label>
+                {queue ? (
+                  <div className="queue-review">
+                    <div className="field">
+                      <span className="field__label">Como rodar</span>
+                      <Segmented
+                        id="run-mode"
+                        value={runMode}
+                        options={[
+                          { value: 'queue', label: 'Em fila' },
+                          { value: 'together', label: 'Simultâneo' },
+                        ]}
+                        onChange={setRunMode}
+                      />
+                      <AnimatePresence mode="wait" initial={false}>
+                        <motion.span
+                          key={runMode}
+                          className="field__hint"
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={{ duration: 0.25, ease: EASE }}
+                        >
+                          {runMode === 'queue'
+                            ? 'Um vídeo por vez: termina um e começa o próximo. Mais leve para o computador.'
+                            : 'Todos começam juntos: baixam, transcrevem e escolhem lado a lado, e cada corte sai assim que fica pronto. As partes pesadas se revezam para não travar o computador.'}
+                        </motion.span>
+                      </AnimatePresence>
+                    </div>
+                    {queueGroups
+                      .filter((ref) => (queueItems[ref]?.length ?? 0) > 0)
+                      .map((ref) => {
+                        const account = accounts.find((item) => item.id === ref) ?? null;
+                        const items = queueItems[ref] ?? [];
+                        return (
+                          <div key={ref || 'sem-conta'} className="queue-review__group">
+                            <div className="queue-review__row">
+                              {account !== null ? (
+                                <Avatar account={account} size={30} />
+                              ) : (
+                                <span className="queue__blank">
+                                  <Film size={14} />
+                                </span>
+                              )}
+                              <span className="queue-review__name">
+                                {account?.name ?? account?.id ?? 'Sem conta'}
+                              </span>
+                              <span className="muted small">
+                                {items.length} {items.length === 1 ? 'vídeo' : 'vídeos'}
+                              </span>
+                            </div>
+                            {items.map((item) => (
+                              <div key={item.key} className="queue-review__video">
+                                <span className="queue__kind">{queueKindLabel(item.source)}</span>
+                                <span className="queue__label">{item.label}</span>
+                                {item.source.type === 'live' || brainOptions.length === 0 ? (
+                                  <span className="muted small">IA padrão</span>
+                                ) : (
+                                  <Segmented
+                                    id={`brain-${item.key}`}
+                                    value={item.brain}
+                                    options={[
+                                      { value: 'default' as const, label: 'Padrão' },
+                                      ...brainOptions,
+                                    ]}
+                                    onChange={(next) => {
+                                      setBrain(ref, item.key, next);
+                                    }}
+                                  />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    <span className="field__hint">
+                      Padrão usa{' '}
+                      {selector === null ? 'a IA escolhida' : selectorLabel(selector, keys)}.{' '}
+                      {brainOptions.length > 0
+                        ? 'Troque em cada vídeo se quiser.'
+                        : 'Com uma chave de API ou o Ollama aberto, dá para escolher a IA de cada vídeo.'}{' '}
+                      Cada conta recebe a própria marca d’água, e os vídeos alternam entre as contas
+                      para todas receberem cortes desde o começo.
+                    </span>
+                  </div>
+                ) : accounts.length > 0 ? (
+                  <div className="watermark">
+                    <span className="field__label">Colocar marca d’água?</span>
+                    <Segmented
+                      id="watermark"
+                      value={watermark}
+                      options={[
+                        { value: 'on', label: 'Com marca d’água' },
+                        { value: 'off', label: 'Sem marca d’água' },
+                      ]}
+                      onChange={(next) => {
+                        setWatermark(next);
+                        if (next === 'on' && chosenAccounts.length === 0) {
+                          const fallback = accounts.find((item) => item.isDefault) ?? accounts[0];
+                          if (fallback !== undefined) setChosenAccounts([fallback.id]);
+                        }
                       }}
                     />
-                  </label>
-                  {queue ? (
-                    <div className="queue-review">
-                      <div className="field">
-                        <span className="field__label">Como rodar</span>
-                        <Segmented
-                          id="run-mode"
-                          value={runMode}
-                          options={[
-                            { value: 'queue', label: 'Em fila' },
-                            { value: 'together', label: 'Simultâneo' },
-                          ]}
-                          onChange={setRunMode}
-                        />
-                        <AnimatePresence mode="wait" initial={false}>
-                          <motion.span
-                            key={runMode}
-                            className="field__hint"
-                            initial={{ opacity: 0, y: 4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            transition={{ duration: 0.25, ease: EASE }}
-                          >
-                            {runMode === 'queue'
-                              ? 'Um vídeo por vez: termina um e começa o próximo. Mais leve para o computador.'
-                              : 'Todos começam juntos: baixam, transcrevem e escolhem lado a lado, e cada corte sai assim que fica pronto. As partes pesadas se revezam para não travar o computador.'}
-                          </motion.span>
-                        </AnimatePresence>
-                      </div>
-                      {queueGroups
-                        .filter((ref) => (queueItems[ref]?.length ?? 0) > 0)
-                        .map((ref) => {
-                          const account = accounts.find((item) => item.id === ref) ?? null;
-                          const items = queueItems[ref] ?? [];
-                          return (
-                            <div key={ref || 'sem-conta'} className="queue-review__group">
-                              <div className="queue-review__row">
-                                {account !== null ? (
-                                  <Avatar account={account} size={30} />
-                                ) : (
-                                  <span className="queue__blank">
-                                    <Film size={14} />
-                                  </span>
-                                )}
-                                <span className="queue-review__name">
-                                  {account?.name ?? account?.id ?? 'Sem conta'}
-                                </span>
-                                <span className="muted small">
-                                  {items.length} {items.length === 1 ? 'vídeo' : 'vídeos'}
-                                </span>
-                              </div>
-                              {items.map((item) => (
-                                <div key={item.key} className="queue-review__video">
-                                  <span className="queue__kind">{queueKindLabel(item.source)}</span>
-                                  <span className="queue__label">{item.label}</span>
-                                  {item.source.type === 'live' || brainOptions.length === 0 ? (
-                                    <span className="muted small">IA padrão</span>
-                                  ) : (
-                                    <Segmented
-                                      id={`brain-${item.key}`}
-                                      value={item.brain}
-                                      options={[
-                                        { value: 'default' as const, label: 'Padrão' },
-                                        ...brainOptions,
-                                      ]}
-                                      onChange={(next) => {
-                                        setBrain(ref, item.key, next);
-                                      }}
-                                    />
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        })}
-                      <span className="field__hint">
-                        Padrão usa{' '}
-                        {selector === null ? 'a IA escolhida' : selectorLabel(selector, keys)}.{' '}
-                        {brainOptions.length > 0
-                          ? 'Troque em cada vídeo se quiser.'
-                          : 'Com uma chave de API ou o Ollama aberto, dá para escolher a IA de cada vídeo.'}{' '}
-                        Cada conta recebe a própria marca d’água, e os vídeos alternam entre as
-                        contas para todas receberem cortes desde o começo.
-                      </span>
-                    </div>
-                  ) : accounts.length > 0 ? (
-                    <div className="watermark">
-                      <span className="field__label">Colocar marca d’água?</span>
-                      <Segmented
-                        id="watermark"
-                        value={watermark}
-                        options={[
-                          { value: 'on', label: 'Com marca d’água' },
-                          { value: 'off', label: 'Sem marca d’água' },
-                        ]}
-                        onChange={(next) => {
-                          setWatermark(next);
-                          if (next === 'on' && chosenAccounts.length === 0) {
-                            const fallback = accounts.find((item) => item.isDefault) ?? accounts[0];
-                            if (fallback !== undefined) setChosenAccounts([fallback.id]);
-                          }
-                        }}
-                      />
-                      <AnimatePresence initial={false}>
-                        {watermark === 'on' && (
-                          <motion.div
-                            className="watermark__accounts"
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.35, ease: EASE }}
-                          >
-                            {accounts.map((account) => {
-                              const on = chosenAccounts.includes(account.id);
-                              return (
-                                <motion.button
-                                  whileTap={{ scale: 0.94 }}
-                                  key={account.id}
-                                  type="button"
-                                  className={`watermark__account ${on ? 'watermark__account--on' : ''}`}
-                                  onClick={() => {
-                                    setChosenAccounts((current) =>
-                                      on
-                                        ? current.filter((value) => value !== account.id)
-                                        : [...current, account.id],
-                                    );
-                                  }}
-                                >
-                                  <Avatar account={account} size={32} />
-                                  {account.name ?? account.id}
-                                </motion.button>
-                              );
-                            })}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                      <span className="field__hint">
-                        {watermark === 'off'
-                          ? 'O corte sai limpo, sem nome nem logo.'
-                          : chosenAccounts.length === 0
-                            ? 'Escolha pelo menos um perfil, ou marque sem marca d’água.'
-                            : chosenAccounts.length > 1
-                              ? 'Sai uma versão do corte para cada perfil.'
-                              : 'O nome e a logo do perfil vão no canto do corte.'}
-                      </span>
-                    </div>
-                  ) : (
-                    <p className="muted small">
-                      Os cortes saem sem marca d’água. Crie um perfil na página inicial se quiser
-                      usar.
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-          </motion.section>
-        </AnimatePresence>
+                    <AnimatePresence initial={false}>
+                      {watermark === 'on' && (
+                        <motion.div
+                          className="watermark__accounts"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.35, ease: EASE }}
+                        >
+                          {accounts.map((account) => {
+                            const on = chosenAccounts.includes(account.id);
+                            return (
+                              <motion.button
+                                whileTap={{ scale: 0.94 }}
+                                key={account.id}
+                                type="button"
+                                className={`watermark__account ${on ? 'watermark__account--on' : ''}`}
+                                onClick={() => {
+                                  setChosenAccounts((current) =>
+                                    on
+                                      ? current.filter((value) => value !== account.id)
+                                      : [...current, account.id],
+                                  );
+                                }}
+                              >
+                                <Avatar account={account} size={32} />
+                                {account.name ?? account.id}
+                              </motion.button>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                    <span className="field__hint">
+                      {watermark === 'off'
+                        ? 'O corte sai limpo, sem nome nem logo.'
+                        : chosenAccounts.length === 0
+                          ? 'Escolha pelo menos um perfil, ou marque sem marca d’água.'
+                          : chosenAccounts.length > 1
+                            ? 'Sai uma versão do corte para cada perfil.'
+                            : 'O nome e a logo do perfil vão no canto do corte.'}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="muted small">
+                    Os cortes saem sem marca d’água. Crie um perfil na página inicial se quiser
+                    usar.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </section>
 
         <div className="wizard__nav">
           <Button
