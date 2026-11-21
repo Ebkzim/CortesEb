@@ -9,6 +9,8 @@ export interface FinishedClip {
   clipId: string;
   title: string;
   hook: string | null;
+  description: string | null;
+  hashtags: string[];
   score: number | null;
   account: string | null;
 }

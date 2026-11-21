@@ -13,6 +13,7 @@ import { evaluatePolicy } from './publish-policy.js';
 import { PublishWorker } from './publish-worker.js';
 import { PublishError } from './publisher.js';
 import { isGoogleUpload, YoutubePublisher, type FetchLike } from './youtube-publisher.js';
+import type { PostText, PostTextLookup } from './post-text.js';
 import { QueueService, type EnqueueRequest } from './queue.service.js';
 import { QueueStore, type NewJob } from './queue-store.js';
 
@@ -139,17 +140,20 @@ describe('QueueService', () => {
   let video = '';
   let store: QueueStore;
   let service: QueueService;
+  let texts: Record<string, PostText> = {};
+  const library: PostTextLookup = { find: (file) => Promise.resolve(texts[file] ?? null) };
 
   beforeEach(async () => {
     dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-service-'));
     video = path.join(dir, 'meu-corte_legal.mp4');
     await fs.writeFile(video, 'x');
+    texts = {};
     store = new QueueStore({ queueFile: path.join(dir, 'queue.json') } as AppPaths);
     const accounts = {
       resolve: (requested: readonly string[] | undefined) =>
         Promise.resolve((requested ?? ['main', 'segunda']).map((id) => ({ id }))),
     } as unknown as AccountService;
-    service = new QueueService(store, accounts);
+    service = new QueueService(store, accounts, library);
   });
 
   afterEach(async () => {
@@ -197,10 +201,36 @@ describe('QueueService', () => {
     expect((await service.summary()).byStatus.pending).toBe(0);
   });
 
+  it('uses the post text written by the ai for clips from the library', async () => {
+    texts[video] = {
+      title: 'David Jones e a Rockstar',
+      description: 'Ele jogou do lado do diretor. Você acredita?',
+      hashtags: ['gta6', 'rockstar'],
+    };
+    const [job] = await service.enqueue(request({ accounts: ['main'], platforms: ['instagram'] }));
+    expect(job?.title).toBe('David Jones e a Rockstar');
+    expect(job?.description).toBe('Ele jogou do lado do diretor. Você acredita?');
+    expect(job?.tags).toEqual(['gta6', 'rockstar']);
+    const [manual] = await service.enqueue(
+      request({
+        accounts: ['main'],
+        platforms: ['instagram'],
+        title: 'Outro',
+        description: 'meu texto',
+        tags: ['x'],
+      }),
+    );
+    expect(manual?.title).toBe('Outro');
+    expect(manual?.description).toBe('meu texto');
+    expect(manual?.tags).toEqual(['x']);
+  });
+
   it('refuses to enqueue without any account', async () => {
-    const empty = new QueueService(store, {
-      resolve: () => Promise.resolve([]),
-    } as unknown as AccountService);
+    const empty = new QueueService(
+      store,
+      { resolve: () => Promise.resolve([]) } as unknown as AccountService,
+      library,
+    );
     await expect(empty.enqueue(request())).rejects.toThrow();
   });
 });

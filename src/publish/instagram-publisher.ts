@@ -166,10 +166,11 @@ export function captionOf(job: Job): string {
     .filter((tag) => tag !== '')
     .slice(0, MAX_HASHTAGS)
     .map((tag) => `#${tag}`);
-  const text = [job.title.trim(), job.description.trim()]
-    .filter((part, index, parts) => part !== '' && parts.indexOf(part) === index)
-    .join('\n\n');
-  const missing = hashtags.filter((tag) => !text.toLowerCase().includes(tag.toLowerCase()));
+  const text = job.description.trim() === '' ? job.title.trim() : job.description.trim();
+  const present = new Set(
+    [...text.matchAll(/#([\p{L}\p{N}_]+)/gu)].map((match) => `#${match[1] ?? ''}`.toLowerCase()),
+  );
+  const missing = hashtags.filter((tag) => !present.has(tag.toLowerCase()));
   const tail = missing.join(' ');
   const full = [text, tail].filter((part) => part !== '').join('\n\n');
   return full.slice(0, MAX_CAPTION);

@@ -133,6 +133,28 @@ describe('parseAnswer', () => {
     expect(() => parseAnswer('{"clips":[{"first_line":1}]}', chunk)).toThrow();
     expect(() => parseAnswer('nada', chunk)).toThrow();
   });
+
+  it('keeps the post text and cleans the hashtags down to the clip', () => {
+    const text = JSON.stringify({
+      clips: [
+        {
+          ...(item(1, 3) as object),
+          description: 'Ele contou tudo. E você?',
+          hashtags: ['#gta6', 'GTA6', 'rock star', 'ok_1', '!!', 42],
+        },
+        { ...(item(4, 4) as object), description: 5, hashtags: 'gta' },
+      ],
+    });
+    const [first, second] = parseAnswer(text, chunk);
+    expect(first?.description).toBe('Ele contou tudo. E você?');
+    expect(first?.hashtags).toEqual(['gta6', 'rockstar', 'ok_1']);
+    expect(second?.description).toBeUndefined();
+    expect(second?.hashtags).toBeUndefined();
+    if (first === undefined) throw new Error('sem corte');
+    const clip = toClip({ ...first, start: 120, end: 160 }, 0, 600);
+    expect(clip.description).toBe('Ele contou tudo. E você?');
+    expect(clip.hashtags).toEqual(['gta6', 'rockstar', 'ok_1']);
+  });
 });
 
 describe('candidate selection', () => {

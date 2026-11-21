@@ -14,6 +14,8 @@ export interface LibraryInput {
   clipId: string;
   title: string;
   hook: string | null;
+  description: string | null;
+  hashtags: string[];
   score: number | null;
   account: string | null;
 }
@@ -62,6 +64,8 @@ export class LibraryService {
       day,
       title: input.title.slice(0, 200),
       hook: input.hook?.slice(0, 500) ?? null,
+      description: input.description?.slice(0, 2200) ?? null,
+      hashtags: input.hashtags.slice(0, 15),
       score: input.score,
       seconds: Number(seconds.toFixed(2)),
       file: path.join(folder, `${name}.mp4`),

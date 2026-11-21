@@ -1,4 +1,4 @@
-import type { Clip } from '../contracts/cuts.js';
+import { cleanHashtags, type Clip } from '../contracts/cuts.js';
 import type { Word } from '../contracts/media.js';
 import { nearest, sentenceEnds, sentenceStarts } from '../timeline/boundaries.js';
 import type { Candidate } from './prompt.js';
@@ -72,6 +72,12 @@ export function toClip(picked: Picked, index: number, total: number): Clip {
     hook: picked.hook.slice(0, 500),
     title: picked.title.slice(0, 200),
     ...(picked.topic === undefined || picked.topic === '' ? {} : { topic: picked.topic }),
+    ...(picked.description === undefined || picked.description === ''
+      ? {}
+      : { description: picked.description.slice(0, 2200) }),
+    ...(picked.hashtags === undefined || picked.hashtags.length === 0
+      ? {}
+      : { hashtags: cleanHashtags(picked.hashtags) }),
   };
 }
 

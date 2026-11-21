@@ -105,6 +105,8 @@ describe('repositories on a real database', () => {
         day,
         title: 'c',
         hook: null,
+        description: null,
+        hashtags: [],
         score: 8,
         seconds: 30,
         file: 'f.mp4',

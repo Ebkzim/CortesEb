@@ -63,6 +63,8 @@ model Clip {
   day       String
   title     String
   hook      String?
+  description String?
+  hashtags  Json     @default("[]")
   score     Int?
   seconds   Float
   file      String

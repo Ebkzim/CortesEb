@@ -15,6 +15,26 @@ export const cropSchema = z.strictObject({
   h: z.number().positive(),
 });
 
+export const HASHTAG_PATTERN = /^#?[\p{L}\p{N}_]{1,30}$/u;
+
+export const MAX_HASHTAGS = 15;
+
+export const hashtagsSchema = z.array(z.string().trim().regex(HASHTAG_PATTERN)).max(MAX_HASHTAGS);
+
+export function cleanHashtags(list: readonly unknown[]): string[] {
+  const seen = new Set<string>();
+  const clean: string[] = [];
+  for (const item of list) {
+    if (typeof item !== 'string') continue;
+    const tag = item.trim().replace(/^#+/, '').replace(/\s+/g, '');
+    if (!HASHTAG_PATTERN.test(tag) || seen.has(tag.toLowerCase())) continue;
+    seen.add(tag.toLowerCase());
+    clean.push(tag);
+    if (clean.length === MAX_HASHTAGS) break;
+  }
+  return clean;
+}
+
 export const paceSchema = z.enum(['jump', 'steady', 'flash']);
 
 export const clipImageSchema = z
@@ -47,6 +67,8 @@ export const clipSchema = z
     hook: z.string().max(500).optional(),
     score: z.number().min(0).max(10).optional(),
     title: z.string().max(200).optional(),
+    description: z.string().trim().max(2200).optional(),
+    hashtags: hashtagsSchema.optional(),
     credit: z.string().trim().min(1).max(80).optional(),
     accounts: z.array(z.string().regex(ACCOUNT_REF_PATTERN)).min(1).max(20).optional(),
   })

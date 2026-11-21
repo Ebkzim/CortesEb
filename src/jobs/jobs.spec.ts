@@ -137,6 +137,8 @@ describe('LibraryService', () => {
           clipId: '01-gancho',
           title: 'Gancho',
           hook: 'olha isso',
+          description: 'texto do post',
+          hashtags: ['gta6'],
           score: 8,
           account: null,
         },

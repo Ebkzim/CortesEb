@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_HASHTAGS } from '../contracts/cuts.js';
 import type { ClipTargets } from '../planning/clip-targets.js';
 import type { TranscriptChunk } from './transcript-chunks.js';
 
@@ -9,6 +10,8 @@ export const candidateSchema = z.object({
   hook: z.string().trim().min(1).max(500),
   title: z.string().trim().min(1).max(200),
   topic: z.string().trim().max(200).optional(),
+  description: z.string().trim().max(2200).optional(),
+  hashtags: z.array(z.string()).max(MAX_HASHTAGS).optional(),
 });
 
 export const pickSchema = z.object({
@@ -18,6 +21,8 @@ export const pickSchema = z.object({
   why: z.string().trim().max(400).optional(),
   score: z.coerce.number().min(0).max(10),
   title: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2200).optional().catch(undefined),
+  hashtags: z.array(z.unknown()).max(50).optional().catch(undefined),
 });
 
 export const answerSchema = z.object({ clips: z.array(pickSchema).max(10) });
@@ -48,8 +53,19 @@ export function answerJsonSchema(perChunk: number): Record<string, unknown> {
             why: { type: 'string' },
             score: { type: 'number' },
             title: { type: 'string' },
+            description: { type: 'string' },
+            hashtags: { type: 'array', items: { type: 'string' }, maxItems: 8 },
           },
-          required: ['topic', 'first_line', 'last_line', 'why', 'score', 'title'],
+          required: [
+            'topic',
+            'first_line',
+            'last_line',
+            'why',
+            'score',
+            'title',
+            'description',
+            'hashtags',
+          ],
         },
       },
     },
@@ -78,7 +94,9 @@ export function buildSystemPrompt(context: PromptContext): string {
     '- why: one short sentence saying why a stranger would watch until the end.',
     '- score from 0 to 10. 9 or 10 only for excellent moments. Below 6 means not worth cutting. Be strict.',
     `- Return at most ${context.perChunk} clips. Return an empty list if nothing is good: that is better than a weak clip.`,
-    '- Write title, topic and why in the same language as the transcript. The title is a short catchy headline of at most 60 characters.',
+    '- Write title, topic, why and description in the same language as the transcript. The title is a short catchy headline of at most 60 characters.',
+    '- description: the text posted with the clip on Instagram, TikTok and YouTube. Two or three short sentences, at most 300 characters: a first line that makes people curious without spoiling the ending, then one line of context (who is talking and about what), then a question or call to comment. Only facts said in the transcript. No hashtags and no emojis spam.',
+    '- hashtags: 3 to 8 hashtags without the # sign, specific to the clip topic first, then the subject area. No spaces, no generic tags like fyp or viral.',
     '',
     ...(context.guidance === undefined || context.guidance === ''
       ? []
@@ -87,7 +105,7 @@ export function buildSystemPrompt(context: PromptContext): string {
           context.guidance,
           '',
         ]),
-    'Answer only with JSON in the form {"clips":[{"topic":"","first_line":0,"last_line":0,"why":"","score":0,"title":""}]}.',
+    'Answer only with JSON in the form {"clips":[{"topic":"","first_line":0,"last_line":0,"why":"","score":0,"title":"","description":"","hashtags":[]}]}.',
   ].join('\n');
 }
 

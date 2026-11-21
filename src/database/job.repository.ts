@@ -40,6 +40,8 @@ export interface NewClip {
   day: string;
   title: string;
   hook: string | null;
+  description: string | null;
+  hashtags: string[];
   score: number | null;
   seconds: number;
   file: string;
@@ -128,6 +130,10 @@ export class JobRepository {
 
   addClip(input: NewClip): Promise<ClipRow> {
     return this.prisma.db.clip.create({ data: { ...input, sizeBytes: BigInt(input.sizeBytes) } });
+  }
+
+  clipByFile(file: string): Promise<ClipRow | null> {
+    return this.prisma.db.clip.findFirst({ where: { file }, orderBy: { createdAt: 'desc' } });
   }
 
   clipsOfJob(jobId: string): Promise<ClipRow[]> {

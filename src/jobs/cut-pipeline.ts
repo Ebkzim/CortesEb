@@ -305,6 +305,8 @@ export class CutPipeline implements Pipeline {
           clipId: result.id,
           title: clip?.title ?? clip?.hook ?? result.id,
           hook: clip?.hook ?? null,
+          description: clip?.description ?? null,
+          hashtags: clip?.hashtags ?? [],
           score: clip?.score ?? null,
           account: result.account,
         });
@@ -532,6 +534,8 @@ export class CutPipeline implements Pipeline {
         clipId: result.id,
         title: clip?.title ?? clip?.hook ?? result.id,
         hook: clip?.hook ?? null,
+        description: clip?.description ?? null,
+        hashtags: clip?.hashtags ?? [],
         score: clip?.score ?? null,
         account: result.account,
       });
