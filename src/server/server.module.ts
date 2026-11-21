@@ -11,6 +11,7 @@ import { TranscriptionModule } from '../transcription/transcription.module.js';
 import { FilesController } from './files.controller.js';
 import { JobsController } from './jobs.controller.js';
 import { LibraryController } from './library.controller.js';
+import { NetworksController } from './networks.controller.js';
 import { PublishController } from './publish.controller.js';
 import { DeskController } from './desk.controller.js';
 import { SESSION_GATE, SessionController } from './session.controller.js';
@@ -41,6 +42,7 @@ export class ServerModule {
         FilesController,
         PublishController,
         DeskController,
+        NetworksController,
       ],
       providers: [{ provide: SESSION_GATE, useValue: gate }],
     };
