@@ -107,6 +107,24 @@ cortes-eb ui
 
 O painel abre no navegador. Nas próximas vezes, basta abrir o terminal e rodar `cortes-eb ui`.
 
+## Contas e aquecimento
+
+Na aba **Contas**, cadastre os perfis e conecte TikTok, Instagram e YouTube pelo Chrome. O login fica salvo separadamente para cada conta e rede. As mesmas contas continuam acessíveis em Configurações.
+
+Selecione uma conta na lista e abra **Aquecimento** no cartão de uma rede. Em **Metas**, defina quantos vídeos assistir, curtir, comentar ou responder, o tempo de reprodução e o intervalo entre vídeos. Curtidas em comentários estão disponíveis no Instagram e no YouTube. Comentários e respostas usam o texto disponível na página e a IA escolhida em **Preferências**: Ollama, uma chave cadastrada no painel ou a configuração da CLI.
+
+Em **Atividade**, veja a etapa atual, a contagem regressiva, os totais por ação e uma prévia compacta do navegador. O histórico tem busca, filtros e rolagem própria. A captura pode ser ampliada e não é uma transmissão ao vivo. A configuração fica bloqueada enquanto a sessão executa.
+
+Em **Preferências → Modo de busca**, **Econômica** é o padrão para computadores mais fracos: espera 2,5 segundos entre tentativas de busca, reaproveita o vídeo ativo no feed do TikTok e limita as capturas comuns a uma a cada 20 segundos, com qualidade reduzida. **Padrão** espera 1,2 segundo entre tentativas e captura cada etapa. Estados que precisam de atenção recebem uma captura mesmo no modo econômico.
+
+O modo por metas para ao concluir. O modo contínuo renova as metas à meia-noite, no horário do computador. Os contadores do dia são preservados ao parar e iniciar novamente; interações podem exigir assistir a mais vídeos que a meta. Mantenha o serviço do painel rodando para executar as sessões. Ao reiniciar o serviço, as sessões ficam paradas até você iniciá-las novamente.
+
+Em **Preferências → Resolver verificações**, **No Chrome** abre a janela original diretamente, reduzindo o trabalho de captura e transmissão da tela. É a opção indicada para computadores mais lentos. O modo **No painel** continua disponível. Os vídeos são pausados durante a espera pela resolução manual.
+
+Se uma rede pedir verificação, a página original permanece aberta e a resolução acontece na janela do Chrome ou na tela interativa, conforme o modo escolhido. Resolva manualmente; o aquecimento continua na mesma sessão. Cancelar encerra a espera e mantém o progresso salvo.
+
+A publicação tem prioridade entre ciclos. O histórico registra tentativas e ações confirmadas; quando há verificação, sessão expirada ou uma ação sem confirmação, o aquecimento pausa para conferência. Tentativas já registradas não são repetidas automaticamente no mesmo vídeo. Um bloqueio de perfil impede login, publicação e aquecimento de abrirem o mesmo perfil do Chrome simultaneamente.
+
 ## Dicas
 
 - Em computadores mais fracos, instale com `npm run instalar -- --whisper=base` para deixar a transcrição mais leve.
