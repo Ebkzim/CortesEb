@@ -24,6 +24,7 @@ export const FLOW_TIMING: FlowTiming = {
 export interface PromptRules {
   inDialogs: RegExp | null;
   anywhere: RegExp | null;
+  texts?: RegExp;
 }
 
 const DIALOGS = '[role="dialog"], [class*="modal" i]';
@@ -195,6 +196,13 @@ export async function dismissPrompts(page: Page, rules: PromptRules): Promise<nu
         await button.click({ timeout: 5_000 }).catch(() => undefined);
         closed += 1;
       }
+    }
+  }
+  if (rules.texts !== undefined) {
+    const item = page.getByText(rules.texts).first();
+    if (await item.isVisible().catch(() => false)) {
+      await item.click({ timeout: 5_000 }).catch(() => undefined);
+      closed += 1;
     }
   }
   if (closed > 0) await page.waitForTimeout(400);
