@@ -190,6 +190,7 @@ export interface PublishOutcome {
 }
 
 export interface DeskState {
+  mode?: 'browser' | 'panel';
   id: string;
   reason: 'captcha' | 'login' | 'verify';
   platform: PublishPlatform;
@@ -214,6 +215,7 @@ export interface LoginWindowView {
 }
 
 export interface NetworkView {
+  browserConnected?: boolean;
   platform: PublishPlatform;
   method: PublishMethod;
   connected: boolean;

@@ -10,6 +10,7 @@ export const DESK_REASONS = ['captcha', 'login', 'verify'] as const;
 export type DeskReason = (typeof DESK_REASONS)[number];
 
 export interface DeskState {
+  mode?: 'browser' | 'panel';
   id: string;
   reason: DeskReason;
   platform: BrowserPlatform;
@@ -55,6 +56,7 @@ export const deskInputSchema = z.discriminatedUnion('type', [
 export type DeskInput = z.infer<typeof deskInputSchema>;
 
 export interface HumanRequest {
+  mode?: 'browser' | 'panel';
   reason: DeskReason;
   platform: BrowserPlatform;
   account: string;
@@ -62,6 +64,7 @@ export interface HumanRequest {
   solved: () => Promise<boolean>;
   timeoutMs: number;
   pollMs?: number;
+  signal?: AbortSignal;
 }
 
 export type Notifier = (title: string, body: string) => void;
@@ -89,11 +92,13 @@ export class RemoteDesk {
     if (this.current !== null) {
       throw new AppError('PROCESS_FAILED', 'já existe uma verificação esperando você');
     }
+    if (request.signal?.aborted) return false;
     this.page = page;
     this.cancelled = false;
     this.current = {
       id: randomBytes(6).toString('hex'),
       reason: request.reason,
+      mode: request.mode ?? 'panel',
       platform: request.platform,
       account: request.account,
       message: request.message,
@@ -104,7 +109,7 @@ export class RemoteDesk {
     this.notify('CortesEb precisa de você', request.message);
     const deadline = Date.now() + request.timeoutMs;
     try {
-      while (Date.now() < deadline && !this.wasCancelled()) {
+      while (Date.now() < deadline && !this.wasCancelled() && !request.signal?.aborted) {
         if (await request.solved().catch(() => false)) return true;
         await new Promise((resolve) => setTimeout(resolve, request.pollMs ?? 1500));
       }
@@ -125,9 +130,9 @@ export class RemoteDesk {
     return true;
   }
 
-  async frame(): Promise<Buffer> {
+  async frame(quality = 60): Promise<Buffer> {
     const page = this.requirePage();
-    return page.screenshot({ type: 'jpeg', quality: 60, timeout: 10_000 });
+    return page.screenshot({ type: 'jpeg', quality, timeout: 10_000 });
   }
 
   async input(raw: unknown): Promise<void> {
