@@ -13,6 +13,7 @@ import {
 } from 'react';
 import { api, post } from '@/lib/api';
 import type { DeskSnapshot, DeskState } from '@/lib/types';
+import { SITE_NAME } from './clip-picker';
 import { useToast } from './toast';
 import { Button, EASE } from './ui';
 
@@ -33,10 +34,10 @@ const SPECIAL = new Set([
   'End',
 ]);
 
-const TITLE: Record<DeskState['reason'], string> = {
-  captcha: 'O TikTok pediu uma verificação',
-  login: 'Entre na sua conta do TikTok',
-  verify: 'O TikTok pediu uma confirmação',
+const TITLE: Record<DeskState['reason'], (site: string) => string> = {
+  captcha: (site) => `O ${site} pediu uma verificação`,
+  login: (site) => `Entre na sua conta do ${site}`,
+  verify: (site) => `O ${site} pediu uma confirmação`,
 };
 
 export function DeskWatcher() {
@@ -205,7 +206,7 @@ function DeskDialog({ state, onCancel }: { state: DeskState; onCancel: () => voi
           <span className="row" style={{ gap: 10 }}>
             <ShieldAlert size={20} />
             <span className="stack" style={{ gap: 2 }}>
-              <strong>{TITLE[state.reason]}</strong>
+              <strong>{TITLE[state.reason](SITE_NAME[state.platform])}</strong>
               <span className="muted small">{state.message}</span>
             </span>
           </span>
@@ -219,7 +220,7 @@ function DeskDialog({ state, onCancel }: { state: DeskState; onCancel: () => voi
           style={{ aspectRatio: `${String(state.width)} / ${String(state.height)}` }}
           tabIndex={0}
           role="application"
-          aria-label="tela do navegador do TikTok"
+          aria-label={`tela do navegador do ${SITE_NAME[state.platform]}`}
           onPointerDown={down}
           onPointerMove={move}
           onPointerUp={up}

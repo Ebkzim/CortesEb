@@ -16,6 +16,14 @@ const PLATFORM_LABEL: Record<PublishPlatform, string> = {
   tiktok: 'TikTok',
 };
 
+export const SITE_NAME: Record<PublishPlatform, string> = {
+  instagram: 'Instagram',
+  youtube: 'YouTube',
+  tiktok: 'TikTok',
+};
+
+const PLATFORM_ORDER: PublishPlatform[] = ['tiktok', 'instagram', 'youtube'];
+
 export interface ClipSelection {
   selected: string[];
   has: (id: string) => boolean;
@@ -161,7 +169,7 @@ export function PublishDialog({
   const [sending, setSending] = useState(false);
   const open = clipIds !== null && clipIds.length > 0;
 
-  const [connecting, setConnecting] = useState(false);
+  const [connecting, setConnecting] = useState<PublishPlatform | null>(null);
   const [loginPhase, setLoginPhase] = useState<LoginWindowView['phase'] | null>(null);
 
   const load = useCallback(
@@ -184,7 +192,7 @@ export function PublishDialog({
     if (!open) return;
     setWhen('now');
     setAt(defaultLater());
-    setConnecting(false);
+    setConnecting(null);
     void load(false);
   }, [open, load]);
 
@@ -192,12 +200,18 @@ export function PublishDialog({
     () => status?.targets.find((item) => item.account === account) ?? null,
     [status, account],
   );
-  const hasTikTok = target?.platforms.includes('tiktok') === true;
+  const connected = useMemo(() => target?.platforms ?? [], [target]);
+  const missing = PLATFORM_ORDER.filter(
+    (platform) => status?.methods[platform] === 'browser' && !connected.includes(platform),
+  );
+  const isPrivate = (platform: PublishPlatform): boolean =>
+    platform === 'youtube' && status?.methods.youtube === 'api';
 
   useEffect(() => {
-    if (!connecting || !open) return;
-    if (hasTikTok) {
-      setConnecting(false);
+    if (connecting === null || !open) return;
+    if (connected.includes(connecting)) {
+      setConnecting(null);
+      toast(`${SITE_NAME[connecting]} conectado.`);
       return;
     }
     const timer = window.setInterval(() => {
@@ -205,13 +219,13 @@ export function PublishDialog({
       void api<LoginWindowView[]>('/desk/logins')
         .then((windows) => {
           const mine = windows.find(
-            (item) => item.platform === 'tiktok' && item.account === account,
+            (item) => item.platform === connecting && item.account === account,
           );
           if (mine === undefined) return;
           setLoginPhase(mine.phase);
           if (mine.phase === 'failed') {
-            setConnecting(false);
-            toast(mine.message ?? 'o login no TikTok não foi concluído');
+            setConnecting(null);
+            toast(mine.message ?? `o login no ${SITE_NAME[connecting]} não foi concluído`);
           }
         })
         .catch(() => undefined);
@@ -219,25 +233,29 @@ export function PublishDialog({
     return () => {
       window.clearInterval(timer);
     };
-  }, [connecting, open, hasTikTok, load, account, toast]);
+  }, [connecting, open, connected, load, account, toast]);
 
   useEffect(() => {
     setPlatforms(
-      target?.platforms.filter((item) => item === 'instagram' || item === 'tiktok') ?? [],
+      connected.filter((item) => !(item === 'youtube' && status?.methods.youtube === 'api')),
     );
-  }, [target]);
+  }, [connected, status]);
 
-  async function connectTikTok(): Promise<void> {
+  async function connect(platform: PublishPlatform): Promise<void> {
     try {
       if ('Notification' in window && Notification.permission === 'default') {
         void Notification.requestPermission();
       }
-      await post('/desk/connect', { platform: 'tiktok', account });
-      setConnecting(true);
+      await post('/desk/connect', { platform, account });
+      setConnecting(platform);
       setLoginPhase('open');
-      toast('Abri uma janela do Chrome. Entre no TikTok por lá e feche a janela quando terminar.');
+      toast(
+        `Abri uma janela do Chrome. Entre no ${SITE_NAME[platform]} por lá e feche a janela quando terminar.`,
+      );
     } catch (caught) {
-      toast(caught instanceof Error ? caught.message : 'não consegui abrir o TikTok');
+      toast(
+        caught instanceof Error ? caught.message : `não consegui abrir o ${SITE_NAME[platform]}`,
+      );
     }
   }
 
@@ -339,7 +357,7 @@ export function PublishDialog({
                         key={platform}
                         active={platforms.includes(platform)}
                         title={PLATFORM_LABEL[platform]}
-                        {...(platform === 'youtube' ? { text: 'sai privado até a auditoria' } : {})}
+                        {...(isPrivate(platform) ? { text: 'sai privado até a auditoria' } : {})}
                         onClick={() => {
                           setPlatforms((current) =>
                             current.includes(platform)
@@ -349,23 +367,28 @@ export function PublishDialog({
                         }}
                       />
                     ))}
-                    {!hasTikTok && (
+                    {missing.map((platform) => (
                       <Choice
+                        key={`connect-${platform}`}
                         active={false}
-                        disabled={connecting}
-                        title={connecting ? 'Conectando TikTok' : 'Conectar TikTok'}
+                        disabled={connecting !== null}
+                        title={
+                          connecting === platform
+                            ? `Conectando ${SITE_NAME[platform]}`
+                            : `Conectar ${SITE_NAME[platform]}`
+                        }
                         text={
-                          !connecting
+                          connecting !== platform
                             ? 'abre uma janela do Chrome para o login'
                             : loginPhase === 'checking'
                               ? 'conferindo a sessão'
                               : 'entre na janela do Chrome e feche ao terminar'
                         }
                         onClick={() => {
-                          void connectTikTok();
+                          void connect(platform);
                         }}
                       />
-                    )}
+                    ))}
                   </div>
                   {(target?.platforms.length ?? 0) === 0 && (
                     <span className="field__hint">Esta conta ainda não tem rede conectada.</span>
