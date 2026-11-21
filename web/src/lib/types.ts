@@ -212,3 +212,24 @@ export interface LoginWindowView {
   startedAt: string;
   message: string | null;
 }
+
+export interface NetworkView {
+  platform: PublishPlatform;
+  method: PublishMethod;
+  connected: boolean;
+  handle: string | null;
+  url: string | null;
+  connectedAt: string | null;
+}
+
+export interface AccountNetworks {
+  id: string;
+  name: string | null;
+  networks: NetworkView[];
+}
+
+export interface NetworksOverview {
+  methods: Record<PublishPlatform, PublishMethod>;
+  accounts: AccountNetworks[];
+  logins: LoginWindowView[];
+}
