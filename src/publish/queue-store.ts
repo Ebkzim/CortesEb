@@ -3,6 +3,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
+import {
+  acquireProcessLock,
+  lockHolder,
+  withFileLock,
+  type ProcessLock,
+} from '../common/file-lock.js';
 import { exists, readJson, writeJson } from '../common/json-file.js';
 import { AppPaths } from '../config/app-paths.js';
 import {
@@ -101,13 +107,23 @@ export class QueueStore {
     });
   }
 
+  lockWorker(): Promise<ProcessLock | null> {
+    return acquireProcessLock(`${this.paths.queueFile}.worker`);
+  }
+
+  workerPid(): Promise<number | null> {
+    return lockHolder(`${this.paths.queueFile}.worker`);
+  }
+
   private exclusive<T>(work: (queue: QueueFile) => Promise<T>): Promise<T> {
-    const run = this.lock.then(async () => {
-      const queue = await this.load();
-      const result = await work(queue);
-      await writeJson(this.paths.queueFile, queue, QUEUE_MODE);
-      return result;
-    });
+    const run = this.lock.then(() =>
+      withFileLock(`${this.paths.queueFile}.lock`, async () => {
+        const queue = await this.load();
+        const result = await work(queue);
+        await writeJson(this.paths.queueFile, queue, QUEUE_MODE);
+        return result;
+      }),
+    );
     this.lock = run.catch(() => undefined);
     return run;
   }

@@ -2,13 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Controller, Delete, Get, Headers, Param, ParseUUIDPipe, Query, Res } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
+import { z } from 'zod';
 import { AppError } from '../common/app-error.js';
 import { JobRepository, type DaySummary } from '../database/job.repository.js';
 import { clipView, type ClipView } from '../jobs/job-views.js';
-import { LibraryService } from '../jobs/library.service.js';
+import { LibraryService, localDay } from '../jobs/library.service.js';
+import { MAX_SELECTION } from './publish.controller.js';
 import { parseRange } from './session.js';
+import { uniqueNames, zipSize, zipStream } from './zip-stream.js';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const zipIdsSchema = z.array(z.uuid()).min(1).max(MAX_SELECTION);
 
 @Controller('api')
 export class LibraryController {
@@ -31,6 +35,32 @@ export class LibraryController {
   async day(@Param('day') day: string): Promise<ClipView[]> {
     if (!DAY.test(day)) throw new AppError('INVALID_INPUT', 'dia inválido');
     return (await this.jobs.clipsOfDay(day)).map(clipView);
+  }
+
+  @Get('clips/zip')
+  async zip(@Query('ids') ids: string | undefined, @Res() reply: FastifyReply): Promise<void> {
+    const parsed = zipIdsSchema.safeParse((ids ?? '').split(',').filter(Boolean));
+    if (!parsed.success) throw new AppError('INVALID_INPUT', 'escolha de 1 a 50 clipes');
+    const clips = [];
+    for (const id of new Set(parsed.data)) clips.push(await this.jobs.getClip(id));
+    const files = clips.map((clip) => this.library.absolute(clip.file));
+    const sizes: number[] = [];
+    for (const file of files) sizes.push(await sizeOf(file));
+    const names = uniqueNames(files.map((file) => path.basename(file)));
+    const entries = files.map((file, index) => ({
+      name: names[index] ?? `clipe-${String(index + 1)}.mp4`,
+      file,
+      size: sizes[index] ?? 0,
+    }));
+    const days = new Set(clips.map((clip) => clip.day));
+    const day = days.size === 1 ? [...days][0] : undefined;
+    const name = `cortes-${(day ?? localDay()).replace(/[^0-9-]/g, '')}-${String(entries.length)}.zip`;
+    const stream = zipStream(entries);
+    await reply
+      .header('Content-Type', 'application/zip')
+      .header('Content-Length', String(zipSize(entries)))
+      .header('Content-Disposition', `attachment; filename="${name}"`)
+      .send(stream);
   }
 
   @Get('clips/:id/video')

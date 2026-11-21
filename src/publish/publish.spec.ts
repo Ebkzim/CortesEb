@@ -604,3 +604,49 @@ describe('YoutubePublisher', () => {
     expect(isGoogleUpload('nada')).toBe(false);
   });
 });
+
+describe('cross process safety', () => {
+  let dir = '';
+  let video = '';
+
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-procs-'));
+    video = path.join(dir, 'c.mp4');
+    await fs.writeFile(video, 'x');
+  });
+
+  afterEach(async () => {
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  it('keeps every job when two stores write the same queue at once', async () => {
+    const paths = { queueFile: path.join(dir, 'queue.json') } as AppPaths;
+    const panel = new QueueStore(paths);
+    const worker = new QueueStore(paths);
+    const base = { file: video, account: 'main', platform: 'instagram' as const, title: 't' };
+    await Promise.all(
+      Array.from({ length: 10 }, (_, index) => (index % 2 === 0 ? panel : worker).add(base)),
+    );
+    expect(await panel.list()).toHaveLength(10);
+  });
+
+  it('refuses a second worker on the same queue', async () => {
+    const paths = { queueFile: path.join(dir, 'queue.json') } as AppPaths;
+    const output = { line: () => undefined } as unknown as Output;
+    const outbox = new OutboxPublisher({ outboxDir: path.join(dir, 'out') } as AppPaths);
+    const holder = await new QueueStore(paths).lockWorker();
+    const worker = new PublishWorker(new QueueStore(paths), outbox, output);
+    await expect(
+      worker.run(
+        { once: true, intervalMs: 1, maxAttempts: 1, baseBackoffMs: 1 },
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow(/já existe um worker/);
+    await holder?.release();
+    const summary = await worker.run(
+      { once: true, intervalMs: 1, maxAttempts: 1, baseBackoffMs: 1 },
+      new AbortController().signal,
+    );
+    expect(summary.published).toBe(0);
+  });
+});
