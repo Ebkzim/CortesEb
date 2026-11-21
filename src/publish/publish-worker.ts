@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AppError } from '../common/app-error.js';
 import { Output } from '../common/output.js';
 import type { Job } from '../contracts/publish.js';
 import { OutboxPublisher } from './outbox-publisher.js';
@@ -60,6 +61,22 @@ export class PublishWorker {
   }
 
   async run(options: WorkerOptions, signal: AbortSignal): Promise<WorkerSummary> {
+    const lock = await this.store.lockWorker();
+    if (lock === null) {
+      const pid = await this.store.workerPid();
+      throw new AppError(
+        'PROCESS_FAILED',
+        `já existe um worker de postagem rodando${pid === null ? '' : ` (pid ${String(pid)})`}`,
+      );
+    }
+    try {
+      return await this.loop(options, signal);
+    } finally {
+      await lock.release();
+    }
+  }
+
+  private async loop(options: WorkerOptions, signal: AbortSignal): Promise<WorkerSummary> {
     const summary: WorkerSummary = { published: 0, retried: 0, failed: 0, delayed: 0 };
     const recovered = await this.store.recoverStale();
     if (recovered > 0) this.event({ event: 'recovered', jobs: recovered });

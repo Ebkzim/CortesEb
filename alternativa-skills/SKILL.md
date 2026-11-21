@@ -255,6 +255,8 @@ Estados de cada item: `pending` (espera aprovação), `approved`, `publishing`, 
 - até 3 tentativas com espera crescente em falhas temporárias; erros de autenticação não são repetidos;
 - um item preso em `publishing` por uma queda volta a `approved` na próxima execução.
 
+Para a postagem rodar sozinha sempre que o computador liga (Linux), rode uma vez `cortes-eb service install` (aceita `--max-per-day` e `--min-gap`). `cortes-eb service status` mostra se está ativo e `cortes-eb service uninstall` desliga. Só um worker roda por vez: com o serviço ativo, `queue run` avisa e sai. No painel, cada clipe tem "Postar agora" ou "Agendar", e os clipes selecionados podem ser baixados em ZIP ou publicados juntos; tudo que sai do painel já entra aprovado.
+
 ### Credenciais
 
 As credenciais ficam em um arquivo privado (modo 600) e entram só pela entrada padrão, nunca como argumento nem no chat:

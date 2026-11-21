@@ -27,6 +27,7 @@ import { LayoutCommand } from './commands/layout.command.js';
 import { LlmCommand } from './commands/llm.command.js';
 import { SelectCommand } from './commands/select.command.js';
 import { QueueCommand } from './commands/queue.command.js';
+import { ServiceCommand } from './commands/service.command.js';
 import { LiveCommand, LiveFrameCommand } from './commands/live.command.js';
 import {
   CaptionsCommand,
@@ -83,6 +84,7 @@ import {
     SfxCommand,
     LiveCommand,
     LiveFrameCommand,
+    ServiceCommand,
     QueueCommand,
     CredentialsCommand,
     LlmCommand,
