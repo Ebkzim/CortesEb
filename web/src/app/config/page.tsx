@@ -11,6 +11,7 @@ import {
   Trash2,
   UserRound,
   Waves,
+  X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
@@ -540,6 +541,7 @@ function Accounts() {
   const [busy, setBusy] = useState<string | null>(null);
   const [waiting, setWaiting] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const refresh = useCallback(async (): Promise<NetworksOverview | null> => {
     try {
@@ -586,6 +588,7 @@ function Accounts() {
       setAccounts((current) => [...current.filter((item) => item.id !== account.id), account]);
       setId('');
       setName('');
+      setCreating(false);
       toast('Conta criada. Agora conecte as redes dela.');
       void refresh();
     } catch (caught) {
@@ -679,19 +682,99 @@ function Accounts() {
     );
   }
 
+  const linked = (account: string): number =>
+    networksOf(account).filter((network) => network.connected).length;
+  const totalLinked = accounts.reduce((sum, account) => sum + linked(account.id), 0);
+
   return (
-    <Section
-      title="Contas"
-      text="Cada conta tem a sua marca d’água e as redes onde os clipes dela são postados."
-    >
-      <Row
-        title="Suas contas"
-        text="Clique na foto para trocar a logo. A estrela marca a conta padrão. Conecte cada rede uma vez; o @ aparece sozinho."
-      >
-        {accounts.length === 0 ? (
-          <p className="muted small">Nenhuma conta ainda. Crie a primeira logo abaixo.</p>
-        ) : (
-          accounts.map((account) => (
+    <>
+      <header className="accounts__header">
+        <div className="stack" style={{ gap: 8 }}>
+          <h1 className="title-lg">Contas</h1>
+          <p className="lead">
+            Cada conta tem a sua marca d’água e as redes onde os clipes dela são postados.
+          </p>
+        </div>
+        <div className="accounts__summary">
+          <span className="accounts__count">
+            {accounts.length} {accounts.length === 1 ? 'conta' : 'contas'} · {totalLinked}{' '}
+            {totalLinked === 1 ? 'rede conectada' : 'redes conectadas'}
+          </span>
+          <Button
+            size="small"
+            variant={creating ? 'ghost' : undefined}
+            lead={creating ? <X /> : <Plus />}
+            onClick={() => {
+              setCreating((current) => !current);
+            }}
+          >
+            {creating ? 'Fechar' : 'Nova conta'}
+          </Button>
+        </div>
+      </header>
+
+      <AnimatePresence initial={false}>
+        {creating && (
+          <motion.div
+            key="new-account"
+            className="account-new"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <div className="account-new__inner">
+              <label className="field">
+                <span className="field__label">Identificador</span>
+                <input
+                  className="input"
+                  placeholder="minha-conta"
+                  value={id}
+                  maxLength={32}
+                  autoFocus
+                  onChange={(event) => {
+                    setId(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
+                  }}
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Nome na marca d’água</span>
+                <input
+                  className="input"
+                  placeholder="@meucanal"
+                  value={name}
+                  maxLength={40}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                  }}
+                />
+              </label>
+              <Button
+                size="small"
+                lead={<Plus />}
+                disabled={id === ''}
+                onClick={() => {
+                  void create();
+                }}
+              >
+                Criar conta
+              </Button>
+            </div>
+            <p className="muted small">
+              Use letras minúsculas, números e hífen. Depois de criar, conecte as redes no cartão
+              dela.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {accounts.length === 0 ? (
+        <div className="empty">
+          Nenhuma conta ainda. Clique em Nova conta para criar a primeira.
+        </div>
+      ) : (
+        <div className="accounts__list">
+          {accounts.map((account) => (
             <motion.div
               key={account.id}
               className="account-card"
@@ -713,11 +796,13 @@ function Accounts() {
                     <ImagePlus size={16} />
                   )}
                 </ImageDrop>
-                <span className="stack" style={{ gap: 2 }}>
-                  <span className="key-row__name">{account.name ?? account.id}</span>
+                <span className="account-card__title">
+                  <span className="row" style={{ gap: 8 }}>
+                    <span className="key-row__name">{account.name ?? account.id}</span>
+                    {account.isDefault && <span className="tag">padrão</span>}
+                  </span>
                   <span className="muted small">
-                    {account.id}
-                    {account.isDefault ? ' · padrão' : ''}
+                    {account.id} · {linked(account.id)} de 3 redes conectadas
                   </span>
                 </span>
                 <span className="row" style={{ gap: 6 }}>
@@ -763,7 +848,9 @@ function Accounts() {
                     >
                       <div className="network__top">
                         <span className="network__name">{NETWORK_NAME[network.platform]}</span>
-                        <span className="network__status">
+                        <span
+                          className={`network__status ${network.connected ? 'network__status--on' : ''}`}
+                        >
                           <span className="network__dot" />
                           {login !== undefined
                             ? login.phase === 'checking'
@@ -899,50 +986,10 @@ function Accounts() {
                 })}
               </div>
             </motion.div>
-          ))
-        )}
-      </Row>
-      <Row title="Nova conta" text="Crie a conta aqui e depois conecte as redes nela.">
-        <div className="grid grid--2">
-          <label className="field">
-            <span className="field__label">Identificador</span>
-            <input
-              className="input"
-              placeholder="minha-conta"
-              value={id}
-              maxLength={32}
-              onChange={(event) => {
-                setId(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
-              }}
-            />
-          </label>
-          <label className="field">
-            <span className="field__label">Nome na marca d’água</span>
-            <input
-              className="input"
-              placeholder="@meucanal"
-              value={name}
-              maxLength={40}
-              onChange={(event) => {
-                setName(event.target.value);
-              }}
-            />
-          </label>
+          ))}
         </div>
-        <div>
-          <Button
-            size="small"
-            lead={<Plus />}
-            disabled={id === ''}
-            onClick={() => {
-              void create();
-            }}
-          >
-            Criar conta
-          </Button>
-        </div>
-      </Row>
-    </Section>
+      )}
+    </>
   );
 }
 
