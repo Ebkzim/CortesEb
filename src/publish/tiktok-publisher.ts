@@ -26,6 +26,9 @@ const POST_BUTTON = /^(post|publicar|postar)$/i;
 const CONFIRM_BUTTON = /^(post now|publicar agora|postar agora|continuar|continue)$/i;
 const DONE_TEXT =
   /(video (has been )?(posted|published)|vídeo (foi )?(publicado|postado)|enviado com sucesso)/i;
+const DISMISS_BUTTON = /^(cancelar|cancel|agora não|not now|depois|mais tarde|later)$/i;
+const DIALOGS = '[role="dialog"], [class*="modal" i]';
+const ACKNOWLEDGE_BUTTON = /^(entendi|got it|ok|okay)$/i;
 const UNCERTAIN = 'o TikTok não confirmou a postagem; confira o perfil antes de tentar de novo';
 
 export class TikTokPublisher implements Publisher {
@@ -72,8 +75,9 @@ export class TikTokPublisher implements Publisher {
       const post = this.postButton(page);
       await this.until(page, context, job, this.timing.uploadMs, () => isEnabled(post));
       await this.session.ensureClear(page, context, job.account);
+      await dismissPrompts(page);
       posted = true;
-      await post.click();
+      await post.click({ timeout: 15_000 });
       await this.confirm(page, context, job);
       return { url: TIKTOK_CONTENT };
     } catch (error) {
@@ -86,7 +90,8 @@ export class TikTokPublisher implements Publisher {
   }
 
   private async writeCaption(page: Page, editor: Locator, caption: string): Promise<void> {
-    await editor.click();
+    await dismissPrompts(page);
+    await editor.click({ timeout: 15_000 });
     await page.keyboard.press('ControlOrMeta+A');
     await page.keyboard.press('Backspace');
     for (const [index, line] of caption.split('\n').entries()) {
@@ -141,6 +146,7 @@ export class TikTokPublisher implements Publisher {
   ): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
+      await dismissPrompts(page);
       if (await ready().catch(() => false)) return;
       await this.session.ensureClear(page, context, job.account);
       await page.waitForTimeout(this.timing.stepMs);
@@ -167,4 +173,30 @@ async function isEnabled(button: Locator): Promise<boolean> {
   const aria = await button.getAttribute('aria-disabled');
   const loading = await button.getAttribute('data-loading');
   return aria !== 'true' && loading !== 'true';
+}
+
+export async function dismissPrompts(page: Page): Promise<number> {
+  const dialogs = page.locator(DIALOGS);
+  const count = Math.min(await dialogs.count().catch(() => 0), 6);
+  let closed = 0;
+  for (let index = 0; index < count; index += 1) {
+    const dialog = dialogs.nth(index);
+    if (!(await dialog.isVisible().catch(() => false))) continue;
+    const button = dialog.getByRole('button', { name: DISMISS_BUTTON }).first();
+    if (await button.isVisible().catch(() => false)) {
+      await button.click({ timeout: 5_000 }).catch(() => undefined);
+      closed += 1;
+    }
+  }
+  const acknowledge = page.getByRole('button', { name: ACKNOWLEDGE_BUTTON });
+  const notes = Math.min(await acknowledge.count().catch(() => 0), 6);
+  for (let index = 0; index < notes; index += 1) {
+    const button = acknowledge.nth(index);
+    if (await button.isVisible().catch(() => false)) {
+      await button.click({ timeout: 5_000 }).catch(() => undefined);
+      closed += 1;
+    }
+  }
+  if (closed > 0) await page.waitForTimeout(400);
+  return closed;
 }
