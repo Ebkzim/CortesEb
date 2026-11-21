@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { chromium, type BrowserContext, type Page } from 'playwright-core';
+import { acquireProcessLock, type ProcessLock } from '../common/file-lock.js';
 import { AppError } from '../common/app-error.js';
 import { resolveInside } from '../common/safe-path.js';
 import { AppPaths } from '../config/app-paths.js';
@@ -48,17 +49,34 @@ export class BrowserSessions {
     platform: BrowserPlatform,
     account: string,
     work: (page: Page, context: BrowserContext) => Promise<T>,
+    signal?: AbortSignal,
+    options?: { visible: boolean },
   ): Promise<T> {
     const dir = this.profileDir(platform, account);
     const previous = this.locks.get(dir) ?? Promise.resolve();
     const run = previous.then(async () => {
+      signal?.throwIfAborted();
       await fs.mkdir(dir, { recursive: true, mode: 0o700 });
-      const context = await this.launch(dir);
+      const lease = await this.reserve(platform, account);
+      if (lease === null)
+        throw new AppError(
+          'PROCESS_FAILED',
+          'O perfil do Chrome está em uso por outro processo. Aguarde e reinicie a sessão.',
+        );
+      let context: BrowserContext | undefined;
+      const stop = (): void => {
+        void context?.close().catch(() => undefined);
+      };
       try {
+        context = await this.launch(dir, options?.visible);
+        signal?.addEventListener('abort', stop, { once: true });
+        signal?.throwIfAborted();
         const page = context.pages()[0] ?? (await context.newPage());
         return await work(page, context);
       } finally {
-        await context.close().catch(() => undefined);
+        signal?.removeEventListener('abort', stop);
+        await context?.close().catch(() => undefined);
+        await lease.release();
       }
     });
     this.locks.set(
@@ -66,6 +84,10 @@ export class BrowserSessions {
       run.catch(() => undefined),
     );
     return run;
+  }
+
+  reserve(platform: BrowserPlatform, account: string): Promise<ProcessLock | null> {
+    return acquireProcessLock(`${this.profileDir(platform, account)}.lease`);
   }
 
   async markConnected(
@@ -91,7 +113,19 @@ export class BrowserSessions {
   async forget(platform: BrowserPlatform, account: string): Promise<void> {
     const dir = this.profileDir(platform, account);
     const previous = this.locks.get(dir) ?? Promise.resolve();
-    const run = previous.then(() => fs.rm(dir, { recursive: true, force: true }));
+    const run = previous.then(async () => {
+      const lease = await this.reserve(platform, account);
+      if (lease === null)
+        throw new AppError(
+          'PROCESS_FAILED',
+          'O perfil está em uso; pare a sessão e tente de novo.',
+        );
+      try {
+        await fs.rm(dir, { recursive: true, force: true });
+      } finally {
+        await lease.release();
+      }
+    });
     this.locks.set(
       dir,
       run.catch(() => undefined),
@@ -120,16 +154,22 @@ export class BrowserSessions {
     return found;
   }
 
-  private async launch(dir: string): Promise<BrowserContext> {
+  private async launch(dir: string, visible?: boolean): Promise<BrowserContext> {
     const executablePath = process.env[CHROME_ENV];
     try {
       return await chromium.launchPersistentContext(dir, {
         ...(executablePath === undefined || executablePath === ''
           ? { channel: 'chrome' }
           : { executablePath }),
-        headless: process.env[VISIBLE_ENV] !== '1',
+        headless: !(visible ?? process.env[VISIBLE_ENV] === '1'),
         viewport: VIEWPORT,
         locale: 'pt-BR',
+        args:
+          process.platform === 'linux'
+            ? ['--password-store=basic']
+            : process.platform === 'darwin'
+              ? ['--use-mock-keychain']
+              : [],
         acceptDownloads: false,
       });
     } catch (error) {

@@ -78,7 +78,18 @@ export class LoginWindows {
     return [...this.windows.values()];
   }
 
-  open(platform: BrowserPlatform, account: string): LoginWindow {
+  async open(platform: BrowserPlatform, account: string, pageUrl?: string): Promise<LoginWindow> {
+    if (pageUrl !== undefined) {
+      let valid = false;
+      try {
+        valid =
+          new URL(pageUrl).origin ===
+          new URL(SITES[platform].cookieUrls[0] ?? SITES[platform].login).origin;
+      } catch {
+        valid = false;
+      }
+      if (!valid) throw new AppError('INVALID_INPUT', 'página de verificação inválida');
+    }
     const key = `${platform}:${account}`;
     const current = this.windows.get(key);
     if (current !== undefined && (current.phase === 'open' || current.phase === 'checking')) {
@@ -91,13 +102,25 @@ export class LoginWindows {
         `não achei o Google Chrome; instale ou defina ${CHROME_ENV}`,
       );
     }
+    const lease = await this.sessions.reserve(platform, account);
+    if (lease === null)
+      throw new AppError(
+        'PROCESS_FAILED',
+        'Este perfil está em uso. Pare o aquecimento ou aguarde a publicação antes de conectar.',
+      );
     const dir = this.sessions.profileDir(platform, account);
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    const child = spawn(chrome, loginArgs(dir, SITES[platform].login), {
-      stdio: 'ignore',
-      shell: false,
-      detached: false,
-    });
+    let child: ChildProcess;
+    try {
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+      child = spawn(chrome, loginArgs(dir, pageUrl ?? SITES[platform].login), {
+        stdio: 'ignore',
+        shell: false,
+        detached: false,
+      });
+    } catch (error) {
+      await lease.release();
+      throw error;
+    }
     const window: LoginWindow = {
       platform,
       account,
@@ -114,12 +137,13 @@ export class LoginWindows {
     child.once('error', () => {
       clearTimeout(limit);
       this.children.delete(key);
+      void lease.release();
       this.finish(key, 'failed', 'não consegui abrir o Chrome');
     });
     child.once('exit', () => {
       clearTimeout(limit);
       this.children.delete(key);
-      void this.check(key, platform, account);
+      void lease.release().then(() => this.check(key, platform, account));
     });
     return window;
   }
