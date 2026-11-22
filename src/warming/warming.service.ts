@@ -21,6 +21,9 @@ import {
   type WarmingSession,
 } from './warming-state.js';
 import { WarmingStore } from './warming-store.js';
+import { FollowingService } from '../following/following.service.js';
+import { warmingFailure } from './warming-errors.js';
+import { sampleSeconds } from './timing.js';
 import { VideoUnavailableError } from './video-playback.js';
 
 @Injectable()
@@ -41,6 +44,7 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
     private readonly browser: WarmingBrowser,
     private readonly store: WarmingStore,
     @Optional() private readonly desk?: WarmingDesk,
+    @Optional() private readonly following?: FollowingService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -59,6 +63,7 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
         }
       }
     });
+    await this.following?.initialize();
     this.schedule();
   }
 
@@ -67,6 +72,7 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
     clearTimeout(this.timer);
     this.desk?.cancel();
     this.active?.controller.abort();
+    this.following?.cancel();
     await this.task?.catch(() => undefined);
     if (this.lease !== null) {
       await this.store.update((sessions) => {
@@ -80,6 +86,7 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
             session.message = 'Serviço encerrado. Inicie para continuar.';
           }
       });
+      await this.following?.shutdown();
       await this.lease.release();
     }
   }
@@ -161,6 +168,7 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
           until: null,
           frameAt: previous?.progress?.frameAt ?? null,
         },
+        timing: previous?.timing ?? { watchSeconds: null, intervalSeconds: null },
         seen: previous?.seen ?? [],
         history: previous?.history ?? [],
       };
@@ -223,6 +231,11 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
     const session = (await this.store.list())
       .filter((item) => item.status === 'running' && Date.parse(item.nextAt) <= Date.now())
       .sort((a, b) => a.nextAt.localeCompare(b.nextAt))[0];
+    const following = await this.following?.due();
+    if (following && (!session || following.nextAt.localeCompare(session.nextAt) < 0)) {
+      await this.following?.run(following);
+      return;
+    }
     if (session === undefined) return;
     if (session.day !== dayKey() && session.config.mode === 'continuous') {
       await this.change(session, (current) => {
@@ -298,9 +311,16 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
       await this.cycle(session, controller.signal);
       await this.change(session, (current) => {
         if (current.status === 'running') {
-          current.nextAt = new Date(
-            Date.now() + current.config.intervalSeconds * 1000,
-          ).toISOString();
+          const interval = sampleSeconds(
+            current.config.intervalSeconds,
+            current.config.intervalRange,
+            current.timing?.intervalSeconds,
+          );
+          current.timing = {
+            watchSeconds: current.timing?.watchSeconds ?? null,
+            intervalSeconds: interval,
+          };
+          current.nextAt = new Date(Date.now() + interval * 1000).toISOString();
           current.message = 'Aguardando o próximo vídeo.';
           if (current.progress) {
             current.progress.stage = 'waiting';
@@ -328,10 +348,7 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
       });
     } catch (error) {
       if (!controller.signal.aborted) {
-        const message =
-          error instanceof Error
-            ? (error.message.split('\n')[0] ?? 'Erro na navegação.')
-            : 'Erro na navegação.';
+        const message = warmingFailure(error, session.platform, 'abrir a sessão do navegador');
         await this.attention(session, message.slice(0, 500));
       }
     } finally {
@@ -363,6 +380,7 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
           session.config.verificationMode,
         );
         let selectedUrl: string | null = null;
+        let step = 'verificar a sessão';
         try {
           await this.browser.clear(session.platform, page, context);
           await this.progress(
@@ -371,6 +389,7 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
             'Carregando o feed e procurando um novo vídeo.',
             page,
           );
+          step = 'buscar um novo vídeo';
           const url = await this.browser.next(page, session, (message) =>
             this.progress(session, 'searching', message, page),
           );
@@ -383,6 +402,7 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
               !(session.platform === 'tiktok' && item === 'commentLikes') &&
               session.counts[item] < session.config.goals[item],
           );
+          step = 'abrir o vídeo selecionado';
           const target = await this.browser.prepare(
             page,
             session.platform,
@@ -393,23 +413,29 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
           if (target === null) return;
           await this.browser.clear(session.platform, page, context);
           await this.intent(session, 'views', url, signal);
+          const watchSeconds = sampleSeconds(
+            session.config.watchSeconds,
+            session.config.watchRange,
+            session.timing?.watchSeconds,
+          );
+          await this.change(session, (current) => {
+            current.timing = {
+              watchSeconds,
+              intervalSeconds: current.timing?.intervalSeconds ?? null,
+            };
+          });
           const video = target.video ?? page.locator('video').first();
           await this.progress(
             session,
             'watching',
-            `Assistindo ao vídeo por ${session.config.watchSeconds} segundos.`,
+            `Assistindo ao vídeo por ${watchSeconds} segundos.`,
             page,
             url,
-            new Date(Date.now() + session.config.watchSeconds * 1000).toISOString(),
+            new Date(Date.now() + watchSeconds * 1000).toISOString(),
           );
-          await this.browser.watch(
-            page,
-            video,
-            session.platform,
-            session.config.watchSeconds,
-            signal,
-          );
-          await this.record(session, 'views', url, 'Vídeo assistido.');
+          step = 'assistir ao vídeo';
+          await this.browser.watch(page, video, session.platform, watchSeconds, signal);
+          await this.record(session, 'views', url, `Vídeo assistido por ${watchSeconds} segundos.`);
           if (action === undefined) return;
           signal.throwIfAborted();
           await this.progress(
@@ -421,6 +447,13 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
             page,
             url,
           );
+          step = {
+            views: 'abrir o vídeo selecionado',
+            likes: 'localizar o botão de curtir o vídeo',
+            comments: 'abrir o campo de comentário',
+            commentLikes: 'abrir os comentários para curtir',
+            replies: 'abrir o campo de resposta',
+          }[action];
           const prepared = await this.browser.prepare(
             page,
             session.platform,
@@ -449,12 +482,13 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
               page,
               url,
             );
+          if (action === 'comments' || action === 'replies') step = 'gerar o texto da interação';
           const text =
             action === 'comments' || action === 'replies'
               ? await abortable(this.browser.text(prepared, session, action), signal)
               : null;
           await this.browser.clear(session.platform, page, context);
-          await this.intent(session, action, url, signal);
+          await this.intent(session, action, url, signal, text);
           signal.throwIfAborted();
           await this.progress(
             session,
@@ -464,6 +498,7 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
             url,
           );
           signal.throwIfAborted();
+          step = 'enviar e confirmar a interação';
           await this.browser.perform(page, prepared, action, text);
           await this.record(
             session,
@@ -489,15 +524,10 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
             await this.progress(session, 'skipped', error.message, page, url);
             return;
           }
-          if (!signal.aborted)
-            await this.progress(
-              session,
-              'attention',
-              error instanceof Error
-                ? (error.message.split('\n')[0] ?? 'Erro')
-                : 'Erro na navegação.',
-              page,
-            );
+          const message = warmingFailure(error, session.platform, step);
+          if (!signal.aborted) await this.progress(session, 'attention', message, page);
+          if (error instanceof Error && message !== error.message.split('\n')[0])
+            throw new Error(message, { cause: error });
           throw error;
         }
       },
@@ -565,6 +595,7 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
     action: Action,
     url: string,
     signal: AbortSignal,
+    text: string | null = null,
   ): Promise<void> {
     signal.throwIfAborted();
     await this.change(session, (current) => {
@@ -579,6 +610,7 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
       current.history.unshift({
         at: new Date().toISOString(),
         action: null,
+        ...(text === null ? {} : { text }),
         url,
         message: `Iniciando ${{ views: 'reprodução do vídeo', likes: 'curtida no vídeo', comments: 'comentário', commentLikes: 'curtida no comentário', replies: 'resposta' }[action]}. Se houver interrupção, confira a rede; esta tentativa não será repetida.`,
       });

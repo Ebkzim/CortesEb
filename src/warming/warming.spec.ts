@@ -7,6 +7,8 @@ import type { AccountService } from '../accounts/account.service.js';
 import { BrowserSessions } from '../browser/browser-sessions.js';
 import type { LoginWindows } from '../browser/login-windows.js';
 import type { AppPaths } from '../config/app-paths.js';
+import type { FollowingService } from '../following/following.service.js';
+import type { FollowingSession } from '../following/following-state.js';
 import type { QueueStore } from '../publish/queue-store.js';
 import { contentUrl, type WarmingBrowser } from './warming-browser.js';
 import {
@@ -95,6 +97,97 @@ describe('warming', () => {
     await vi.advanceTimersByTimeAsync(ms);
     await (service as unknown as { task: Promise<void> | null }).task;
   }
+
+  it('uses the sampled watch duration consistently and draws independent intervals', async () => {
+    browser.next
+      .mockResolvedValueOnce('https://www.youtube.com/shorts/random1')
+      .mockResolvedValueOnce('https://www.youtube.com/shorts/random2');
+    await service.start('canal', 'youtube', {
+      goals: { views: 3, likes: 0 },
+      watchRange: { minSeconds: 5, maxSeconds: 6 },
+      intervalRange: { minSeconds: 10, maxSeconds: 11 },
+    });
+    await advance(2000);
+    const first = (await store.list())[0];
+    expect(first?.timing?.watchSeconds).toBe(
+      (browser.watch.mock.calls as unknown as unknown[][])[0]?.[3],
+    );
+    expect(
+      first?.history.some(
+        (e) => e.message === `Vídeo assistido por ${first.timing?.watchSeconds} segundos.`,
+      ),
+    ).toBe(true);
+    expect(Date.parse(first?.nextAt ?? '') - Date.now()).toBe(
+      (first?.timing?.intervalSeconds ?? 0) * 1000,
+    );
+    await advance(14_000);
+    const second = (await store.list())[0];
+    expect(second?.counts.views).toBe(2);
+    expect(second?.timing?.watchSeconds).not.toBe(first?.timing?.watchSeconds);
+    expect(second?.timing?.intervalSeconds).not.toBe(first?.timing?.intervalSeconds);
+  });
+
+  it('shares the worker with the independent follower schedule and returns to warming', async () => {
+    await service.onModuleDestroy();
+    const due = { nextAt: new Date(Date.now() - 1000).toISOString() } as FollowingSession;
+    const following = {
+      initialize: vi.fn(() => Promise.resolve(undefined)),
+      shutdown: vi.fn(() => Promise.resolve(undefined)),
+      cancel: vi.fn(),
+      due: vi.fn((): Promise<FollowingSession | undefined> => Promise.resolve(undefined)),
+      run: vi.fn(() => Promise.resolve(undefined)),
+    };
+    following.due.mockResolvedValueOnce(due);
+    service = new WarmingService(
+      paths,
+      accounts as unknown as AccountService,
+      sessions as unknown as BrowserSessions,
+      logins as unknown as LoginWindows,
+      queue as unknown as QueueStore,
+      browser as unknown as WarmingBrowser,
+      store,
+      undefined,
+      following as unknown as FollowingService,
+    );
+    await service.onModuleInit();
+    await service.start('canal', 'youtube', config());
+    await advance(2000);
+    expect(following.initialize).toHaveBeenCalledOnce();
+    expect(following.run).toHaveBeenCalledWith(due);
+    expect(browser.watch).not.toHaveBeenCalled();
+    await advance(2000);
+    expect(browser.watch).toHaveBeenCalledOnce();
+    expect((await store.list())[0]?.status).toBe('completed');
+  });
+
+  it('identifies the interaction stage when a browser wait times out without counting an unsent comment', async () => {
+    browser.prepare
+      .mockResolvedValueOnce({ url: 'https://www.youtube.com/shorts/abc123' })
+      .mockRejectedValueOnce(new Error('locator.waitFor: Timeout 10000ms exceeded.'));
+    await service.start('canal', 'youtube', { goals: { views: 1, likes: 0, comments: 1 } });
+    await advance(2000);
+    const current = (await store.list())[0];
+    expect(current?.status).toBe('attention');
+    expect(current?.message).toContain('YouTube:');
+    expect(current?.message).toContain('abrir o campo de comentário');
+    expect(current?.message).not.toContain('locator.waitFor');
+    expect(current?.counts.views).toBe(1);
+    expect(current?.counts.comments).toBe(0);
+    expect(browser.perform).not.toHaveBeenCalled();
+  });
+
+  it('persists the prepared comment before sending and counts it only after confirmation', async () => {
+    browser.perform.mockImplementationOnce(async () => {
+      const current = (await store.list())[0];
+      expect(current?.counts.comments).toBe(0);
+      expect(current?.history.find((event) => event.text)?.text).toBe('Comentário de teste.');
+    });
+    await service.start('canal', 'youtube', { goals: { views: 1, likes: 0, comments: 1 } });
+    await advance(2000);
+    const current = (await store.list())[0];
+    expect(current?.counts.comments).toBe(1);
+    expect(current?.status).toBe('completed');
+  });
 
   it('restarts verification through the warmup browser instead of opening another Chrome profile', async () => {
     await service.start('canal', 'youtube', config());
