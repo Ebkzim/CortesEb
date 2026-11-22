@@ -196,7 +196,6 @@ function DeskDialog({
   function send(body: Record<string, unknown>): void {
     if (!active.current) return;
     const last = commands.current.at(-1);
-    // Keep only the newest pending human mouse movement. Down/up are never discarded.
     if (body.type === 'move' && last?.type === 'move')
       commands.current[commands.current.length - 1] = body;
     else commands.current.push(body);

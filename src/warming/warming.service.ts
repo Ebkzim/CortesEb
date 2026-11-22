@@ -544,7 +544,7 @@ export class WarmingService implements OnModuleInit, OnModuleDestroy {
         frameAt = new Date().toISOString();
         this.capturedAt.set(key, Date.now());
       } catch {
-        /* Progress remains available if a page cannot be captured. */
+        frameAt = null;
       }
     }
     await this.change(session, (current) => {

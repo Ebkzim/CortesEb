@@ -84,7 +84,6 @@ const DEFAULTS: Config = {
   guidance: 'Escreva em português, de forma breve e natural.',
 };
 
-// One shared poll for all account cards, including cards still collapsed.
 let snapshot: Session[] = [];
 let failure: string | null = null;
 const listeners = new Set<() => void>();

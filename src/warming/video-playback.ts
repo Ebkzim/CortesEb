@@ -15,8 +15,6 @@ async function snapshot(
   video: Locator,
   start = false,
 ): Promise<{ time: number; source: string; error: number | null } | null> {
-  // evaluateAll returns immediately for a removed element instead of waiting for
-  // a locator to match again, potentially against a different video.
   return video.evaluateAll((elements, start) => {
     const video = elements[0] as unknown as
       | {
@@ -31,8 +29,6 @@ async function snapshot(
     if (!video) return null;
     if (start) {
       video.muted = true;
-      // play() can remain pending while media is loading. Observe playback below
-      // without awaiting that promise inside the page.
       void video.play().catch(() => undefined);
     }
     return {

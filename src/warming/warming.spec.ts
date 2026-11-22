@@ -356,7 +356,6 @@ describe('warming', () => {
 
   it('does not automatically resume sessions after the server restarts', async () => {
     await service.start('canal', 'youtube', config());
-    // Simulate a crashed process: release only its lease, leaving running state on disk.
     await fs.rm(path.join(home, 'warming.worker'));
     const replacement = new WarmingService(
       paths,

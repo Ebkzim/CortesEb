@@ -10,7 +10,6 @@ export class WarmingDesk extends RemoteDesk {
 
   override async request(page: Page, request: HumanRequest): Promise<boolean> {
     if (request.signal?.aborted) return false;
-    // Pause media only; the verification itself remains entirely human-controlled.
     await page.locator('video, audio').evaluateAll((media) => {
       for (const element of media) {
         if (element.closest('[role="dialog"], [id*="captcha" i], [class*="captcha" i]')) continue;

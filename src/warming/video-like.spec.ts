@@ -15,7 +15,6 @@ import { VideoUnavailableError, watchVideo } from './video-playback.js';
 
 const executablePath = chromeCandidates().find((candidate) => fs.existsSync(candidate));
 
-// These DOM regressions run against Chrome when available, without a platform login or network.
 describe.skipIf(executablePath === undefined)('video like controls in Chrome', () => {
   let browser: Browser | undefined;
   let page: Page;
@@ -593,7 +592,6 @@ describe.skipIf(executablePath === undefined)('video like controls in Chrome', (
     expect(desk.state()?.account).toBe('canal');
     expect(page.isClosed()).toBe(false);
     expect((await desk.frame()).byteLength).toBeGreaterThan(0);
-    // Only the fixture is changed here; real verification is performed by the operator.
     await page.locator('#captcha-fixture').evaluate((element) => {
       element.remove();
     });
