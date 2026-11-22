@@ -19,11 +19,11 @@ import {
   Heart,
   MessageCircle,
   Reply,
-  Clock3,
   Maximize2,
   Search,
   Copy,
 } from 'lucide-react';
+import { TimingField, type TimeRange } from './timing-field';
 import { api, post } from '@/lib/api';
 import type { ApiKeyView, PublishPlatform } from '@/lib/types';
 import { Button } from './ui';
@@ -40,6 +40,8 @@ interface Config {
   mode: 'goals' | 'continuous';
   goals: Counts;
   watchSeconds: number;
+  watchRange: TimeRange | null;
+  intervalRange: TimeRange | null;
   intervalSeconds: number;
   guidance: string;
 }
@@ -80,6 +82,8 @@ const DEFAULTS: Config = {
   mode: 'goals',
   goals: { views: 10, likes: 3, comments: 0, commentLikes: 0, replies: 0 },
   watchSeconds: 15,
+  watchRange: null,
+  intervalRange: null,
   intervalSeconds: 60,
   guidance: 'Escreva em português, de forma breve e natural.',
 };
@@ -506,44 +510,28 @@ export function WarmingPanel({
                       ))}
                     </div>
                     <div className="warming-timing">
-                      <label className="field">
-                        <span className="field__label">
-                          <Clock3 size={14} /> Tempo por vídeo
-                        </span>
-                        <div className="warming-unit">
-                          <input
-                            className="input"
-                            type="number"
-                            aria-label="Tempo por vídeo em segundos"
-                            min={5}
-                            max={120}
-                            value={settings.watchSeconds}
-                            disabled={locked}
-                            onChange={(event) =>
-                              change({ watchSeconds: Number(event.target.value) })
-                            }
-                          />
-                          <span>segundos</span>
-                        </div>
-                      </label>
-                      <label className="field">
-                        <span className="field__label">Intervalo entre vídeos</span>
-                        <div className="warming-unit">
-                          <input
-                            className="input"
-                            type="number"
-                            aria-label="Intervalo entre vídeos em segundos"
-                            min={15}
-                            max={3600}
-                            value={settings.intervalSeconds}
-                            disabled={locked}
-                            onChange={(event) =>
-                              change({ intervalSeconds: Number(event.target.value) })
-                            }
-                          />
-                          <span>segundos</span>
-                        </div>
-                      </label>
+                      <TimingField
+                        label="Tempo por vídeo"
+                        value={settings.watchSeconds}
+                        range={settings.watchRange}
+                        min={5}
+                        max={120}
+                        disabled={locked}
+                        onChange={(watchSeconds, watchRange) =>
+                          change({ watchSeconds, watchRange })
+                        }
+                      />
+                      <TimingField
+                        label="Intervalo entre vídeos"
+                        value={settings.intervalSeconds}
+                        range={settings.intervalRange}
+                        min={10}
+                        max={3600}
+                        disabled={locked}
+                        onChange={(intervalSeconds, intervalRange) =>
+                          change({ intervalSeconds, intervalRange })
+                        }
+                      />
                     </div>
                   </section>
                   <aside className="warming-summary">

@@ -3733,3 +3733,82 @@
 .accounts-sidebar__name small.accounts-sidebar__attention {
   color: #98602e;
 }
+
+.timing-field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.timing-field legend {
+  float: left;
+  width: 100%;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.timing-field > small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.timing-field__mode {
+  display: flex;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--sunken);
+  gap: 3px;
+}
+.timing-field__mode button {
+  flex: 1;
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    box-shadow 0.15s;
+}
+.timing-field__mode button[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 4px #00000012;
+}
+.timing-field__mode button:hover {
+  color: var(--ink);
+}
+.timing-field__range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: 8px;
+}
+.timing-field__range label {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+.timing-field__range label > span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.timing-field__range .warming-unit input {
+  padding-right: 26px !important;
+}
+.timing-field__to {
+  font-size: 12px;
+  padding-bottom: 12px;
+  color: var(--muted);
+}
+
+.warming-dialog fieldset:disabled {
+  opacity: 1;
+}
