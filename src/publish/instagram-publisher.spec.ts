@@ -40,6 +40,7 @@ describe('InstagramPublisher', () => {
     video = path.join(dir, 'c.mp4');
     await fs.writeFile(video, 'conteudo-do-video');
     vault = new CredentialVault({
+      home: dir,
       credentialsFile: path.join(dir, 'credentials.json'),
     } as AppPaths);
     await vault.save('instagram', 'main', { accessToken: TOKEN, userId: USER });
@@ -182,6 +183,7 @@ describe('InstagramPublisher', () => {
 
   it('fails without credentials before calling the api', async () => {
     const empty = new CredentialVault({
+      home: dir,
       credentialsFile: path.join(dir, 'vazio.json'),
     } as AppPaths);
     const script = scripted([]);

@@ -412,6 +412,7 @@ describe('CredentialVault', () => {
   beforeEach(async () => {
     dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-vault-'));
     vault = new CredentialVault({
+      home: dir,
       credentialsFile: path.join(dir, 'credentials.json'),
     } as AppPaths);
   });
@@ -461,6 +462,38 @@ describe('CredentialVault', () => {
     expect(await vault.list()).toHaveLength(2);
   });
 
+  it('keeps every secret and account name encrypted on disk', async () => {
+    await vault.save('youtube', 'main', youtube);
+    const raw = await fs.readFile(path.join(dir, 'credentials.json'), 'utf8');
+    expect(raw).not.toContain('refresh-token-789');
+    expect(raw).not.toContain('youtube:main');
+    expect(JSON.parse(raw)).toMatchObject({ version: 1 });
+    const keyMode = (await fs.stat(path.join(dir, 'master.key'))).mode & 0o777;
+    expect(keyMode).toBe(0o600);
+  });
+
+  it('migrates a plain vault to the encrypted format on first read', async () => {
+    const file = path.join(dir, 'credentials.json');
+    await fs.writeFile(file, JSON.stringify({ entries: { 'youtube:main': youtube } }), {
+      mode: 0o600,
+    });
+    expect((await vault.load('youtube', 'main')).clientSecret).toBe('secret-value-456');
+    const raw = await fs.readFile(file, 'utf8');
+    expect(raw).not.toContain('secret-value-456');
+    expect((await fs.stat(file)).mode & 0o777).toBe(0o600);
+    expect(await vault.list()).toHaveLength(1);
+  });
+
+  it('refuses to open the vault with a different master key', async () => {
+    await vault.save('youtube', 'main', youtube);
+    await fs.writeFile(path.join(dir, 'master.key'), Buffer.alloc(32, 7).toString('base64'));
+    const other = new CredentialVault({
+      home: dir,
+      credentialsFile: path.join(dir, 'credentials.json'),
+    } as AppPaths);
+    await expect(other.load('youtube', 'main')).rejects.toThrow(/chave mestra/);
+  });
+
   it('does not leak secrets in validation errors', async () => {
     let message = '';
     try {
@@ -499,6 +532,7 @@ describe('YoutubePublisher', () => {
     video = path.join(dir, 'c.mp4');
     await fs.writeFile(video, 'conteudo-do-video');
     vault = new CredentialVault({
+      home: dir,
       credentialsFile: path.join(dir, 'credentials.json'),
     } as AppPaths);
     await vault.save('youtube', 'main', {
@@ -586,6 +620,7 @@ describe('YoutubePublisher', () => {
 
   it('fails without credentials and never sends secrets in the error', async () => {
     const empty = new CredentialVault({
+      home: dir,
       credentialsFile: path.join(dir, 'vazio.json'),
     } as AppPaths);
     const script = scripted([]);
