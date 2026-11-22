@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { secondsRange } from './timing.js';
 import { BROWSER_PLATFORMS } from '../browser/browser-sessions.js';
 import { ACCOUNT_ID_PATTERN } from '../config/user-config.js';
 
@@ -26,7 +27,9 @@ export const warmingConfigSchema = z
     mode: z.enum(['goals', 'continuous']).default('goals'),
     goals: countsSchema.default(() => countsSchema.parse({})),
     watchSeconds: z.number().int().min(5).max(120).default(15),
-    intervalSeconds: z.number().int().min(15).max(3600).default(60),
+    intervalSeconds: z.number().int().min(10).max(3600).default(60),
+    watchRange: secondsRange(5, 120).nullable().default(null),
+    intervalRange: secondsRange(10, 3600).nullable().default(null),
     guidance: z
       .string()
       .trim()
@@ -45,6 +48,7 @@ export function emptyCounts(): Counts {
 export const activitySchema = z.object({
   at: z.string(),
   action: z.enum(ACTIONS).nullable(),
+  text: z.string().max(300).optional(),
   message: z.string(),
   url: z.string().nullable(),
 });
@@ -70,6 +74,12 @@ export const warmingSessionSchema = z.object({
       videoUrl: z.string().nullable(),
       until: z.string().nullable(),
       frameAt: z.string().nullable(),
+    })
+    .optional(),
+  timing: z
+    .object({
+      watchSeconds: z.number().int().nullable(),
+      intervalSeconds: z.number().int().nullable(),
     })
     .optional(),
   seen: z.array(z.string()).default([]),
