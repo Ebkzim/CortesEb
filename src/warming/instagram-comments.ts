@@ -35,8 +35,6 @@ export async function instagramComments(
   if (DISABLED.test(await panel.innerText())) return null;
   let context = caption;
   if (action === 'commentLikes') {
-    // Keep liked and unliked states in the same locator set so it does not jump
-    // to the next comment when the clicked control changes its accessible name.
     const buttons = panel.getByRole('button', { name: LIKE }).filter({ visible: true });
     try {
       await buttons.first().waitFor({ state: 'visible', timeout: timeoutMs });

@@ -22,7 +22,6 @@ export async function redLike(button: Locator): Promise<boolean> {
 
 export async function isLiked(button: Locator): Promise<boolean> {
   const pressed = await button.getAttribute('aria-pressed');
-  // Explicit state takes precedence over styling, which may also color an inactive icon.
   if (pressed === 'true') return true;
   if (pressed === 'false') return false;
   if ((await button.getAttribute('data-state')) === 'liked') return true;
@@ -53,7 +52,6 @@ export async function findVideoLike(
           }),
         )
       : scope.getByRole('button', { name: LIKE });
-  // Re-evaluate visibility as hydration completes. The first DOM match can be a hidden copy.
   const button = candidates.filter({ visible: true }).first();
   try {
     await button.waitFor({ state: 'visible', timeout: timeoutMs });
@@ -72,7 +70,6 @@ export async function clickLike(
   timeoutMs = 10_000,
   activation: 'click' | 'keyboard' = 'click',
 ): Promise<void> {
-  // The page may have updated since preparation; never toggle a like that is already present.
   if (await isLiked(button)) return;
   if (activation === 'keyboard') await button.press('Enter', { timeout: timeoutMs });
   else await button.click({ timeout: timeoutMs });

@@ -336,7 +336,6 @@ export class WarmingBrowser {
   ): Promise<ActionTarget | null> {
     const current = contentUrl(platform, page.url());
     const expected = contentUrl(platform, url);
-    // TikTok replaces a numeric account handle with its canonical username after hydration.
     const sameVideo =
       current !== null &&
       expected !== null &&
@@ -374,7 +373,6 @@ export class WarmingBrowser {
         throw error;
       });
     const video = await activeVideo(page);
-    // Detail pages constrain the controls to one video; never click a feed-wide generic button.
     const scope =
       platform === 'youtube'
         ? page.locator('ytd-reel-video-renderer[is-active], ytd-shorts[is-active]').first()

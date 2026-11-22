@@ -72,7 +72,6 @@ export const warmingSessionSchema = z.object({
       frameAt: z.string().nullable(),
     })
     .optional(),
-  // An intent is recorded before every external action. Ambiguous attempts are never retried.
   seen: z.array(z.string()).default([]),
   history: z.array(activitySchema).default([]),
 });
