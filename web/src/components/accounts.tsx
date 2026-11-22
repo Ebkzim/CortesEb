@@ -16,6 +16,7 @@ import type {
   NetworkView,
   PublishPlatform,
 } from '@/lib/types';
+import { FollowingPanel, useFollowingSessions } from './following-panel';
 import { WarmingPanel, useWarmingSessions } from './warming-panel';
 
 const NETWORK_NAME: Record<PublishPlatform, string> = {
@@ -29,6 +30,8 @@ const NETWORK_ORDER: PublishPlatform[] = ['tiktok', 'instagram', 'youtube'];
 export function Accounts() {
   const toast = useToast();
   const { sessions: warmings } = useWarmingSessions();
+  const { sessions: followings } = useFollowingSessions();
+  const activities = [...warmings, ...followings];
   const [accounts, setAccounts] = useState<AccountView[]>([]);
   const [overview, setOverview] = useState<NetworksOverview | null>(null);
   const [id, setId] = useState('');
@@ -338,17 +341,19 @@ export function Accounts() {
                     <strong>{account.name ?? account.id}</strong>
                     <small
                       className={
-                        warmings.some((s) => s.account === account.id && s.status === 'attention')
+                        activities.some((s) => s.account === account.id && s.status === 'attention')
                           ? 'accounts-sidebar__attention'
-                          : warmings.some((s) => s.account === account.id && s.status === 'running')
+                          : activities.some(
+                                (s) => s.account === account.id && s.status === 'running',
+                              )
                             ? 'accounts-sidebar__running'
                             : ''
                       }
                     >
-                      {warmings.some((s) => s.account === account.id && s.status === 'attention')
+                      {activities.some((s) => s.account === account.id && s.status === 'attention')
                         ? 'Precisa de atenção'
-                        : warmings.some((s) => s.account === account.id && s.status === 'running')
-                          ? 'Em aquecimento'
+                        : activities.some((s) => s.account === account.id && s.status === 'running')
+                          ? 'Em execução'
                           : `${linked(account.id)} redes conectadas`}
                     </small>
                   </span>
@@ -604,6 +609,19 @@ export function Accounts() {
                                 : undefined
                             }
                           />
+                          {network.platform === 'instagram' && (
+                            <FollowingPanel
+                              account={account.id}
+                              connected={
+                                network.browserConnected ??
+                                (network.method === 'browser' && network.connected)
+                              }
+                              connecting={working}
+                              onConnect={() => {
+                                void connect(account.id, network.platform);
+                              }}
+                            />
+                          )}
                         </div>
                       );
                     })}
