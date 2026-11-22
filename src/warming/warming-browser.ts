@@ -9,6 +9,8 @@ import { LlmService } from '../llm/llm.service.js';
 import { extractJson } from '../llm/llm-client.js';
 import { z } from 'zod';
 import type { Action, WarmingSession } from './warming-state.js';
+import { prepareCommentConfirmation, waitForCommentConfirmation } from './comment-confirmation.js';
+import { youtubeComments } from './youtube-comments.js';
 import { instagramComments } from './instagram-comments.js';
 import { WarmingDesk } from './warming-desk.js';
 import { tiktokComments } from './tiktok-comments.js';
@@ -32,8 +34,6 @@ const CONTENT = {
     pattern: /^\/shorts\/[\w-]+\/?$/,
   },
 } as const;
-const LIKE = /^(curtir(?: vídeo)?|like(?: video)?)(?:\b|$)/i;
-const REPLY = /^(responder|reply)$/i;
 const POST = /^(publicar|postar|enviar|comentar|post|send|comment|reply|responder)$/i;
 const generatedSchema = z.object({ text: z.string().trim().min(2).max(300) });
 
@@ -121,6 +121,7 @@ export interface ActionTarget {
   context: string;
   video?: Locator;
   submit?: Locator;
+  confirmation?: Locator;
   activation?: 'click' | 'keyboard';
 }
 
@@ -401,35 +402,9 @@ export class WarmingBrowser {
       return tiktokComments(page, root, url, action, () =>
         this.clear(platform, page, page.context()),
       );
-    {
-      const comments = root.getByRole('button', { name: /comentários|comments/i }).first();
-      if (await comments.isVisible()) await comments.click();
-    }
-    const commentScope = page.locator('ytd-comment-thread-renderer').first();
-    let context = (await root.innerText()).slice(0, 6500);
-    let button: Locator | null = null;
-    if (action === 'replies' || action === 'commentLikes') {
-      await commentScope.waitFor({ state: 'visible', timeout: 10_000 });
-      context = `Comentário a responder/interagir:\n${(await commentScope.innerText()).slice(0, 1500)}\nTexto da página:\n${context}`;
-      if (action === 'commentLikes') {
-        button = commentScope.getByRole('button', { name: LIKE }).first();
-        if ((await button.getAttribute('aria-pressed')) === 'true') return null;
-        if (!(await button.isVisible()))
-          throw new Error('Não encontrei o botão de curtir comentário.');
-        return { url, scope: page.locator('body'), editor: null, button, context };
-      }
-      await commentScope.getByRole('button', { name: REPLY }).first().click({ timeout: 10_000 });
-    }
-    if (action === 'comments') {
-      const placeholder = page.locator('#simplebox-placeholder').first();
-      if (await placeholder.isVisible()) await placeholder.click();
-    }
-    const editors = page.locator(
-      'textarea, [contenteditable="true"][role="textbox"], #contenteditable-root[contenteditable="true"], [data-e2e="comment-input"] [contenteditable="true"]',
+    return youtubeComments(page, root, url, action, () =>
+      this.clear(platform, page, page.context()),
     );
-    const editor = editors.filter({ visible: true }).last();
-    await editor.waitFor({ state: 'visible', timeout: 10_000 });
-    return { url, scope: page.locator('body'), editor, button, context };
   }
 
   async watch(
@@ -494,6 +469,9 @@ export class WarmingBrowser {
         'O campo de comentário deixou de responder antes do envio. Confira a captura desta etapa.',
       );
     }
+    const receipt = target.confirmation
+      ? await prepareCommentConfirmation(target.confirmation, target.editor, text)
+      : null;
     const post =
       target.submit ??
       target.scope.getByRole('button', { name: POST }).filter({ visible: true }).last();
@@ -504,20 +482,23 @@ export class WarmingBrowser {
         'Não consegui confirmar o acionamento de Postar. Confira a rede; esta tentativa não será repetida automaticamente.',
       );
     }
+    if (receipt) {
+      await waitForCommentConfirmation(page, receipt);
+      return;
+    }
     try {
-      await target.scope
-        .getByText(text, { exact: true })
-        .filter({ visible: true })
-        .first()
-        .waitFor({ state: 'visible', timeout: 15_000 });
+      const confirmation = target.scope.getByText(text, { exact: true }).filter({ visible: true });
+      await confirmation.first().waitFor({ state: 'visible', timeout: 15_000 });
     } catch {
       throw new Error(
         'O comentário foi enviado ao navegador, mas não apareceu na lista. Confira a rede; a tentativa não será repetida automaticamente.',
       );
     }
-    const remaining = await target.editor
-      .inputValue()
-      .catch(() => target.editor?.innerText() ?? Promise.resolve(''));
+    const remaining = await target.editor.evaluateAll((items) => {
+      const element = items[0] as unknown as
+        { value?: string; textContent: string | null } | undefined;
+      return element?.value ?? element?.textContent ?? '';
+    });
     if (remaining.trim() !== '')
       throw new Error(
         'O envio do comentário não foi confirmado. Confira a rede antes de reiniciar.',
