@@ -126,6 +126,8 @@
   overflow: hidden;
   background: #141414;
   box-shadow: var(--shadow-lift);
+  outline: 1px solid var(--media-edge);
+  outline-offset: -1px;
   margin-left: auto;
 }
 
@@ -236,7 +238,7 @@
   height: 20px;
   border-radius: 50%;
   background: var(--ink);
-  border: 3px solid #fff;
+  border: 3px solid var(--surface);
   box-shadow: 0 0 0 1px var(--ink);
   cursor: grab;
   transition: transform 0.25s var(--ease);
@@ -251,7 +253,7 @@
   height: 16px;
   border-radius: 50%;
   background: var(--ink);
-  border: 3px solid #fff;
+  border: 3px solid var(--surface);
 }
 
 .duration-input {
@@ -532,7 +534,7 @@
 }
 
 .tl--failed .tl__ring {
-  background: #fff;
+  background: var(--surface);
   border-color: var(--ink);
   border-width: 3px;
 }
@@ -712,12 +714,12 @@
 
 .clip__action--dark {
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
   border-color: var(--ink);
 }
 
 .clip__action--dark:hover {
-  background: #383838;
+  background: var(--ink-hover);
 }
 
 .lightbox {
@@ -797,7 +799,7 @@
   padding: 2px 8px;
   border-radius: 6px;
   background: #fff;
-  color: var(--ink);
+  color: #141414;
   font-size: 11px;
   font-weight: 750;
 }
@@ -810,7 +812,7 @@
   height: 18px;
   border-radius: 50%;
   background: #fff;
-  border: 2px solid var(--ink);
+  border: 2px solid #141414;
   cursor: nwse-resize;
 }
 
@@ -1002,7 +1004,7 @@
   position: absolute;
   inset: 0;
   border-radius: 12px;
-  background: var(--surface);
+  background: var(--raised);
   box-shadow: var(--shadow);
   z-index: -1;
 }
@@ -1175,7 +1177,7 @@
 }
 
 .tile--ghost {
-  background: linear-gradient(100deg, var(--sunken) 30%, #f7f7f6 50%, var(--sunken) 70%);
+  background: linear-gradient(100deg, var(--sunken) 30%, var(--skeleton) 50%, var(--sunken) 70%);
   background-size: 200% 100%;
   animation: pan 1.6s linear infinite;
 }
@@ -1400,7 +1402,7 @@
   display: inline-grid;
   place-items: center;
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
   flex-shrink: 0;
 }
 
@@ -1820,7 +1822,7 @@
 }
 
 .batch__step--failed {
-  background: #b42318;
+  background: var(--danger);
 }
 
 .batch__step-fill {
@@ -1835,7 +1837,7 @@
 }
 
 .batch__error {
-  color: #b42318;
+  color: var(--danger);
 }
 
 .batch__clips {
@@ -1868,7 +1870,7 @@
   place-items: center;
   border-radius: 50%;
   background: rgb(255 255 255 / 0.92);
-  color: var(--ink);
+  color: #141414;
   transition: transform 0.25s var(--ease);
 }
 
@@ -1904,7 +1906,7 @@
 .image-drop--over {
   border: 1.5px solid var(--ink);
   background: var(--surface);
-  box-shadow: 0 0 0 5px rgb(20 20 20 / 0.08);
+  box-shadow: 0 0 0 5px var(--focus-ring);
 }
 
 .profile__drop {
@@ -1948,7 +1950,7 @@
   border-radius: 8px;
   border: 1.5px solid rgb(255 255 255 / 0.9);
   background: rgb(0 0 0 / 0.28);
-  color: var(--ink);
+  color: #141414;
   backdrop-filter: blur(6px);
   opacity: 0;
   transition:
@@ -2000,7 +2002,7 @@
   padding: 10px 10px 10px 20px;
   border-radius: 999px;
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
   box-shadow: var(--shadow-lift);
 }
 
@@ -2012,13 +2014,13 @@
 
 .selection-bar__link {
   font-size: 13px;
-  color: rgb(255 255 255 / 0.7);
+  color: var(--on-ink-soft);
   white-space: nowrap;
   transition: color 0.25s var(--ease);
 }
 
 .selection-bar__link:hover {
-  color: #fff;
+  color: var(--on-ink);
 }
 
 .selection-bar__actions {
@@ -2031,14 +2033,14 @@
 .selection-bar__close {
   width: 36px;
   height: 36px;
-  color: rgb(255 255 255 / 0.75);
+  color: var(--on-ink-soft);
   background: transparent;
-  border-color: rgb(255 255 255 / 0.2);
+  border-color: var(--on-ink-line);
 }
 
 .selection-bar__close:hover {
-  color: #fff;
-  border-color: rgb(255 255 255 / 0.45);
+  color: var(--on-ink);
+  border-color: var(--on-ink-line-strong);
   box-shadow: none;
 }
 
@@ -2110,7 +2112,7 @@
   place-items: center;
   overflow: hidden;
   border-radius: 12px;
-  background: #0d0d0d;
+  background: var(--media);
   border: 1px solid var(--line);
   cursor: pointer;
   touch-action: none;
@@ -2438,13 +2440,13 @@
     transform 0.18s;
 }
 .accounts-sidebar__item:hover {
-  background: #eaeae8;
+  background: var(--hover);
 }
 .accounts-sidebar__item:active {
   transform: scale(0.98);
 }
 .accounts-sidebar__item[aria-pressed='true'] {
-  background: var(--surface);
+  background: var(--raised);
   border-color: var(--line);
   box-shadow: 0 2px 5px #00000004;
 }
@@ -2530,8 +2532,8 @@
   font-size: 12px;
 }
 .accounts .network__status--on {
-  background: #edf5ee;
-  color: #38684b;
+  background: var(--success-bg);
+  color: var(--success);
 }
 .accounts .network__handle {
   font-size: 13px;
@@ -2577,10 +2579,10 @@
   font-weight: 500;
 }
 .warming__status--running {
-  color: #39734f;
+  color: var(--success);
 }
 .warming__status--attention {
-  color: #a36127;
+  color: var(--warning);
 }
 .warming__status > svg {
   transform: rotate(-90deg);
@@ -2600,11 +2602,11 @@
   max-width: none;
   max-height: min(780px, calc(100dvh - 48px));
   padding: 0;
-  border: 1px solid #dededc;
+  border: 1px solid var(--line);
   border-radius: 18px;
   color: var(--ink);
   background: var(--surface);
-  box-shadow: 0 30px 100px #00000024;
+  box-shadow: 0 30px 100px var(--dialog-shadow);
   overflow: hidden;
 }
 .warming-dialog[open] {
@@ -2613,7 +2615,7 @@
   animation: warming-dialog-enter 0.2s var(--ease) both;
 }
 .warming-dialog::backdrop {
-  background: rgb(20 20 20 / 0.3);
+  background: var(--backdrop);
 }
 .warming-dialog__header {
   display: flex;
@@ -2689,14 +2691,14 @@
 }
 .warming-badge--running,
 .warming-badge--completed {
-  color: #38684b;
-  background: #f1f7f2;
-  border-color: #dce9df;
+  color: var(--success);
+  background: var(--success-bg);
+  border-color: var(--success-line);
 }
 .warming-badge--attention {
-  color: #98602e;
-  border-color: #ead9c4;
-  background: #fcf6ed;
+  color: var(--warning);
+  border-color: var(--warning-line);
+  background: var(--warning-bg);
 }
 .warming-dialog__toolbar {
   display: flex;
@@ -2733,13 +2735,13 @@
 }
 .warming__tabs button:hover {
   color: var(--ink);
-  background: #eaeae8;
+  background: var(--hover);
 }
 .warming__tabs button:active {
   transform: scale(0.96);
 }
 .warming__tabs button[aria-selected='true'] {
-  background: var(--surface);
+  background: var(--raised);
   color: var(--ink);
   box-shadow: 0 1px 4px #0000000d;
 }
@@ -2790,7 +2792,7 @@
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 12px;
-  background: #fbfbfa;
+  background: var(--subtle);
 }
 .warming-dialog__footer > span:first-child {
   display: flex;
@@ -2803,7 +2805,7 @@
   text-underline-offset: 3px;
 }
 .warming-connected {
-  color: #39734f;
+  color: var(--success);
 }
 .warming-footer-action {
   color: var(--ink);
@@ -2811,9 +2813,9 @@
 }
 .warming-alert {
   padding: 12px 14px;
-  border: 1px solid #ead9c4;
-  background: #fcf6ed;
-  color: #86572e;
+  border: 1px solid var(--warning-line);
+  background: var(--warning-bg);
+  color: var(--warning);
   font-size: 14px;
   border-radius: 10px;
   margin-bottom: 14px;
@@ -2909,7 +2911,7 @@
     transform 0.15s;
 }
 .warming-stepper button:hover {
-  background: #e3e3e1;
+  background: var(--hover-strong);
 }
 .warming-stepper button:active {
   transform: scale(0.88);
@@ -2958,7 +2960,7 @@
   padding: 20px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #f8f8f7;
+  background: var(--subtle);
 }
 .warming-summary h3 {
   font-size: 23px;
@@ -3015,7 +3017,7 @@
     box-shadow 0.17s;
 }
 .warming-choice button:hover:not(:disabled) {
-  border-color: #b9b9b5;
+  border-color: var(--line-hover);
   transform: translateY(-1px);
 }
 .warming-choice button:active:not(:disabled) {
@@ -3023,7 +3025,7 @@
 }
 .warming-choice button[aria-pressed='true'] {
   border-color: var(--ink);
-  background: #f3f3f1;
+  background: var(--subtle);
   box-shadow: 0 0 0 1px var(--ink);
 }
 .warming-choice__label {
@@ -3045,7 +3047,7 @@
 }
 [aria-pressed='true'] > .warming-choice__label > .warming-choice__check {
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
   border-color: var(--ink);
   animation: warming-check 0.16s var(--ease);
 }
@@ -3128,15 +3130,15 @@
   flex-shrink: 0;
 }
 .warming-live__dot--on {
-  background: #4b8259;
-  box-shadow: 0 0 0 4px #4b825910;
+  background: var(--success-dot);
+  box-shadow: 0 0 0 4px var(--success-halo);
 }
 .warming-live--attention {
-  background: #fcf6ed;
-  border-color: #ead9c4;
+  background: var(--warning-bg);
+  border-color: var(--warning-line);
 }
 .warming-live--attention .warming-live__dot {
-  background: #ac783c;
+  background: var(--warning-dot);
 }
 .warming-live__time {
   font-size: 21px;
@@ -3193,11 +3195,11 @@
   background: var(--sunken);
 }
 .warming-metrics progress::-webkit-progress-value {
-  background: #50805b;
+  background: var(--success-dot);
   border-radius: 5px;
 }
 .warming-metrics progress::-moz-progress-bar {
-  background: #50805b;
+  background: var(--success-dot);
 }
 .warming-observation {
   display: grid;
@@ -3224,7 +3226,7 @@
 .warming-preview__image {
   position: relative;
   display: block;
-  background: #eee;
+  background: var(--sunken);
   border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
@@ -3248,7 +3250,7 @@
   border: 1px solid var(--line);
   padding: 6px 8px;
   border-radius: 7px;
-  background: #ffffffeb;
+  background: var(--glass);
   opacity: 0;
   transform: translateY(4px);
   transition:
@@ -3372,14 +3374,14 @@
   place-items: center;
   width: 13px;
   height: 16px;
-  color: #44794f;
+  color: var(--success);
   margin-top: 2px;
 }
 .warming-log__marker > span {
   height: 4px;
   width: 4px;
   border-radius: 50%;
-  background: #bdbdb8;
+  background: var(--line-hover);
 }
 .warming-log__list .warming-log__empty {
   display: block;
@@ -3508,7 +3510,7 @@
 .warming-log__list,
 .accounts-sidebar__list {
   scrollbar-width: thin;
-  scrollbar-color: #d0d0ca transparent;
+  scrollbar-color: var(--scrollbar) transparent;
   overscroll-behavior: contain;
 }
 @keyframes warming-enter {
@@ -3728,10 +3730,10 @@
 }
 
 .accounts-sidebar__name small.accounts-sidebar__running {
-  color: #39734f;
+  color: var(--success);
 }
 .accounts-sidebar__name small.accounts-sidebar__attention {
-  color: #98602e;
+  color: var(--warning);
 }
 
 .timing-field {
@@ -3778,7 +3780,7 @@
     box-shadow 0.15s;
 }
 .timing-field__mode button[aria-pressed='true'] {
-  background: var(--surface);
+  background: var(--raised);
   color: var(--ink);
   box-shadow: 0 1px 4px #00000012;
 }
