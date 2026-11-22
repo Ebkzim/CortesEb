@@ -30,6 +30,19 @@ describe('SecretBox', () => {
     expect(() => new SecretBox(Buffer.alloc(8))).toThrow();
   });
 
+  it('agrees on one master key when created concurrently', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-key-race-'));
+    try {
+      const keys = await Promise.all(
+        Array.from({ length: 8 }, () => loadMasterKey(dir, undefined)),
+      );
+      expect(new Set(keys.map((key) => key.toString('hex'))).size).toBe(1);
+      expect((await fs.readdir(dir)).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('creates a private master key once and reuses it', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-key-'));
     const first = await loadMasterKey(dir, undefined);
