@@ -10,7 +10,7 @@ import { tiktokComments } from './tiktok-comments.js';
 import { instagramComments } from './instagram-comments.js';
 import { WarmingDesk } from './warming-desk.js';
 import { WarmingBrowser, activeVideo, clickNextVideo } from './warming-browser.js';
-import { clickLike, findVideoLike } from './video-like.js';
+import { clickLike, findVideoLike, isLiked } from './video-like.js';
 import { VideoUnavailableError, watchVideo } from './video-playback.js';
 
 const executablePath = chromeCandidates().find((candidate) => fs.existsSync(candidate));
@@ -142,6 +142,99 @@ describe.skipIf(executablePath === undefined)('video like controls in Chrome', (
     });
     await clickLike(page, button);
     expect(await button.getAttribute('data-clicked')).toBeNull();
+  });
+
+  it('confirms a YouTube like when the accessible name changes after the click', async () => {
+    await page.setContent(
+      `<button aria-label="Curtir este vídeo junto com outras 31 pessoas" aria-pressed="false" onclick="this.setAttribute('aria-pressed','true');this.setAttribute('aria-label','Remover o Gostei deste vídeo');this.dataset.clicks=Number(this.dataset.clicks||0)+1">31</button>`,
+    );
+    const button = await findVideoLike(page, 'youtube', page.locator('body'), 1000);
+    if (!button) throw new Error('controle ausente');
+    await clickLike(page, button, 1000);
+    await clickLike(page, button, 1000);
+    expect(await button.getAttribute('data-clicks')).toBe('1');
+    expect(await isLiked(button)).toBe(true);
+  });
+
+  it.each(['like-button-view-model', 'yt-like-button-view-model', 'div id="like-button"'])(
+    'keeps the selected YouTube slot when its inner button is replaced: %s',
+    async (tag) => {
+      const endTag = tag.split(' ')[0];
+      await page.setContent(
+        `<${tag}><button aria-label="Gostei deste vídeo" aria-pressed="false" onclick="this.parentElement.innerHTML='<button aria-label=&quot;Remover o Gostei&quot; aria-pressed=&quot;true&quot;>32</button>';document.body.dataset.clicks=Number(document.body.dataset.clicks||0)+1">31</button></${endTag}><button aria-label="Não gostei" onclick="document.body.dataset.wrong='true'">Não gostei</button>`,
+      );
+      const button = await findVideoLike(page, 'youtube', page.locator('body'), 1000);
+      if (!button) throw new Error('controle ausente');
+      await clickLike(page, button, 1000);
+      expect(await button.getAttribute('aria-pressed')).toBe('true');
+      expect(await page.locator('body').getAttribute('data-clicks')).toBe('1');
+      expect(await page.locator('body').getAttribute('data-wrong')).toBeNull();
+    },
+  );
+
+  it('does not move to another YouTube button while the selected control has no accessible name', async () => {
+    await page.setContent(
+      `<button id="selected" aria-label="Curtir vídeo" aria-pressed="false" onclick="this.removeAttribute('aria-label');setTimeout(()=>{this.setAttribute('aria-pressed','true');this.setAttribute('aria-label','Remover o Gostei');this.dataset.confirmed='true'},300)">Primeiro</button><button aria-label="Curtir vídeo" aria-pressed="true" onclick="this.dataset.wrong='true'">Outro vídeo</button>`,
+    );
+    const button = await findVideoLike(page, 'youtube', page.locator('body'), 1000);
+    if (!button) throw new Error('controle ausente');
+    await clickLike(page, button, 2000);
+    expect(await page.locator('#selected').getAttribute('data-confirmed')).toBe('true');
+    expect(await page.locator('[data-wrong]').count()).toBe(0);
+  });
+
+  it('does not confirm a different video after YouTube removes the selected like slot', async () => {
+    await page.setContent(
+      `<article id="selected"><like-button-view-model><button aria-label="Curtir vídeo" aria-pressed="false" onclick="document.body.dataset.clicks=Number(document.body.dataset.clicks||0)+1;this.parentElement.remove()">Primeiro</button></like-button-view-model></article><article><like-button-view-model><button aria-label="Remover o Gostei" aria-pressed="true">Outro vídeo já curtido</button></like-button-view-model></article>`,
+    );
+    const button = await findVideoLike(page, 'youtube', page.locator('#selected'), 1000);
+    if (!button) throw new Error('controle ausente');
+    await expect(clickLike(page, button, 100)).rejects.toThrow(
+      /não foi confirmada.*não será repetida/,
+    );
+    expect(await page.locator('body').getAttribute('data-clicks')).toBe('1');
+  }, 5000);
+
+  it('reads a removed like control without starting a default locator wait', async () => {
+    await page.setContent('<button id="gone" aria-pressed="false">Curtir</button>');
+    const gone = page.locator('#gone');
+    await gone.evaluate((element) => {
+      element.remove();
+    });
+    expect(await isLiked(gone)).toBe(false);
+    await expect(clickLike(page, gone, 100)).rejects.toThrow(/antes do envio/);
+  }, 5000);
+
+  it.each(['ytd-reel-video-renderer', 'yt-shorts-video-renderer'])(
+    'likes only the renderer containing the watched YouTube video: %s',
+    async (tag) => {
+      await page.route('https://www.youtube.com/**', (route) =>
+        route.fulfill({
+          contentType: 'text/html',
+          body: `<ytd-shorts is-active><${tag}><like-button-view-model><button aria-label="Curtir vídeo" aria-pressed="true">Vizinho já curtido</button></like-button-view-model></${tag}><${tag} is-active><video style="width:200px;height:200px"></video><like-button-view-model><button aria-label="Gostei deste vídeo" aria-pressed="false" onclick="this.setAttribute('aria-pressed','true');this.setAttribute('aria-label','Remover o Gostei');this.dataset.clicks=Number(this.dataset.clicks||0)+1">Selecionado</button></like-button-view-model></${tag}></ytd-shorts>`,
+        }),
+      );
+      await page.goto('https://www.youtube.com/shorts/fixture');
+      const warming = new WarmingBrowser({} as LlmService, {} as ApiKeyRepository);
+      const target = await warming.prepare(
+        page,
+        'youtube',
+        'https://www.youtube.com/shorts/fixture',
+        'likes',
+      );
+      if (!target?.button) throw new Error('controle ausente');
+      await warming.perform(page, target, 'likes', null);
+      expect(await target.button.innerText()).toBe('Selecionado');
+      expect(await target.button.getAttribute('data-clicks')).toBe('1');
+    },
+  );
+
+  it('does not toggle a YouTube video already marked with Gostei', async () => {
+    await page.setContent(
+      `<like-button-view-model><button aria-label="Remover o Gostei" aria-pressed="true" onclick="this.dataset.wrong='true'">Já curtido</button></like-button-view-model>`,
+    );
+    expect(await findVideoLike(page, 'youtube', page.locator('body'), 1000)).toBeNull();
+    expect(await page.locator('[data-wrong]').count()).toBe(0);
   });
 
   it('keeps the watched page loaded after TikTok canonicalizes the account handle', async () => {

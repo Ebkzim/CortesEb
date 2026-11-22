@@ -375,15 +375,20 @@ export class WarmingBrowser {
     const video = await activeVideo(page);
     const scope =
       platform === 'youtube'
-        ? page.locator('ytd-reel-video-renderer[is-active], ytd-shorts[is-active]').first()
+        ? page
+            .locator(
+              'ytd-reel-video-renderer[is-active], yt-shorts-video-renderer[is-active], ytd-shorts[is-active]',
+            )
+            .first()
         : page.locator('body');
-    const item = page.locator('[data-cortes-current-item]');
+    const item =
+      platform === 'youtube'
+        ? video.locator(
+            'xpath=ancestor::*[self::ytd-reel-video-renderer or self::yt-shorts-video-renderer][1]',
+          )
+        : page.locator('[data-cortes-current-item]');
     const root =
-      platform !== 'youtube' && (await item.count()) > 0
-        ? item
-        : (await scope.count()) > 0
-          ? scope
-          : page.locator('body');
+      (await item.count()) > 0 ? item : (await scope.count()) > 0 ? scope : page.locator('body');
     if (action === 'views')
       return { url, scope: root, editor: null, button: null, context: '', video };
     if (platform === 'tiktok' && action === 'commentLikes') return null;
