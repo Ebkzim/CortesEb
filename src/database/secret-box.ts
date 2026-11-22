@@ -51,16 +51,35 @@ export async function loadMasterKey(home: string, fromEnv: string | undefined): 
     return key;
   }
   const file = path.join(home, 'master.key');
-  try {
-    const key = Buffer.from((await fs.readFile(file, 'utf8')).trim(), 'base64');
-    if (key.length === KEY_BYTES) return key;
-    throw new AppError('INVALID_INPUT', 'master.key corrompida');
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-  }
+  const existing = await readMasterKey(file);
+  if (existing !== null) return existing;
   await fs.mkdir(home, { recursive: true });
   const key = randomBytes(KEY_BYTES);
-  await fs.writeFile(file, key.toString('base64'), { mode: KEY_MODE, flag: 'wx' });
+  const temp = `${file}.${randomBytes(6).toString('hex')}.tmp`;
+  try {
+    await fs.writeFile(temp, key.toString('base64'), { mode: KEY_MODE, flag: 'wx' });
+    await fs.link(temp, file);
+    return key;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    const winner = await readMasterKey(file);
+    if (winner === null) throw new AppError('INVALID_INPUT', 'master.key corrompida');
+    return winner;
+  } finally {
+    await fs.rm(temp, { force: true });
+  }
+}
+
+async function readMasterKey(file: string): Promise<Buffer | null> {
+  let text: string;
+  try {
+    text = await fs.readFile(file, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+  const key = Buffer.from(text.trim(), 'base64');
+  if (key.length !== KEY_BYTES) throw new AppError('INVALID_INPUT', 'master.key corrompida');
   return key;
 }
 
