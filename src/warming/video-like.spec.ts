@@ -17,20 +17,21 @@ const executablePath = chromeCandidates().find((candidate) => fs.existsSync(cand
 
 // These DOM regressions run against Chrome when available, without a platform login or network.
 describe.skipIf(executablePath === undefined)('video like controls in Chrome', () => {
-  let browser: Browser;
+  let browser: Browser | undefined;
   let page: Page;
   beforeAll(async () => {
     if (executablePath === undefined) throw new Error('Chrome indisponível');
-    browser = await chromium.launch({ executablePath, headless: true });
-  });
+    browser = await chromium.launch({ executablePath, headless: true, timeout: 30_000 });
+  }, 45_000);
   beforeEach(async () => {
+    if (browser === undefined) throw new Error('O Chrome dos testes não iniciou.');
     page = await browser.newPage();
   });
   afterEach(async () => {
     await page.close();
   });
   afterAll(async () => {
-    await browser.close();
+    await browser?.close();
   });
 
   it('skips the unavailable-video screen without waiting for a missing video locator', async () => {
