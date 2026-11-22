@@ -113,6 +113,8 @@ Na aba **Contas**, cadastre os perfis e conecte TikTok, Instagram e YouTube pelo
 
 Selecione uma conta na lista e abra **Aquecimento** no cartão de uma rede. Em **Metas**, defina quantos vídeos assistir, curtir, comentar ou responder, o tempo de reprodução e o intervalo entre vídeos. Curtidas em comentários estão disponíveis no Instagram e no YouTube. Comentários e respostas usam o texto disponível na página e a IA escolhida em **Preferências**: Ollama, uma chave cadastrada no painel ou a configuração da CLI.
 
+Em **Metas**, cada tempo pode ser **Fixo** ou **Variável**. O modo variável sorteia segundos inteiros dentro dos limites definidos: 5–120 segundos para assistir e 10–3.600 segundos de intervalo. O tempo é escolhido uma vez por ciclo e aparece na contagem regressiva; quando a faixa tem mais de um valor, o sorteio evita repetir o tempo anterior. Configurações antigas continuam fixas até você ativar uma faixa.
+
 Em **Atividade**, veja a etapa atual, a contagem regressiva, os totais por ação e uma prévia compacta do navegador. O histórico tem busca, filtros e rolagem própria. A captura pode ser ampliada e não é uma transmissão ao vivo. A configuração fica bloqueada enquanto a sessão executa.
 
 Em **Preferências → Modo de busca**, **Econômica** é o padrão para computadores mais fracos: espera 2,5 segundos entre tentativas de busca, reaproveita o vídeo ativo no feed do TikTok e limita as capturas comuns a uma a cada 20 segundos, com qualidade reduzida. **Padrão** espera 1,2 segundo entre tentativas e captura cada etapa. Estados que precisam de atenção recebem uma captura mesmo no modo econômico.
@@ -124,6 +126,18 @@ Em **Preferências → Resolver verificações**, **No Chrome** abre a janela or
 Se uma rede pedir verificação, a página original permanece aberta e a resolução acontece na janela do Chrome ou na tela interativa, conforme o modo escolhido. Resolva manualmente; o aquecimento continua na mesma sessão. Cancelar encerra a espera e mantém o progresso salvo.
 
 A publicação tem prioridade entre ciclos. O histórico registra tentativas e ações confirmadas; quando há verificação, sessão expirada ou uma ação sem confirmação, o aquecimento pausa para conferência. Tentativas já registradas não são repetidas automaticamente no mesmo vídeo. Um bloqueio de perfil impede login, publicação e aquecimento de abrirem o mesmo perfil do Chrome simultaneamente.
+
+## Seguidores no Instagram
+
+No cartão do Instagram, abra **Seguidores**. Escolha **Seguir** ou **Deixar de seguir**, a quantidade da sessão e o intervalo mínimo e máximo. Os modos não executam juntos na mesma conta. Pare e aguarde o encerramento antes de trocar de modo.
+
+**Seguir** encontra perfis nos comentários de Reels e sorteia a ordem dos candidatos. Perfis já seguidos ou com solicitação pendente são ignorados. Solicitações enviadas a contas privadas entram na quantidade de ações, mas aparecem separadas dos vínculos confirmados em **Atividade**.
+
+**Deixar de seguir** consulta a lista atual de pessoas que a conta segue, inclusive vínculos feitos fora do aplicativo. Antes de remover um perfil, pesquisa o nome exato nos seguidores da própria conta. Uma ausência só é aceita quando a busca da página retorna uma resposta vazia concluída e a interface mostra que não há resultados. Listas incompletas ou buscas sem confirmação mantêm o vínculo e registram o motivo. Se a versão do Instagram não disponibilizar essa confirmação, a sessão pode pausar sem fazer remoções.
+
+O cronômetro de seguidores é independente do aquecimento. Um novo intervalo é sorteado após cada ação confirmada. O trabalhador compartilhado abre uma sessão de navegação por vez; um intervalo vencido pode aguardar outra navegação ou publicação. O painel mostra essa espera, o perfil atual, os totais e um histórico pesquisável.
+
+Parar e retomar mantém os totais de uma sessão incompleta no mesmo modo. Iniciar após a conclusão ou trocar de modo inicia uma nova contagem. O histórico de tentativas permanece: uma ação sem confirmação não é repetida automaticamente no mesmo perfil e modo, nem é somada à meta. Ao reiniciar o serviço, as sessões ficam paradas. Verificações usam a mesma resolução manual do aquecimento.
 
 ## Dicas
 
