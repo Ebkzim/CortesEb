@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WINDOWS = process.platform === 'win32';
+const MAC = process.platform === 'darwin';
 const ARM = process.arch === 'arm64';
 const HOME = path.resolve(
   process.env.CORTES_EB_HOME?.trim() || path.join(os.homedir(), '.cortes-eb'),
@@ -38,7 +39,7 @@ const FFMPEG = WINDOWS
 
 const YTDLP_RELEASE = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download';
 const YTDLP = {
-  url: `${YTDLP_RELEASE}/${WINDOWS ? 'yt-dlp.exe' : ARM ? 'yt-dlp_linux_aarch64' : 'yt-dlp_linux'}`,
+  url: `${YTDLP_RELEASE}/${WINDOWS ? 'yt-dlp.exe' : MAC ? 'yt-dlp_macos' : ARM ? 'yt-dlp_linux_aarch64' : 'yt-dlp_linux'}`,
   sums: `${YTDLP_RELEASE}/SHA2-256SUMS`,
 };
 
@@ -130,11 +131,14 @@ function printHelp() {
 }
 
 function checkPlatform() {
-  if (process.platform !== 'linux' && !WINDOWS) {
-    fail('este instalador funciona no Linux e no Windows');
+  if (process.platform !== 'linux' && !WINDOWS && !MAC) {
+    fail('este instalador funciona no Linux, no Windows e no Mac');
   }
   if (process.arch !== 'x64' && !(ARM && !WINDOWS)) {
-    fail(`processador ${process.arch} não suportado (use x64, ou arm64 no Linux)`);
+    fail(`processador ${process.arch} não suportado (use x64, ou arm64 no Linux e no Mac)`);
+  }
+  if (MAC && !has('brew')) {
+    fail('instale o Homebrew antes (brew.sh) e rode de novo');
   }
 }
 
@@ -150,6 +154,11 @@ function checkNode() {
 
 async function installFfmpeg() {
   if (has('ffmpeg') && has('ffprobe')) return 'já instalado';
+  if (MAC) {
+    brew(['install', 'ffmpeg']);
+    if (!has('ffmpeg')) throw new Error('o FFmpeg do Homebrew não executou nesta máquina');
+    return 'ok';
+  }
   const work = await fs.mkdtemp(path.join(os.tmpdir(), 'cortes-eb-ffmpeg-'));
   try {
     const archive = await downloadFirst(FFMPEG, work, WINDOWS ? 'ffmpeg.zip' : 'ffmpeg.tar.xz');
@@ -187,7 +196,9 @@ async function installWhisper() {
     if (!has('g++') && !has('c++')) missing.push('g++');
     if (missing.length > 0 && !(await exists(path.join(HOME, 'whisper.cpp', 'main')))) {
       throw new Error(
-        `faltam ${missing.join(', ')} para compilar o Whisper. No Ubuntu/Debian rode: sudo apt install build-essential git`,
+        MAC
+          ? `faltam ${missing.join(', ')} para compilar o Whisper. Rode: xcode-select --install`
+          : `faltam ${missing.join(', ')} para compilar o Whisper. No Ubuntu/Debian rode: sudo apt install build-essential git`,
       );
     }
   }
@@ -213,6 +224,8 @@ async function installOllama() {
       } finally {
         await fs.rm(work, { recursive: true, force: true });
       }
+    } else if (MAC) {
+      brew(['install', 'ollama']);
     } else {
       if (!has('curl')) throw new Error('instale o curl (sudo apt install curl) e rode de novo');
       info('o instalador oficial do Ollama vai pedir sua senha de administrador (sudo)');
@@ -228,6 +241,10 @@ async function installOllama() {
   }
   const executable = await ollamaExecutable();
   if (executable === null) throw new Error('o Ollama não foi encontrado depois da instalação');
+  if (MAC && !(await ollamaUp())) {
+    spawnSync('brew', ['services', 'start', 'ollama'], { stdio: 'inherit', shell: false });
+    for (let attempt = 0; attempt < 15 && !(await ollamaUp()); attempt += 1) await sleep(1000);
+  }
   if (!(await ollamaUp())) {
     const child = spawn(executable, ['serve'], {
       detached: true,
@@ -330,6 +347,10 @@ function isCritical(name) {
   return name === 'dependências do projeto' || name === 'compilando o sistema e o painel';
 }
 
+function brew(args) {
+  run('brew', args, ROOT);
+}
+
 function npm(args, cwd) {
   run(WINDOWS ? 'npm.cmd' : 'npm', args, cwd, WINDOWS);
 }
@@ -355,7 +376,7 @@ function has(command) {
     },
   );
   if (probe.error === undefined && probe.status === 0) return true;
-  if (['make', 'git', 'g++', 'c++', 'curl'].includes(command)) {
+  if (['make', 'git', 'g++', 'c++', 'curl', 'brew'].includes(command)) {
     const second = spawnSync(command, ['--version'], {
       stdio: 'ignore',
       shell: false,
@@ -395,7 +416,13 @@ async function ollamaExecutable() {
   if (has('ollama')) return 'ollama';
   const candidates = WINDOWS
     ? [path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Ollama', 'ollama.exe')]
-    : ['/usr/local/bin/ollama', '/usr/bin/ollama'];
+    : MAC
+      ? [
+          '/opt/homebrew/bin/ollama',
+          '/usr/local/bin/ollama',
+          '/Applications/Ollama.app/Contents/Resources/ollama',
+        ]
+      : ['/usr/local/bin/ollama', '/usr/bin/ollama'];
   for (const candidate of candidates) {
     if (await exists(candidate)) return candidate;
   }

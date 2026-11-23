@@ -177,9 +177,10 @@ export class RemoteDesk {
 }
 
 export function desktopNotify(title: string, body: string): void {
-  if (process.platform !== 'linux') return;
+  const command = notifyCommand(title, body);
+  if (command === null) return;
   try {
-    const child = spawn('notify-send', ['-a', 'CortesEb', '-u', 'critical', title, body], {
+    const child = spawn(command[0], command[1], {
       stdio: 'ignore',
       shell: false,
       detached: true,
@@ -189,4 +190,29 @@ export function desktopNotify(title: string, body: string): void {
   } catch {
     return;
   }
+}
+
+export function notifyCommand(
+  title: string,
+  body: string,
+  platform: NodeJS.Platform = process.platform,
+): [string, string[]] | null {
+  if (platform === 'linux')
+    return ['notify-send', ['-a', 'CortesEb', '-u', 'critical', title, body]];
+  if (platform === 'darwin') {
+    return [
+      'osascript',
+      [
+        '-e',
+        'on run argv',
+        '-e',
+        'display notification (item 2 of argv) with title (item 1 of argv)',
+        '-e',
+        'end run',
+        title,
+        body,
+      ],
+    ];
+  }
+  return null;
 }
