@@ -8,6 +8,7 @@ import { BrowserSessions } from './browser-sessions.js';
 import { identityFromUrl } from './identity.js';
 import { chromeCandidates, loginArgs } from './login-windows.js';
 import { DESK_HEADER, DeskServer, deskFile } from './desk-server.js';
+import { notifyCommand } from './remote-desk.js';
 import { RemoteDesk, deskInputSchema } from './remote-desk.js';
 
 function fakePage(): { page: Page; calls: string[] } {
@@ -225,5 +226,19 @@ describe('network identity', () => {
     await sessions.forget('instagram', 'main');
     await expect(fs.access(sessions.profileDir('instagram', 'main'))).rejects.toThrow();
     await fs.rm(dir, { recursive: true, force: true });
+  });
+});
+
+describe('notifyCommand', () => {
+  it('passes the text as arguments instead of script source on Mac', () => {
+    const [command, args] = notifyCommand('Título "x"', 'end run', 'darwin') ?? ['', []];
+    expect(command).toBe('osascript');
+    expect(args.slice(-2)).toEqual(['Título "x"', 'end run']);
+    expect(args.filter((arg) => arg.includes('Título'))).toHaveLength(1);
+  });
+
+  it('uses notify-send on Linux and nothing on Windows', () => {
+    expect(notifyCommand('a', 'b', 'linux')?.[0]).toBe('notify-send');
+    expect(notifyCommand('a', 'b', 'win32')).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ Transforma vídeos longos e lives em cortes.
 
 [![CI](https://github.com/Ebkzim/CortesEb/actions/workflows/ci.yml/badge.svg)](https://github.com/Ebkzim/CortesEb/actions/workflows/ci.yml) [![Instalação](https://github.com/Ebkzim/CortesEb/actions/workflows/install.yml/badge.svg)](https://github.com/Ebkzim/CortesEb/actions/workflows/install.yml) [![CodeQL](https://github.com/Ebkzim/CortesEb/actions/workflows/codeql.yml/badge.svg)](https://github.com/Ebkzim/CortesEb/actions/workflows/codeql.yml)
 
-![Node.js](https://img.shields.io/badge/node-%E2%89%A522.12-339933?logo=nodedotjs&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white) ![Linux e Windows](https://img.shields.io/badge/roda%20em-Linux%20%7C%20Windows-555) [![Conventional Commits](https://img.shields.io/badge/commits-conventional-FE5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org) [![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue.svg)](LICENSE)
+![Node.js](https://img.shields.io/badge/node-%E2%89%A522.12-339933?logo=nodedotjs&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white) ![Linux, Windows e Mac](https://img.shields.io/badge/roda%20em-Linux%20%7C%20Windows%20%7C%20Mac-555) [![Conventional Commits](https://img.shields.io/badge/commits-conventional-FE5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org) [![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue.svg)](LICENSE)
 
 </div>
 
@@ -109,6 +109,55 @@ cortes-eb ui
 
 O painel abre no navegador. Nas próximas vezes, basta abrir o terminal e rodar `cortes-eb ui`.
 
+## Instalação no Mac
+
+Funciona no macOS 13 (Ventura) ou mais novo, em Macs com Apple Silicon (M1, M2, M3, M4) ou Intel. Reserve uns 6 GB livres no disco.
+
+**1. Abra o Terminal**
+
+Aperte Command + Espaço, digite `Terminal` e aperte Enter.
+
+**2. Instale as ferramentas da Apple**
+
+```bash
+xcode-select --install
+```
+
+Uma janela vai abrir. Clique em "Instalar" e espere terminar. Se aparecer que já está instalado, siga para o próximo passo.
+
+**3. Instale o Homebrew, o Node.js e o Git**
+
+O Homebrew é o instalador de programas mais usado no Mac. Cole no Terminal e siga o que ele pedir (vai pedir a senha do Mac):
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+No fim, o Homebrew mostra em "Next steps" dois comandos para colocar ele no PATH. Rode os dois, depois feche e abra o Terminal de novo. Então instale o Node.js e o Git:
+
+```bash
+brew install node@22 git
+brew link --overwrite node@22
+```
+
+**4. Baixe o projeto e rode o instalador**
+
+```bash
+git clone https://github.com/Ebkzim/CortesEb.git
+cd CortesEb
+npm run instalar
+```
+
+Na primeira vez leva de 15 a 30 minutos. O FFmpeg e o Ollama são instalados pelo Homebrew, e o Ollama passa a ligar sozinho junto com o Mac.
+
+**5. Abra o painel**
+
+```bash
+cortes-eb ui
+```
+
+O painel abre no navegador. Nas próximas vezes, basta abrir o Terminal e rodar `cortes-eb ui`. Para conectar as contas e postar, instale também o [Google Chrome](https://www.google.com/chrome/).
+
 ## Como usar
 
 **Novo corte.** Clique em **Novo corte**, escolha o tipo (gameplay, react, podcast, filme ou série) e quantos cortes quer. Cole o link ou envie o arquivo, escolha a IA e dê um nome. Na tela da tarefa, marque onde está o rosto quando ela pedir. O resto segue sozinho: transcrição, escolha dos trechos e render.
@@ -136,7 +185,7 @@ Cada conta posta no máximo 3 vídeos por dia em cada rede, com pelo menos 30 mi
 
 **4. Deixe a postagem ligada.** As postagens são feitas por um serviço em segundo plano:
 
-- **Linux:** rode uma vez `cortes-eb service install`. Ele liga sozinho junto com o computador.
+- **Linux e Mac:** rode uma vez `cortes-eb service install`. Ele liga sozinho junto com o computador.
 - **Windows:** deixe um terminal aberto com `cortes-eb queue run --live`.
 
 Se uma rede pedir verificação, o painel avisa e a janela abre para você resolver.
@@ -153,27 +202,27 @@ Se uma rede pedir verificação, o painel avisa e a janela abre para você resol
 | `cortes-eb queue list`       | Mostra a fila de postagem                                            |
 | `cortes-eb queue retry <id>` | Tenta de novo um post que falhou                                     |
 | `cortes-eb queue run --live` | Roda a postagem no terminal                                          |
-| `cortes-eb service status`   | Mostra se a postagem automática está ligada (Linux)                  |
+| `cortes-eb service status`   | Mostra se a postagem automática está ligada (Linux e Mac)            |
 | `cortes-eb live <link>`      | Acompanha uma live pelo terminal, sem o painel                       |
 
 Todos aceitam `--help` para ver as opções.
 
 ## Problemas comuns
 
-| Mensagem ou sintoma                                 | O que fazer                                                                                       |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `cortes-eb` não é reconhecido                       | Feche e abra o terminal de novo. Se continuar, rode `npm run instalar` dentro da pasta do projeto |
-| "não consegui falar com o Ollama"                   | O Ollama está parado. Abra o app do Ollama (Windows) ou rode `systemctl start ollama` (Linux)     |
-| "modelo … não instalado"                            | Rode `cortes-eb setup`                                                                            |
-| "não achei o Google Chrome"                         | Instale o Google Chrome. Ele é usado para conectar as contas e postar pelo navegador              |
-| "saiu da sessão; reconecte no painel"               | A rede deslogou. Em Publicar, clique em **Conectar** de novo e feche a janela depois de entrar    |
-| "pediu uma verificação na conta"                    | Resolva a verificação na janela que o painel abre. A postagem continua depois                     |
-| "o serviço de postagem está desligado"              | Linux: `cortes-eb service install`. Windows: `cortes-eb queue run --live` num terminal aberto     |
-| "O perfil do Chrome está em uso"                    | Outra tarefa está usando a mesma conta. Aguarde terminar e tente de novo                          |
-| Post parado com "limite de 3 posts por dia"         | É o limite de segurança. Ele sai sozinho no dia seguinte                                          |
-| "Video unavailable" ou "esse link não está ao vivo" | O vídeo é privado, foi removido ou a live acabou. Confira o link no navegador                     |
-| Transcrição ou render muito lentos                  | Reinstale com `npm run instalar -- --whisper=base`, que usa um modelo mais leve                   |
-| YouTube pela API sai privado                        | É regra do Google até o app ser aprovado. Use o modo Navegador para sair público                  |
+| Mensagem ou sintoma                                    | O que fazer                                                                                                             |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `cortes-eb` não é reconhecido (ou `command not found`) | Feche e abra o terminal de novo. Se continuar, rode `npm run instalar` dentro da pasta do projeto                       |
+| "não consegui falar com o Ollama"                      | O Ollama está parado. Windows: abra o app do Ollama. Linux: `systemctl start ollama`. Mac: `brew services start ollama` |
+| "modelo … não instalado"                               | Rode `cortes-eb setup`                                                                                                  |
+| "não achei o Google Chrome"                            | Instale o Google Chrome. Ele é usado para conectar as contas e postar pelo navegador                                    |
+| "saiu da sessão; reconecte no painel"                  | A rede deslogou. Em Publicar, clique em **Conectar** de novo e feche a janela depois de entrar                          |
+| "pediu uma verificação na conta"                       | Resolva a verificação na janela que o painel abre. A postagem continua depois                                           |
+| "o serviço de postagem está desligado"                 | Linux e Mac: `cortes-eb service install`. Windows: `cortes-eb queue run --live` num terminal aberto                     |
+| "O perfil do Chrome está em uso"                       | Outra tarefa está usando a mesma conta. Aguarde terminar e tente de novo                                                |
+| Post parado com "limite de 3 posts por dia"            | É o limite de segurança. Ele sai sozinho no dia seguinte                                                                |
+| "Video unavailable" ou "esse link não está ao vivo"    | O vídeo é privado, foi removido ou a live acabou. Confira o link no navegador                                           |
+| Transcrição ou render muito lentos                     | Reinstale com `npm run instalar -- --whisper=base`, que usa um modelo mais leve                                         |
+| YouTube pela API sai privado                           | É regra do Google até o app ser aprovado. Use o modo Navegador para sair público                                        |
 
 Para atualizar, rode `git pull` e depois `npm run instalar` dentro da pasta do projeto. Se algo não funcionar, `cortes-eb doctor` mostra o que está faltando.
 
@@ -214,7 +263,7 @@ Parar e retomar mantém os totais de uma sessão incompleta no mesmo modo. Inici
 
 <br>
 
-Tudo fica na pasta `.cortes-eb` dentro do seu usuário (`~/.cortes-eb` no Linux, `%USERPROFILE%\.cortes-eb` no Windows). Para mudar o local, defina a variável `CORTES_EB_HOME`.
+Tudo fica na pasta `.cortes-eb` dentro do seu usuário (`~/.cortes-eb` no Linux e no Mac, `%USERPROFILE%\.cortes-eb` no Windows). Para mudar o local, defina a variável `CORTES_EB_HOME`.
 
 | Componente  | Como roda                                                                                               |
 | ----------- | ------------------------------------------------------------------------------------------------------- |

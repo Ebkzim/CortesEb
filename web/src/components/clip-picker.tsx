@@ -282,7 +282,7 @@ export function PublishDialog({
       toast(
         result.workerRunning
           ? base
-          : `${base} A postagem automática está desligada: rode cortes-eb service install.`,
+          : `${base} A postagem automática está desligada: rode ${status?.service.supported === false ? 'cortes-eb queue run --live' : 'cortes-eb service install'}.`,
       );
       onDone?.();
       onClose();
@@ -433,12 +433,18 @@ export function PublishDialog({
                     : ''}
                 </p>
 
-                {!status.worker.running && (
-                  <p className="publish__warning small">
-                    A postagem automática está desligada. Rode uma vez no terminal:{' '}
-                    <code>cortes-eb service install</code>
-                  </p>
-                )}
+                {!status.worker.running &&
+                  (status.service.supported ? (
+                    <p className="publish__warning small">
+                      A postagem automática está desligada. Rode uma vez no terminal:{' '}
+                      <code>cortes-eb service install</code>
+                    </p>
+                  ) : (
+                    <p className="publish__warning small">
+                      A postagem automática está desligada. Deixe um terminal aberto com:{' '}
+                      <code>cortes-eb queue run --live</code>
+                    </p>
+                  ))}
 
                 <Button
                   disabled={!ready || sending}

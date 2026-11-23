@@ -32,7 +32,9 @@ export class DeskClient {
     if (endpoint === null) {
       throw new AppError(
         'NOT_CONFIGURED',
-        'o serviço de postagem está desligado; rode cortes-eb service install',
+        process.platform === 'win32'
+          ? 'o serviço de postagem está desligado; deixe um terminal aberto com cortes-eb queue run --live'
+          : 'o serviço de postagem está desligado; rode cortes-eb service install',
       );
     }
     let response: Response;

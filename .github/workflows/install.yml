@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2025]
+        os: [ubuntu-24.04, windows-2025, macos-15]
         node: [22, 24]
     env:
       CORTES_EB_HOME: ${{ github.workspace }}/../cortes-eb-home
