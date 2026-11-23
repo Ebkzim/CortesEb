@@ -9,6 +9,41 @@
   --faint: #ababab;
   --line: #e4e4e3;
   --line-strong: #d0d0cf;
+  --line-hover: #b9b9b5;
+  --raised: #ffffff;
+  --on-ink: #ffffff;
+  --on-ink-soft: rgb(255 255 255 / 0.72);
+  --on-ink-line: rgb(255 255 255 / 0.2);
+  --on-ink-line-strong: rgb(255 255 255 / 0.45);
+  --ink-hover: #3a3a3a;
+  --hover: #eaeae8;
+  --hover-strong: #e3e3e1;
+  --subtle: #f8f8f7;
+  --skeleton: #f7f7f6;
+  --topbar: rgb(245 245 244 / 0.82);
+  --glass: rgb(255 255 255 / 0.92);
+  --selection: #555555;
+  --focus-ring: rgb(0 0 0 / 0.05);
+  --ripple: rgb(0 0 0 / 0.12);
+  --ripple-on-ink: rgb(255 255 255 / 0.35);
+  --spinner-track: rgb(0 0 0 / 0.12);
+  --shine: rgb(255 255 255 / 0.6);
+  --scrollbar: #d0d0ca;
+  --backdrop: rgb(20 20 20 / 0.3);
+  --dialog-shadow: rgb(0 0 0 / 0.14);
+  --code: #121212;
+  --media: #0d0d0d;
+  --media-edge: transparent;
+  --success: #39734f;
+  --success-dot: #4b8259;
+  --success-halo: rgb(75 130 89 / 0.07);
+  --success-bg: #f1f7f2;
+  --success-line: #dce9df;
+  --warning: #98602e;
+  --warning-dot: #ac783c;
+  --warning-bg: #fcf6ed;
+  --warning-line: #ead9c4;
+  --danger: #b42318;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-swift: cubic-bezier(0.76, 0, 0.24, 1);
   --radius: 16px;
@@ -20,6 +55,62 @@
   color: var(--ink);
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #0c0c0c;
+  --surface: #151515;
+  --sunken: #1c1c1c;
+  --ink: #ededec;
+  --ink-soft: #cfcfcd;
+  --muted: #8c8c89;
+  --faint: #5e5e5c;
+  --line: #242424;
+  --line-strong: #333333;
+  --line-hover: #4a4a4a;
+  --raised: #242424;
+  --on-ink: #121212;
+  --on-ink-soft: rgb(18 18 18 / 0.68);
+  --on-ink-line: rgb(18 18 18 / 0.18);
+  --on-ink-line-strong: rgb(18 18 18 / 0.4);
+  --ink-hover: #d2d2d0;
+  --hover: #1f1f1f;
+  --hover-strong: #262626;
+  --subtle: #191919;
+  --skeleton: #242424;
+  --topbar: rgb(12 12 12 / 0.8);
+  --glass: rgb(21 21 21 / 0.92);
+  --selection: #4a4a4a;
+  --focus-ring: rgb(255 255 255 / 0.07);
+  --ripple: rgb(255 255 255 / 0.12);
+  --ripple-on-ink: rgb(0 0 0 / 0.22);
+  --spinner-track: rgb(255 255 255 / 0.14);
+  --shine: rgb(255 255 255 / 0.7);
+  --scrollbar: #3a3a3a;
+  --backdrop: rgb(0 0 0 / 0.62);
+  --dialog-shadow: rgb(0 0 0 / 0.6);
+  --code: #0a0a0a;
+  --media: #050505;
+  --media-edge: #242424;
+  --success: #86c299;
+  --success-dot: #6aa97c;
+  --success-halo: rgb(106 169 124 / 0.14);
+  --success-bg: #132018;
+  --success-line: #223a2a;
+  --warning: #dcab74;
+  --warning-dot: #c98f4d;
+  --warning-bg: #22190f;
+  --warning-line: #3d2d1b;
+  --danger: #f27b72;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 30px -18px rgb(0 0 0 / 0.7);
+  --shadow-lift: 0 2px 6px rgb(0 0 0 / 0.45), 0 26px 50px -24px rgb(0 0 0 / 0.85);
+}
+
+:root[data-theme-switching] *,
+:root[data-theme-switching] *::before,
+:root[data-theme-switching] *::after {
+  transition: none !important;
 }
 
 * {
@@ -71,7 +162,7 @@ p {
 
 ::selection {
   color: #fff;
-  background: #555;
+  background: var(--selection);
 }
 
 :focus-visible {
@@ -95,7 +186,7 @@ svg {
   top: 0;
   z-index: 30;
   backdrop-filter: saturate(140%) blur(16px);
-  background: rgb(245 245 244 / 0.82);
+  background: var(--topbar);
   border-bottom: 1px solid var(--line);
 }
 
@@ -158,7 +249,7 @@ svg {
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  background: var(--surface);
+  background: var(--raised);
   box-shadow: var(--shadow);
   z-index: -1;
 }
@@ -311,15 +402,15 @@ svg {
 
 .btn--dark {
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
 }
 
 .btn--dark .btn__fill {
-  background: #3a3a3a;
+  background: var(--ink-hover);
 }
 
 .btn--dark .btn__ripple {
-  background: rgb(255 255 255 / 0.35);
+  background: var(--ripple-on-ink);
 }
 
 .btn--light {
@@ -334,11 +425,11 @@ svg {
 }
 
 .btn--light:hover {
-  color: #fff;
+  color: var(--on-ink);
 }
 
 .btn--light .btn__ripple {
-  background: rgb(0 0 0 / 0.18);
+  background: var(--ripple-on-ink);
 }
 
 .btn--ghost {
@@ -352,7 +443,7 @@ svg {
 }
 
 .btn--ghost .btn__ripple {
-  background: rgb(0 0 0 / 0.12);
+  background: var(--ripple);
 }
 
 .btn--small {
@@ -423,7 +514,7 @@ svg {
   display: grid;
   place-items: center;
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
 }
 
 .choice__title {
@@ -485,7 +576,7 @@ svg {
 .input:focus {
   outline: none;
   border-color: var(--ink);
-  box-shadow: 0 0 0 4px rgb(0 0 0 / 0.05);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 .input--error {
@@ -534,7 +625,7 @@ select.input {
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  background: var(--surface);
+  background: var(--raised);
   box-shadow: var(--shadow);
   z-index: -1;
 }
@@ -558,7 +649,7 @@ select.input {
 
 .chip--dark {
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
   border-color: var(--ink);
 }
 
@@ -581,7 +672,7 @@ select.input {
 .bar__shine {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.6), transparent);
+  background: linear-gradient(90deg, transparent, var(--shine), transparent);
   animation: shine 1.8s linear infinite;
 }
 
@@ -630,7 +721,7 @@ select.input {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid rgb(0 0 0 / 0.12);
+  border: 2px solid var(--spinner-track);
   border-top-color: var(--ink);
   animation: spin 0.8s linear infinite;
 }
@@ -717,7 +808,7 @@ select.input {
   padding: 14px 18px;
   border-radius: 14px;
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
   font-size: 13px;
   line-height: 1.45;
   box-shadow: var(--shadow-lift);
@@ -731,7 +822,7 @@ select.input {
   word-break: break-word;
   padding: 18px;
   border-radius: 14px;
-  background: #121212;
+  background: var(--code);
   color: #e6e6e6;
   max-height: 340px;
   overflow: auto;
@@ -963,7 +1054,7 @@ select.input {
   z-index: 100;
   display: grid;
   place-items: center;
-  background: var(--ink);
+  background: #141414;
   color: #fff;
 }
 .app-splash__content {

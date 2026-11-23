@@ -15,6 +15,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ensureSession, SESSION_EXPIRED_EVENT } from '@/lib/api';
 import { useJobEvents } from '@/lib/events';
+import { useThemeSync } from '@/lib/theme';
 import { DeskWatcher } from './desk-watcher';
 import { ToastProvider, useToast } from './toast';
 import { Button } from './ui';
@@ -32,6 +33,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useThemeSync();
 
   function reconnect(): void {
     setReady(false);

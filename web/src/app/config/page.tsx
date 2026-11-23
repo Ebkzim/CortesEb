@@ -2,14 +2,15 @@
 
 import { PageLoading } from '@/components/page-loading';
 
-import { Cpu, Database, KeyRound, Send, Trash2, UserRound, Waves } from 'lucide-react';
+import { Cpu, Database, KeyRound, Palette, Send, Trash2, UserRound, Waves } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { KeyForm } from '@/components/key-form';
 import { useToast } from '@/components/toast';
 import { Accounts } from '@/components/accounts';
-import { Button } from '@/components/ui';
+import { Button, Segmented } from '@/components/ui';
 import { api, patch, post, remove } from '@/lib/api';
+import { useTheme, type ThemeChoice } from '@/lib/theme';
 import type { ApiKeyView, PublishingSettings } from '@/lib/types';
 
 interface Settings {
@@ -49,6 +50,7 @@ const SECTIONS = [
   { id: 'transcription', label: 'Transcrição', icon: Waves },
   { id: 'accounts', label: 'Contas', icon: UserRound },
   { id: 'publishing', label: 'Postagem', icon: Send },
+  { id: 'appearance', label: 'Aparência', icon: Palette },
   { id: 'system', label: 'Sistema', icon: Database },
 ] as const;
 
@@ -87,6 +89,7 @@ export default function SettingsPage() {
         {section === 'transcription' && <Transcription />}
         {section === 'accounts' && <Accounts />}
         {section === 'publishing' && <Publishing />}
+        {section === 'appearance' && <Appearance />}
         {section === 'system' && <System />}
       </div>
     </div>
@@ -503,6 +506,23 @@ function Publishing() {
       )}
       <Row title="TikTok" text="Sempre pelo navegador.">
         <span className="muted small">Navegador</span>
+      </Row>
+    </Section>
+  );
+}
+
+const THEME_OPTIONS: { value: ThemeChoice; label: string }[] = [
+  { value: 'light', label: 'Claro' },
+  { value: 'dark', label: 'Escuro' },
+  { value: 'system', label: 'Sistema' },
+];
+
+function Appearance() {
+  const [theme, setTheme] = useTheme();
+  return (
+    <Section title="Aparência" text="Escolha como o painel aparece neste navegador.">
+      <Row title="Tema" text="Sistema segue o modo claro ou escuro do seu computador.">
+        <Segmented id="theme" value={theme} options={THEME_OPTIONS} onChange={setTheme} />
       </Row>
     </Section>
   );
