@@ -10,7 +10,7 @@ Transforma vídeos longos e lives em cortes.
 
 </div>
 
-https://github.com/user-attachments/assets/a58886c1-98b8-42c6-a36a-160225bd34a0
+https://github.com/user-attachments/assets/2fea3f96-0a09-4c30-9f9a-bc63f2bbf508
 
 ---
 
