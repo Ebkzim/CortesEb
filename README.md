@@ -10,6 +10,8 @@ Transforma vídeos longos e lives em cortes.
 
 </div>
 
+<video src="https://github.com/user-attachments/assets/a58886c1-98b8-42c6-a36a-160225bd34a0" controls width="100%"></video>
+
 ---
 
 ## O que ele entrega
@@ -227,10 +229,6 @@ Tudo fica na pasta `.cortes-eb` dentro do seu usuário (`~/.cortes-eb` no Linux,
 Nada sai da sua máquina, a não ser que você escolha uma IA externa (chave de API, Claude Code ou Codex).
 
 </details>
-
-## Demonstração
-
-https://github.com/user-attachments/assets/a58886c1-98b8-42c6-a36a-160225bd34a0
 
 ---
 
