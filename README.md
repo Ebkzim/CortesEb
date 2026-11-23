@@ -168,7 +168,7 @@ Nada sai da sua máquina, a não ser que você escolha uma IA externa (chave de 
 
 ## Demonstração
 
-https://github.com/user-attachments/assets/7a3033e2-b707-4dd7-9e78-a71ff8739659
+https://github.com/user-attachments/assets/a58886c1-98b8-42c6-a36a-160225bd34a0
 
 ---
 
