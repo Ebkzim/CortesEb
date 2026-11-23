@@ -10,6 +10,8 @@ Transforma vídeos longos e lives em cortes.
 
 </div>
 
+https://github.com/user-attachments/assets/2fea3f96-0a09-4c30-9f9a-bc63f2bbf508
+
 ---
 
 ## O que ele entrega
@@ -107,6 +109,74 @@ cortes-eb ui
 
 O painel abre no navegador. Nas próximas vezes, basta abrir o terminal e rodar `cortes-eb ui`.
 
+## Como usar
+
+**Novo corte.** Clique em **Novo corte**, escolha o tipo (gameplay, react, podcast, filme ou série) e quantos cortes quer. Cole o link ou envie o arquivo, escolha a IA e dê um nome. Na tela da tarefa, marque onde está o rosto quando ela pedir. O resto segue sozinho: transcrição, escolha dos trechos e render.
+
+**Corte de live.** No mesmo assistente, escolha **Live agora** e cole o link da live. Os cortes saem enquanto a live acontece, a partir dos picos de volume e do chat (na Twitch).
+
+**Fila.** Em **Fila**, adicione vários vídeos e escolha a conta de cada um. Eles são processados em sequência, e cada um pede a marcação do rosto uma vez.
+
+**Meus clipes.** Todos os cortes prontos ficam em **Meus clipes**, separados por dia. Selecione vários para baixar ou publicar de uma vez.
+
+## Postagem
+
+**1. Escolha como cada rede recebe os clipes.** Em **Contas → Postagem**:
+
+| Modo            | Como funciona                                                                                             |
+| --------------- | --------------------------------------------------------------------------------------------------------- |
+| **Navegador**   | Você entra na conta uma vez numa janela do Chrome. Funciona no TikTok, Instagram e YouTube                |
+| **API oficial** | Instagram pelo token do app da Meta e YouTube pela API do Google (sai privado até o Google aprovar o app) |
+
+**2. Conecte a conta.** No modo Navegador, clique em **Conectar** na rede. Uma janela do Chrome abre: entre na conta e **feche a janela ao terminar**. É ao fechar que o painel confere e guarda a sessão.
+
+**3. Publique.** Em **Meus clipes**, selecione os cortes e clique em publicar. Escolha as redes e **Postar agora** ou **Agendar** com data e hora. O texto e as hashtags que a IA escreveu vão junto.
+
+Cada conta posta no máximo 3 vídeos por dia em cada rede, com pelo menos 30 minutos entre eles. Vários clipes de uma vez saem espaçados automaticamente.
+
+**4. Deixe a postagem ligada.** As postagens são feitas por um serviço em segundo plano:
+
+- **Linux:** rode uma vez `cortes-eb service install`. Ele liga sozinho junto com o computador.
+- **Windows:** deixe um terminal aberto com `cortes-eb queue run --live`.
+
+Se uma rede pedir verificação, o painel avisa e a janela abre para você resolver.
+
+## Comandos
+
+| Comando                      | O que faz                                                            |
+| ---------------------------- | -------------------------------------------------------------------- |
+| `cortes-eb ui`               | Abre o painel (`--port` muda a porta, padrão 4317)                   |
+| `cortes-eb doctor`           | Confere o que está instalado e o que falta                           |
+| `cortes-eb setup`            | Reinstala o whisper, o modelo de transcrição e o navegador do render |
+| `cortes-eb account list`     | Lista as contas (`add`, `remove` e `default` também existem)         |
+| `cortes-eb llm test`         | Testa a IA que escolhe os cortes                                     |
+| `cortes-eb queue list`       | Mostra a fila de postagem                                            |
+| `cortes-eb queue retry <id>` | Tenta de novo um post que falhou                                     |
+| `cortes-eb queue run --live` | Roda a postagem no terminal                                          |
+| `cortes-eb service status`   | Mostra se a postagem automática está ligada (Linux)                  |
+| `cortes-eb live <link>`      | Acompanha uma live pelo terminal, sem o painel                       |
+
+Todos aceitam `--help` para ver as opções.
+
+## Problemas comuns
+
+| Mensagem ou sintoma                                 | O que fazer                                                                                       |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `cortes-eb` não é reconhecido                       | Feche e abra o terminal de novo. Se continuar, rode `npm run instalar` dentro da pasta do projeto |
+| "não consegui falar com o Ollama"                   | O Ollama está parado. Abra o app do Ollama (Windows) ou rode `systemctl start ollama` (Linux)     |
+| "modelo … não instalado"                            | Rode `cortes-eb setup`                                                                            |
+| "não achei o Google Chrome"                         | Instale o Google Chrome. Ele é usado para conectar as contas e postar pelo navegador              |
+| "saiu da sessão; reconecte no painel"               | A rede deslogou. Em Publicar, clique em **Conectar** de novo e feche a janela depois de entrar    |
+| "pediu uma verificação na conta"                    | Resolva a verificação na janela que o painel abre. A postagem continua depois                     |
+| "o serviço de postagem está desligado"              | Linux: `cortes-eb service install`. Windows: `cortes-eb queue run --live` num terminal aberto     |
+| "O perfil do Chrome está em uso"                    | Outra tarefa está usando a mesma conta. Aguarde terminar e tente de novo                          |
+| Post parado com "limite de 3 posts por dia"         | É o limite de segurança. Ele sai sozinho no dia seguinte                                          |
+| "Video unavailable" ou "esse link não está ao vivo" | O vídeo é privado, foi removido ou a live acabou. Confira o link no navegador                     |
+| Transcrição ou render muito lentos                  | Reinstale com `npm run instalar -- --whisper=base`, que usa um modelo mais leve                   |
+| YouTube pela API sai privado                        | É regra do Google até o app ser aprovado. Use o modo Navegador para sair público                  |
+
+Para atualizar, rode `git pull` e depois `npm run instalar` dentro da pasta do projeto. Se algo não funcionar, `cortes-eb doctor` mostra o que está faltando.
+
 ## Contas e aquecimento
 
 Na aba **Contas**, cadastre os perfis e conecte TikTok, Instagram e YouTube pelo Chrome. O login fica salvo separadamente para cada conta e rede. As mesmas contas continuam acessíveis em Configurações.
@@ -139,12 +209,6 @@ O cronômetro de seguidores é independente do aquecimento. Um novo intervalo é
 
 Parar e retomar mantém os totais de uma sessão incompleta no mesmo modo. Iniciar após a conclusão ou trocar de modo inicia uma nova contagem. O histórico de tentativas permanece: uma ação sem confirmação não é repetida automaticamente no mesmo perfil e modo, nem é somada à meta. Ao reiniciar o serviço, as sessões ficam paradas. Verificações usam a mesma resolução manual do aquecimento.
 
-## Dicas
-
-- Em computadores mais fracos, instale com `npm run instalar -- --whisper=base` para deixar a transcrição mais leve.
-- Para atualizar, rode `git pull` e depois `npm run instalar` dentro da pasta do projeto.
-- Se algo não funcionar, rode `cortes-eb doctor` para ver o que está faltando.
-
 <details>
 <summary><b>Detalhes técnicos</b></summary>
 
@@ -165,10 +229,6 @@ Tudo fica na pasta `.cortes-eb` dentro do seu usuário (`~/.cortes-eb` no Linux,
 Nada sai da sua máquina, a não ser que você escolha uma IA externa (chave de API, Claude Code ou Codex).
 
 </details>
-
-## Demonstração
-
-https://github.com/user-attachments/assets/a58886c1-98b8-42c6-a36a-160225bd34a0
 
 ---
 
